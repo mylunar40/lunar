@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const LunarApp());
@@ -10,47 +9,91 @@ class LunarApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: MainScreen(),
+      title: 'Lunar',
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0F0F1A),
+      ),
+      home: const HomeScreen(),
     );
   }
 }
 
-class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
-
-  @override
-  State<MainScreen> createState() => _MainScreenState();
-}
-
-class _MainScreenState extends State<MainScreen> {
-  int currentIndex = 0;
-
-  final screens = [
-    const HomeScreen(),
-    const JournalScreen(),
-  ];
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: screens[currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: currentIndex,
-        onTap: (index) {
-          setState(() {
-            currentIndex = index;
-          });
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: "Home",
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          "LUNAR",
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.book),
-            label: "Journal",
+        ),
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          const SizedBox(height: 40),
+
+          // 🌙 Moon Circle
+          Center(
+            child: Container(
+              height: 160,
+              width: 160,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    Colors.purpleAccent.withOpacity(0.8),
+                    Colors.deepPurple.shade900,
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.purpleAccent.withOpacity(0.6),
+                    blurRadius: 40,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: const Center(
+                child: Text(
+                  "🌙",
+                  style: TextStyle(fontSize: 50),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 40),
+
+          const Text(
+            "How are you feeling today?",
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.white70,
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
+          // Mood Buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: const [
+              MoodButton(emoji: "😊"),
+              MoodButton(emoji: "😔"),
+              MoodButton(emoji: "😡"),
+              MoodButton(emoji: "🥰"),
+            ],
           ),
         ],
       ),
@@ -58,160 +101,27 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class MoodButton extends StatelessWidget {
+  final String emoji;
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  int days = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    loadDate();
-  }
-
-  class _HomeScreenState extends State<HomeScreen> {
-
-  int days = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    loadDate();
-  }
-
-  // 👇 YAHI paste karna hai
-  Future<void> loadDate() async {
-      ...
-  }
-    final prefs = await SharedPreferences.getInstance();
-    String? savedDate = prefs.getString("start_date");
-
-    if (savedDate != null) {
-      DateTime startDate = DateTime.parse(savedDate);
-      setState(() {
-        days = DateTime.now().difference(startDate).inDays;
-      });
-    }
-  }
-
-  Future<void> startHealing() async {
-    final prefs = await SharedPreferences.getInstance();
-    DateTime now = DateTime.now();
-    await prefs.setString("start_date", now.toIso8601String());
-    setState(() {
-      days = 0;
-    });
-  }
+  const MoodButton({super.key, required this.emoji});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text("No Contact Days",
-                style: TextStyle(fontSize: 22)),
-            const SizedBox(height: 10),
-            Text("$days",
-                style: const TextStyle(
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold)),const SizedBox(height: 20),
-
-LinearProgressIndicator(
-  value: days / 30 > 1 ? 1 : days / 30,
-  minHeight: 8,
-),
-Column(
-  children: [
-    if (days >= 7)
-      const Text("🏅 7 Day Streak Unlocked!",
-          style: TextStyle(color: Colors.white)),
-
-    if (days >= 15)
-      const Text("🥈 15 Day Warrior!",
-          style: TextStyle(color: Colors.white)),
-
-    if (days >= 30)
-      const Text("🥇 30 Day Champion!",
-          style: TextStyle(color: Colors.white))
-  ],
-),
-
-const SizedBox(height: 20),
-const SizedBox(height: 10),
-
-
-            const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: startHealing,
-              child: const Text("Start Healing"),
-            )
-          ],
+    return Container(
+      height: 60,
+      width: 60,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E2C),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Center(
+        child: Text(
+          emoji,
+          style: const TextStyle(fontSize: 28),
         ),
       ),
     );
   }
 }
 
-class JournalScreen extends StatefulWidget {
-  const JournalScreen({super.key});
-
-  @override
-  State<JournalScreen> createState() => _JournalScreenState();
-}
-
-class _JournalScreenState extends State<JournalScreen> {
-  final TextEditingController controller = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    loadNote();
-  }
-
-  Future<void> loadNote() async {
-    final prefs = await SharedPreferences.getInstance();
-    controller.text = prefs.getString("journal_note") ?? "";
-  }
-
-  Future<void> saveNote() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("journal_note", controller.text);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Note Saved")),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Journal")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: controller,
-              maxLines: 6,
-              decoration: const InputDecoration(
-                hintText: "Write your thoughts...",
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: saveNote,
-              child: const Text("Save Note"),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-}
