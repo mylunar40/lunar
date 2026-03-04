@@ -124,4 +124,3 @@ class MoodButton extends StatelessWidget {
     );
   }
 }
-
