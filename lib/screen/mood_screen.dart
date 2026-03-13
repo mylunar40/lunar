@@ -1,6 +1,15 @@
 import 'package:flutter/material.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 class MoodScreen extends StatefulWidget {
+  Future<void> saveMood(int mood) async {
+  final prefs = await SharedPreferences.getInstance();
+
+  List<String> moods = prefs.getStringList('mood_history') ?? [];
+
+  moods.add(mood.toString());
+
+  await prefs.setStringList('mood_history', moods);
+}
   const MoodScreen({super.key});
 
   @override
@@ -8,6 +17,18 @@ class MoodScreen extends StatefulWidget {
 }
 
 class _MoodScreenState extends State<MoodScreen> {
+
+Future<void> saveMood(int mood) async {
+
+  final prefs = await SharedPreferences.getInstance();
+
+  List<String> moods = prefs.getStringList('mood_history') ?? [];
+
+  moods.add(mood.toString());
+
+  await prefs.setStringList('mood_history', moods);
+  
+}
   String? _selectedMood;
   String getMoodMessage() {
     switch (_selectedMood) {
