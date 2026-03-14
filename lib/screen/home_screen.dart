@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'mood_screen.dart';
 import 'mood_analytics_screen.dart';
 import 'journal_screen.dart';
@@ -8,6 +9,7 @@ import 'period_screen.dart';
 import 'profile_screen.dart';
 import 'health_screen.dart';
 import 'ai_voice_screen.dart';
+import 'package:lunar/screen/home_dashboard.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -61,7 +63,8 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            /// AI support message
+            /// AI MESSAGE
+
             Container(
               padding: const EdgeInsets.all(16),
               margin: const EdgeInsets.only(bottom: 20),
@@ -86,7 +89,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
             /// PROFILE ROW
 
-            /// PROFILE ROW
             Row(
               children: const [
                 CircleAvatar(radius: 20),
@@ -104,10 +106,11 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
 
             /// SEARCH BAR
+
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.grey[900],
+                color: Colors.grey,
                 borderRadius: BorderRadius.circular(15),
               ),
               child: const TextField(
@@ -120,7 +123,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 20),
 
-            /// BIG CARD
+            /// MOOD ANALYTICS CARD
+
             GestureDetector(
               onTap: () {
                 Navigator.push(
@@ -135,14 +139,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: double.infinity,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Colors.purple, Colors.blue],
+                    colors: [
+                      Colors.purple,
+                      Colors.blue,
+                    ],
                   ),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Center(
                   child: Text(
                     "Mood Analytics",
-                    style: TextStyle(fontSize: 20),
+                    style: TextStyle(
+                      fontSize: 20,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -150,7 +160,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 20),
 
-            /// SMALL CARDS
+            /// GRID CARDS
+
             Expanded(
               child: GridView.count(
                 crossAxisCount: 2,
@@ -201,22 +212,24 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-            )
+            ),
           ],
         ),
       ),
 
-      /// BOTTOM BAR
+      /// BOTTOM NAVIGATION
+
       bottomNavigationBar: BottomNavigationBar(
         onTap: (index) {
-          if (index == 2) {
+          if (index == 0) {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => AiVoiceScreen(),
+                builder: (context) => const HomeDashboard(),
               ),
             );
           }
+
           if (index == 1) {
             Navigator.push(
               context,
@@ -225,17 +238,36 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             );
           }
+
+          if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AiVoiceScreen(),
+              ),
+            );
+          }
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: "Health"),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: "AI"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: "Home",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.favorite),
+            label: "Health",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat),
+            label: "AI",
+          ),
         ],
       ),
-    ); // end Scaffold
-  } // end build
+    );
+  }
 
-  /// CARD WIDGET
+  /// DASHBOARD CARD
+
   Widget dashboardCard(String title) {
     return Card(
       color: Colors.grey[900],
@@ -243,7 +275,10 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(15),
       ),
       child: Center(
-        child: Text(title),
+        child: Text(
+          title,
+          style: const TextStyle(color: Colors.white),
+        ),
       ),
     );
   }
