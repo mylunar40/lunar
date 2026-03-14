@@ -1,7 +1,6 @@
- import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 class AiVoiceScreen extends StatefulWidget {
   const AiVoiceScreen({super.key});
@@ -11,153 +10,151 @@ class AiVoiceScreen extends StatefulWidget {
 }
 
 class _AiVoiceScreenState extends State<AiVoiceScreen> {
+  final TextEditingController messageController = TextEditingController();
 
-  TextEditingController messageController = TextEditingController();
+  List<Map<String, dynamic>> messages = [];
 
-  stt.SpeechToText speech = stt.SpeechToText();
-  bool isListening = false;
+  /// SEND TEXT MESSAGE
+  void sendMessage() {
+    String text = messageController.text.trim();
 
-  List<Map<String, String>> messages = [];
-
-  String status = "Hello, I am Lunar AI. How can I help you?";
-
-  void startListening() async {
-
-    bool available = await speech.initialize();
-
-    if (available) {
-      setState(() {
-        isListening = true;
-      });
-
-      speech.listen(
-        onResult: (result) {
-          setState(() {
-            messageController.text = result.recognizedWords;
-          });
-        },
-      );
-    }
-  }
-
-  Future<String> askAI(String message) async {
-
-    final response = await http.post(
-      Uri.parse("https://api.openai.com/v1/chat/completions"),
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer YOUR_OPENAI_API_KEY"
-      },
-      body: jsonEncode({
-        "model": "gpt-4o-mini",
-        "messages": [
-          {"role": "user", "content": message}
-        ]
-      }),
-    );
-
-    final data = jsonDecode(response.body);
-
-    return data["choices"][0]["message"]["content"];
-  }
-
-  void sendMessage() async {
-
-    String userMessage = messageController.text;
-
-    if (userMessage.isEmpty) return;
+    if (text.isEmpty) return;
 
     setState(() {
-      messages.add({"role": "user", "text": userMessage});
-      status = "Thinking...";
+      messages.add({
+        "text": text,
+        "isUser": true,
+      });
     });
 
     messageController.clear();
 
-    String reply = await askAI(userMessage);
-
-    setState(() {
-      messages.add({"role": "ai", "text": reply});
-      status = reply;
+    /// Fake AI reply
+    Future.delayed(const Duration(milliseconds: 500), () {
+      setState(() {
+        messages.add({
+          "text": "I understand. Tell me more about how you feel.",
+          "isUser": false,
+        });
+      });
     });
+  }
+
+  /// IMAGE PICKER
+  Future pickImage() async {
+    final ImagePicker picker = ImagePicker();
+
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+    if (image != null) {
+      setState(() {
+        messages.add({
+          "image": image.path,
+          "isUser": true,
+        });
+      });
+    }
+  }
+
+  /// DELETE CHAT
+  void deleteChat() {
+    setState(() {
+      messages.clear();
+    });
+  }
+
+  /// SAVE CHAT (demo)
+  void saveChat() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Chat Saved")),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-
       appBar: AppBar(
         title: const Text("Lunar Voice AI"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: saveChat,
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: deleteChat,
+          ),
+        ],
       ),
-
       body: Column(
         children: [
-
+          /// CHAT AREA
           Expanded(
             child: ListView.builder(
+              padding: const EdgeInsets.all(10),
               itemCount: messages.length,
               itemBuilder: (context, index) {
+                bool isUser = messages[index]["isUser"] ?? false;
 
-                bool isUser = messages[index]["role"] == "user";
-
-                return Container(
+                return Align(
                   alignment:
                       isUser ? Alignment.centerRight : Alignment.centerLeft,
-
-                  padding: const EdgeInsets.all(10),
-
                   child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
                     padding: const EdgeInsets.all(12),
-
                     decoration: BoxDecoration(
-                      color: isUser
-                          ? Colors.purple
-                          : Colors.grey.shade300,
-
-                      borderRadius: BorderRadius.circular(12),
+                      color: isUser ? Colors.purple : Colors.grey[800],
+                      borderRadius: BorderRadius.circular(15),
                     ),
-
-                    child: Text(
-                      messages[index]["text"] ?? "",
-                      style: TextStyle(
-                        color:
-                            isUser ? Colors.white : Colors.black,
-                      ),
-                    ),
+                    child: messages[index]["image"] != null
+                        ? Image.file(
+                            File(messages[index]["image"]),
+                            width: 180,
+                          )
+                        : Text(
+                            messages[index]["text"] ?? "",
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 );
               },
             ),
           ),
 
+          /// INPUT AREA
           Container(
-            padding: const EdgeInsets.all(10),
-
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Row(
               children: [
+                /// IMAGE BUTTON
+                IconButton(
+                  icon: const Icon(Icons.add, size: 30),
+                  onPressed: pickImage,
+                ),
 
+                /// TEXT FIELD
                 Expanded(
                   child: TextField(
                     controller: messageController,
-
                     decoration: const InputDecoration(
                       hintText: "Ask Lunar AI...",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(
-                          Radius.circular(20),
-                        ),
-                      ),
+                      border: OutlineInputBorder(),
                     ),
                   ),
                 ),
 
-                const SizedBox(width: 10),
-
+                /// MIC BUTTON (structure ready)
                 IconButton(
                   icon: const Icon(Icons.mic),
-                  onPressed: startListening,
+                  onPressed: () {
+                    print("Mic pressed");
+                  },
                 ),
+
+                /// SEND BUTTON
                 IconButton(
                   icon: const Icon(Icons.send),
                   onPressed: sendMessage,

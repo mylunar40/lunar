@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 class AiChatScreen extends StatefulWidget {
   const AiChatScreen({super.key});
@@ -13,6 +15,21 @@ class _AiChatScreenState extends State<AiChatScreen> {
   List<Map<String, dynamic>> messages = [];
 
   void sendMessage() {
+    Future pickImage() async {
+      final ImagePicker picker = ImagePicker();
+
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+      );
+
+      if (image != null) {
+        setState(() {
+          print('Image selected');
+          messages.add({"role": "user", "message": "📷 Image selected"});
+        });
+      }
+    }
+
     String text = messageController.text.trim();
 
     if (text.isEmpty) return;
@@ -75,6 +92,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Row(
               children: [
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: sendMessage,
+                ),
                 Expanded(
                   child: TextField(
                     controller: messageController,
@@ -83,10 +104,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     ),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.send),
-                  onPressed: sendMessage,
-                ),
+                IconButton(icon: const Icon(Icons.send), onPressed: sendMessage)
               ],
             ),
           ),

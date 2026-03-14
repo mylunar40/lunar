@@ -8,6 +8,7 @@ import 'period_screen.dart';
 import 'profile_screen.dart';
 import 'health_screen.dart';
 import 'ai_voice_screen.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -18,42 +19,43 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String todayMood = "No mood yet";
 
-Future<void> loadTodayMood() async {
-  final prefs = await SharedPreferences.getInstance();
+  Future<void> loadTodayMood() async {
+    final prefs = await SharedPreferences.getInstance();
 
-  List<String> moods = prefs.getStringList('mood_history') ?? [];
+    List<String> moods = prefs.getStringList('mood_history') ?? [];
 
-  if (moods.isNotEmpty) {
-    setState(() {
-      todayMood = moods.last;
-    });
+    if (moods.isNotEmpty) {
+      setState(() {
+        todayMood = moods.last;
+      });
+    }
   }
-}
 
-@override
-void initState() {
-  super.initState();
-  loadTodayMood();
-}
+  @override
+  void initState() {
+    super.initState();
+    loadTodayMood();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-  title: const Text("Lunar"),
-  actions: [
-    IconButton(
-      icon: const Icon(Icons.person),
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const ProfileScreen(),
+        title: const Text("Lunar"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ProfileScreen(),
+                ),
+              );
+            },
           ),
-        );
-      },
-    ),
-  ],
-),
+        ],
+      ),
 
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -180,7 +182,7 @@ void initState() {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const AiChatScreen(),
+                          builder: (context) => AiChatScreen(),
                         ),
                       );
                     },
@@ -191,7 +193,7 @@ void initState() {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const PeriodScreen(),
+                          builder: (context) => PeriodScreen(),
                         ),
                       );
                     },
@@ -206,40 +208,30 @@ void initState() {
 
       /// BOTTOM BAR
       bottomNavigationBar: BottomNavigationBar(
-
-  onTap: (index) {
-if (index == 2) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const AiVoiceScreen(),
-    ),
-  );
-}
-    if (index == 1) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const HealthScreen(),
-        ),
-      );
-    }
-
-  },
-
-  items: const [
-
-    BottomNavigationBarItem(
-        icon: Icon(Icons.home), label: "Home"),
-
-    BottomNavigationBarItem(
-        icon: Icon(Icons.favorite), label: "Health"),
-
-    BottomNavigationBarItem(
-        icon: Icon(Icons.chat), label: "AI"),
-
-  ],
-),
+        onTap: (index) {
+          if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AiVoiceScreen(),
+              ),
+            );
+          }
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const HealthScreen(),
+              ),
+            );
+          }
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: "Health"),
+          BottomNavigationBarItem(icon: Icon(Icons.chat), label: "AI"),
+        ],
+      ),
     ); // end Scaffold
   } // end build
 
