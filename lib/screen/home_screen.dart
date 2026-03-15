@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:lunar/screen/pregnancy_screen.dart';
+import 'package:lunar/screen/cycle_tracker_screen.dart';
 import 'mood_screen.dart';
 import 'mood_analytics_screen.dart';
 import 'journal_screen.dart';
-import 'ai_chat_screen.dart';
-import 'period_screen.dart';
+import 'sleep_screen.dart';
 import 'profile_screen.dart';
 import 'health_screen.dart';
 import 'ai_voice_screen.dart';
@@ -193,22 +193,33 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => AiChatScreen(),
+                          builder: (context) => const CycleTrackerScreen(),
                         ),
                       );
                     },
-                    child: dashboardCard("AI Chat"),
+                    child: dashboardCard("Cycle"),
                   ),
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => PeriodScreen(),
+                          builder: (context) => const PregnancyScreen(),
                         ),
                       );
                     },
-                    child: dashboardCard("Period"),
+                    child: dashboardCard("Pregnancy"),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SleepScreen(),
+                        ),
+                      );
+                    },
+                    child: dashboardCard("sleep"),
                   ),
                 ],
               ),
