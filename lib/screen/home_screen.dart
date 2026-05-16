@@ -44,21 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Lunar"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ProfileScreen(),
-                ),
-              );
-            },
-          ),
-        ],
       ),
-
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -66,14 +52,14 @@ class _HomeScreenState extends State<HomeScreen> {
             /// AI MESSAGE
 
             Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.only(bottom: 20),
+              padding: const EdgeInsets.all(8),
+              margin: const EdgeInsets.only(bottom: 15),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(12),
                 gradient: const LinearGradient(
                   colors: [
                     Color(0xFF8E2DE2),
-                    Color(0xFF4A00E0),
+                    Color.fromARGB(255, 0, 224, 216),
                   ],
                 ),
               ),
@@ -103,14 +89,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             /// SEARCH BAR
 
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(11),
               decoration: BoxDecoration(
-                color: Colors.grey,
+                color: const Color.fromRGBO(241, 242, 245, 1),
                 borderRadius: BorderRadius.circular(15),
               ),
               child: const TextField(
@@ -121,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             /// MOOD ANALYTICS CARD
 
@@ -135,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
               child: Container(
-                height: 120,
+                height: 75,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
@@ -144,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Colors.blue,
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(18),
                 ),
                 child: const Center(
                   child: Text(
@@ -165,6 +151,9 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: GridView.count(
                 crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                childAspectRatio: 1.8,
                 children: [
                   GestureDetector(
                     onTap: () {
@@ -227,70 +216,27 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-
-      /// BOTTOM NAVIGATION
-
-      bottomNavigationBar: BottomNavigationBar(
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const HomeDashboard(),
-              ),
-            );
-          }
-
-          if (index == 1) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const HealthScreen(),
-              ),
-            );
-          }
-
-          if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AiVoiceScreen(),
-              ),
-            );
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: "Home",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite),
-            label: "Health",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat),
-            label: "AI",
-          ),
-        ],
-      ),
     );
   }
 
-  /// DASHBOARD CARD
-
   Widget dashboardCard(String title) {
-    return Card(
-      color: Colors.grey[900],
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Center(
-        child: Text(
-          title,
-          style: const TextStyle(color: Colors.white),
-        ),
-      ),
-    );
+    return SizedBox(
+        height: 110,
+        child: Card(
+          color: Colors.grey[900],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Center(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ));
   }
 }

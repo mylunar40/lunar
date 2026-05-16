@@ -111,11 +111,13 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
   Widget buildDay(DateTime day) {
     Color? color;
 
-    if (isPeriodDay(day))
+    if (isPeriodDay(day)) {
       color = Colors.red;
-    else if (isOvulation(day))
+    } else if (isOvulation(day)) {
       color = Colors.blue;
-    else if (isFertile(day)) color = Colors.orange;
+    } else if (isFertile(day)) {
+      color = Colors.orange;
+    }
 
     String? log = logs[DateTime(day.year, day.month, day.day)];
 
@@ -128,7 +130,8 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
           Center(
             child: Text(
               "${day.day}",
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(
+                  color: Colors.black, fontWeight: FontWeight.bold),
             ),
           ),
           if (log != null)
@@ -150,30 +153,43 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
         context: context,
         builder: (context) {
           return SizedBox(
-            height: 220,
+            height: 350,
             child: Column(
               children: [
                 const SizedBox(height: 20),
-                const Text("Add Log", style: TextStyle(fontSize: 20)),
+                const Text(
+                  "Add Log",
+                  style: TextStyle(fontSize: 20),
+                ),
                 const SizedBox(height: 20),
                 ElevatedButton(
-                    onPressed: () {
-                      addLog(day, "❤️");
-                      Navigator.pop(context);
-                    },
-                    child: const Text("Sex")),
+                  onPressed: () {
+                    addLog(day, "💖");
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Sex"),
+                ),
                 ElevatedButton(
-                    onPressed: () {
-                      addLog(day, "💊");
-                      Navigator.pop(context);
-                    },
-                    child: const Text("Pill")),
+                  onPressed: () {
+                    addLog(day, "💊");
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Medicine"),
+                ),
                 ElevatedButton(
-                    onPressed: () {
-                      addLog(day, "🤒");
-                      Navigator.pop(context);
-                    },
-                    child: const Text("Symptoms")),
+                  onPressed: () {
+                    addLog(day, "😊");
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Mood"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    addLog(day, "😣");
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Pain"),
+                ),
               ],
             ),
           );
@@ -191,12 +207,11 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
           children: [
             const SizedBox(height: 20),
             Container(
-              height: 180,
-              width: 180,
+              height: 160,
+              width: 160,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(width: 10, color: Colors.pink),
-              ),
+                  shape: BoxShape.circle,
+                  border: Border.all(width: 10, color: Colors.pink)),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -219,46 +234,54 @@ class _CycleTrackerScreenState extends State<CycleTrackerScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    const Text("Cycle Insights",
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Text(
+                      "Cycle Insights",
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
                     const SizedBox(height: 10),
-                    Text("Last Period: $lastPeriodDate"),
-                    Text("Ovulation: $ovulationDay"),
+                    Text(
+                        "Last Period: ${lastPeriodDate?.day}-${lastPeriodDate?.month}-${lastPeriodDate?.year}"),
+                    Text(
+                        "Ovulation: ${ovulationDay?.day}-${ovulationDay?.month}-${ovulationDay?.year}"),
                     if (fertileDays.isNotEmpty)
                       Text(
-                          "Fertile Window: ${fertileDays.first} - ${fertileDays.last}")
+                          "Fertile Window: ${fertileDays.first.day}-${fertileDays.first.month} to ${fertileDays.last.day}-${fertileDays.last.month}")
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 20),
-            TableCalendar(
-              focusedDay: focusedDay,
-              firstDay: DateTime(2020),
-              lastDay: DateTime(2030),
-              selectedDayPredicate: (day) {
-                return isSameDay(selectedDay, day);
-              },
-              onDaySelected: (selected, focused) {
-                selectedDay = selected;
-                focusedDay = focused;
-
-                showLogDialog(selected);
-
-                setState(() {});
-              },
-              calendarBuilders: CalendarBuilders(
-                defaultBuilder: (context, day, focused) {
-                  return buildDay(day);
+            SizedBox(
+              height: 350,
+              child: TableCalendar(
+                focusedDay: focusedDay,
+                firstDay: DateTime(2020),
+                lastDay: DateTime(2030),
+                selectedDayPredicate: (day) {
+                  return isSameDay(selectedDay, day);
                 },
+                onDaySelected: (selected, focused) {
+                  selectedDay = selected;
+                  focusedDay = focused;
+
+                  showLogDialog(selected);
+
+                  setState(() {});
+                },
+                calendarBuilders: CalendarBuilders(
+                  defaultBuilder: (context, day, focused) {
+                    return buildDay(day);
+                  },
+                ),
               ),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-                onPressed: selectPeriodDate,
-                child: const Text("Select Last Period Date")),
-            const SizedBox(height: 40)
+              onPressed: selectPeriodDate,
+              child: const Text("Select Last Period Date"),
+            ),
+            const SizedBox(height: 40),
           ],
         ),
       ),

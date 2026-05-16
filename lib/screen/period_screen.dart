@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lunar/user_provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class PeriodScreen extends StatefulWidget {
@@ -29,18 +30,25 @@ class _PeriodScreenState extends State<PeriodScreen> {
     "Back Pain"
   ];
 
+  get provider => null;
+
   Future<void> pickDate() async {
     DateTime? picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
-      firstDate: DateTime(2022),
-      lastDate: DateTime(2030),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2101),
     );
 
     if (picked != null) {
       setState(() {
         lastPeriodDate = picked;
       });
+
+      provider
+          // ignore: use_build_context_synchronously
+          .of<UserProvider>(context, listen: false)
+          .updatePeriodDate(picked);
     }
   }
 
