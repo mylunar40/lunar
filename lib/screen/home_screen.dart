@@ -6,10 +6,6 @@ import 'mood_screen.dart';
 import 'mood_analytics_screen.dart';
 import 'journal_screen.dart';
 import 'sleep_screen.dart';
-import 'profile_screen.dart';
-import 'health_screen.dart';
-import 'ai_voice_screen.dart';
-import 'package:lunar/screen/home_dashboard.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

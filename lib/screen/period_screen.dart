@@ -64,9 +64,9 @@ class _PeriodScreenState extends State<PeriodScreen> {
 
       ovulationDay = lastPeriodDate!.add(Duration(days: cycleLength - 14));
 
-      fertileStart = ovulationDay!.subtract(const Duration(days: 4));
+      fertileStart = ovulationDay.subtract(const Duration(days: 4));
 
-      fertileEnd = ovulationDay!.add(const Duration(days: 1));
+      fertileEnd = ovulationDay.add(const Duration(days: 1));
     }
 
     return Scaffold(

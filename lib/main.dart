@@ -1,13 +1,29 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:provider/provider.dart';
+import 'firebase_options.dart';
+import 'core/providers/auth_provider.dart';
+import 'core/providers/app_provider.dart';
+import 'core/providers/lunar_data_provider.dart';
+import 'core/providers/chat_provider.dart';
+import 'core/data/local_cache.dart';
 import 'screen/home_dashboard.dart';
 import 'screen/calendar_screen.dart';
 import 'screen/health_screen.dart';
 import 'screen/ai_voice_screen.dart';
 import 'screen/profile_screen.dart';
+import 'screen/auth/welcome_screen.dart';
+import 'screen/splash/lunar_splash_screen.dart';
+import 'screen/onboarding/onboarding_flow.dart';
 import 'user_provider.dart';
-import 'package:provider/provider.dart';
+
+// ── TEMPORARY DEV BYPASS — set false before release ────────
+// ignore: constant_identifier_names
+const bool isDevelopmentMode = true;
 
 // ── Lunar global design tokens ────────────────────────────
 const Color kLunarBg = Color(0xFF0A0118);
@@ -21,7 +37,7 @@ const Color kLunarIndigo = Color(0xFF7986CB);
 const Color kLunarTeal = Color(0xFF4FC3F7);
 const Color kLunarGreen = Color(0xFF66BB6A);
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
@@ -29,9 +45,49 @@ void main() {
     systemNavigationBarColor: Color(0xFF0D0120),
     systemNavigationBarIconBrightness: Brightness.light,
   ));
+
+  // ── Local cache init (always) ──────────────────────────────
+  await LocalCache.init();
+
+  // ── Firebase Init (gracefully handled if not yet configured) ──
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    // Crashlytics — only in release builds
+    await FirebaseCrashlytics.instance
+        .setCrashlyticsCollectionEnabled(!kDebugMode);
+    FlutterError.onError =
+        FirebaseCrashlytics.instance.recordFlutterFatalError;
+    debugPrint('[Lunar] Firebase initialised successfully.');
+  } catch (e) {
+    // App runs in demo/offline mode when Firebase is not configured.
+    // Run `flutterfire configure` and replace firebase_options.dart to enable.
+    debugPrint('[Lunar] Firebase not configured — running in demo mode.\n$e');
+  }
+
+  // ── Lunar data (pre-loaded from cache) ─────────────────────
+  final lunarData = LunarDataProvider();
+  await lunarData.init();
+
+  // ── App state provider (pre-loaded from cache) ─────────────
+  final appProvider = AppProvider();
+  await appProvider.init();
+
+  // ── Chat / AI provider (pre-loaded from cache) ──────────────
+  final chatProvider = ChatProvider();
+  await chatProvider.init();
+
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => UserProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => LunarAuthProvider()),
+        ChangeNotifierProvider<LunarDataProvider>.value(
+            value: lunarData),
+        ChangeNotifierProvider<AppProvider>.value(value: appProvider),
+        ChangeNotifierProvider<ChatProvider>.value(value: chatProvider),
+      ],
       child: const LunarApp(),
     ),
   );
@@ -59,7 +115,29 @@ class LunarApp extends StatelessWidget {
           },
         ),
       ),
-      home: const MainNavigation(),
+      home: Consumer2<LunarAuthProvider, AppProvider>(
+        builder: (context, auth, app, _) {
+          Widget child;
+          // ── DEV BYPASS: skip auth + onboarding entirely ──────
+          if (isDevelopmentMode) {
+            child = const MainNavigation(key: ValueKey('main'));
+          } else if (auth.isLoading) {
+            child = const LunarSplashScreen(key: ValueKey('splash'));
+          } else if (!auth.isAuthenticated) {
+            child = const WelcomeScreen(key: ValueKey('welcome'));
+          } else if (!app.onboardingComplete) {
+            child = const OnboardingFlow(key: ValueKey('onboarding'));
+          } else {
+            child = const MainNavigation(key: ValueKey('main'));
+          }
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 550),
+            transitionBuilder: (child, anim) =>
+                FadeTransition(opacity: anim, child: child),
+            child: child,
+          );
+        },
+      ),
     );
   }
 }
@@ -116,7 +194,24 @@ class _MainNavigationState extends State<MainNavigation>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kLunarBg,
-      body: _screens[_currentIndex],
+      body: isDevelopmentMode
+          ? Stack(
+              children: [
+                _screens[_currentIndex],
+                // ── DEV MODE badge — remove when isDevelopmentMode = false ──
+                const Positioned(
+                  top: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: EdgeInsets.only(top: 6, right: 10),
+                      child: _DevModeBadge(),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : _screens[_currentIndex],
       extendBody: true,
       bottomNavigationBar: _LunarNavBar(
         currentIndex: _currentIndex,
@@ -128,9 +223,50 @@ class _MainNavigationState extends State<MainNavigation>
 }
 
 // ─────────────────────────────────────────────────────────
+//  DEV MODE BADGE  (visible only when isDevelopmentMode = true)
+// ─────────────────────────────────────────────────────────
+class _DevModeBadge extends StatelessWidget {
+  const _DevModeBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.amber.withOpacity(0.92),
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.amber.withOpacity(0.4),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: const Text(
+          'DEV MODE',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 9,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.8,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
 //  LUNAR BOTTOM NAV BAR
 // ─────────────────────────────────────────────────────────
 
+// _LunarSplash replaced by LunarSplashScreen (lib/screen/splash/lunar_splash_screen.dart)
+
+// ─────────────────────────────────────────────────────────
+//  NAV ITEM DATA
+// ─────────────────────────────────────────────────────────
 class _NavItem {
   final IconData activeIcon, inactiveIcon;
   final String label;
@@ -149,92 +285,113 @@ class _LunarNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: Container(
-          height: 72 + MediaQuery.of(context).padding.bottom,
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).padding.bottom,
-            left: 8,
-            right: 8,
-          ),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0D0120).withOpacity(0.92),
-            border: const Border(
-              top: BorderSide(color: Color(0x28AB5CF2), width: 1),
+    final bottom = MediaQuery.of(context).padding.bottom;
+    return Container(
+      color: Colors.transparent,
+      height: 88 + bottom,
+      padding: EdgeInsets.fromLTRB(20, 8, 20, bottom + 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: [
+            BoxShadow(
+              color: kLunarPurple.withOpacity(0.22),
+              blurRadius: 32,
+              spreadRadius: 2,
+              offset: const Offset(0, 4),
             ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(items.length, (i) {
-              final active = i == currentIndex;
-              final item = items[i];
-              return GestureDetector(
-                onTap: () => onTap(i),
-                behavior: HitTestBehavior.opaque,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: active
-                      ? BoxDecoration(
-                          borderRadius: BorderRadius.circular(18),
-                          gradient: LinearGradient(
-                            colors: [
-                              kLunarPurple.withOpacity(0.28),
-                              kLunarPink.withOpacity(0.14),
-                            ],
-                          ),
-                          border: Border.all(
-                              color: kLunarPurple.withOpacity(0.45), width: 1),
-                          boxShadow: [
-                            BoxShadow(
-                              color: kLunarPurple.withOpacity(0.22),
-                              blurRadius: 16,
-                              spreadRadius: 1,
-                            )
-                          ],
-                        )
-                      : null,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        transitionBuilder: (child, anim) => ScaleTransition(
-                          scale: anim,
-                          child: child,
-                        ),
-                        child: Icon(
-                          active ? item.activeIcon : item.inactiveIcon,
-                          key: ValueKey(active),
-                          color: active
-                              ? kLunarPurple
-                              : Colors.white.withOpacity(0.38),
-                          size: active ? 26 : 23,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 200),
-                        style: TextStyle(
-                          color: active
-                              ? kLunarPurple
-                              : Colors.white.withOpacity(0.35),
-                          fontSize: active ? 10.5 : 10,
-                          fontWeight:
-                              active ? FontWeight.w700 : FontWeight.w400,
-                          letterSpacing: 0.2,
-                        ),
-                        child: Text(item.label),
-                      ),
-                    ],
-                  ),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.42),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(32),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(32),
+                color: const Color(0xFF0D0120).withOpacity(0.88),
+                border: Border.all(
+                  color: kLunarPurple.withOpacity(0.34),
+                  width: 1,
                 ),
-              );
-            }),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: List.generate(items.length, (i) {
+                  final active = i == currentIndex;
+                  final item = items[i];
+                  return GestureDetector(
+                    onTap: () => onTap(i),
+                    behavior: HitTestBehavior.opaque,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: active
+                          ? BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              gradient: LinearGradient(
+                                colors: [
+                                  kLunarPurple.withOpacity(0.32),
+                                  kLunarPink.withOpacity(0.16),
+                                ],
+                              ),
+                              border: Border.all(
+                                  color: kLunarPurple.withOpacity(0.52),
+                                  width: 1),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: kLunarPurple.withOpacity(0.30),
+                                  blurRadius: 22,
+                                  spreadRadius: 2,
+                                )
+                              ],
+                            )
+                          : null,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            transitionBuilder: (child, anim) =>
+                                ScaleTransition(scale: anim, child: child),
+                            child: Icon(
+                              active ? item.activeIcon : item.inactiveIcon,
+                              key: ValueKey(active),
+                              color: active
+                                  ? kLunarPurple
+                                  : Colors.white.withOpacity(0.38),
+                              size: active ? 26 : 23,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 200),
+                            style: TextStyle(
+                              color: active
+                                  ? kLunarPurple
+                                  : Colors.white.withOpacity(0.35),
+                              fontSize: active ? 10.5 : 10,
+                              fontWeight: active
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                              letterSpacing: 0.2,
+                            ),
+                            child: Text(item.label),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
           ),
         ),
       ),

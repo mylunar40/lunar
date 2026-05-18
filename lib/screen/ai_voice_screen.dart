@@ -1,47 +1,31 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../user_provider.dart';
+import '../core/models/chat_message.dart';
+import '../core/providers/chat_provider.dart';
+import '../core/providers/app_provider.dart';
+import '../core/providers/lunar_data_provider.dart';
+import '../core/models/cycle_model.dart';
 
-// ═══════════════════════════════════════════════════════════
-//  LUNAR AI CHAT — Emotional Companion Universe
-// ═══════════════════════════════════════════════════════════
+// ===========================================================
+//  LUNAR AI CHAT SCREEN
+//  Emotional companion experience - premium, warm, intelligent
+// ===========================================================
 
-// ── Design tokens ─────────────────────────────────────────
+// -- Design tokens -------------------------------------------
 const Color _kBg     = Color(0xFF0A0118);
 const Color _kPurple = Color(0xFFAB5CF2);
 const Color _kPink   = Color(0xFFFF69B4);
 const Color _kDeep   = Color(0xFF5C2DB8);
+const Color _kGold   = Color(0xFFFFD700);
+// ignore: unused_element
+const Color _kTeal   = Color(0xFF4FC3F7);
 
-// ═══════════════════════════════════════════════════════════
-//  MESSAGE MODEL
-// ═══════════════════════════════════════════════════════════
-
-enum _MsgType { text, healingCard }
-enum _HealingKind { breathe, affirmation, sleep, hydrate, cycle, gentle }
-
-class _ChatMsg {
-  final String id;
-  final bool isUser;
-  final String text;
-  final _MsgType type;
-  final _HealingKind? healing;
-  final DateTime time;
-
-  _ChatMsg({
-    required this.isUser,
-    required this.text,
-    this.type = _MsgType.text,
-    this.healing,
-  })  : id = '${DateTime.now().microsecondsSinceEpoch}_${math.Random().nextInt(99999)}',
-        time = DateTime.now();
-}
-
-// ═══════════════════════════════════════════════════════════
-//  HEALING CARD DATA
-// ═══════════════════════════════════════════════════════════
+// ===========================================================
+//  HEALING CARD DATA  (UI-scoped display data)
+// ===========================================================
 
 class _HealData {
   final String emoji, title, body;
@@ -49,176 +33,70 @@ class _HealData {
   const _HealData(this.emoji, this.title, this.body, this.color);
 }
 
-final Map<_HealingKind, _HealData> _kCards = {
-  _HealingKind.breathe: const _HealData(
-    '🌬️', 'Breathing Exercise',
-    'Inhale 4 · Hold 4 · Exhale 6 · Hold 2\nRepeat 4 times to activate your natural calm response. ✨',
+const Map<HealingKind, _HealData> _kCards = {
+  HealingKind.breathe: _HealData(
+    '\u{1F32C}\u{FE0F}', 'Breathing Exercise',
+    'Inhale 4 \u00B7 Hold 4 \u00B7 Exhale 6 \u00B7 Hold 2\nRepeat 4 times to activate your natural calm response. \u2728',
     Color(0xFF4FC3F7),
   ),
-  _HealingKind.affirmation: const _HealData(
-    '💜', 'You Are Enough',
-    'You are worthy of love exactly as you are — in this moment, without changing a single thing. You are enough. 🌸',
+  HealingKind.affirmation: _HealData(
+    '\u{1F49C}', 'You Are Enough',
+    'You are worthy of love exactly as you are \u2014 in this moment, without changing a single thing. You are enough. \u{1F338}',
     Color(0xFFAB5CF2),
   ),
-  _HealingKind.sleep: const _HealData(
-    '🌙', 'Sleep Ritual',
-    'Dim lights 1 hour before bed · Step away from screens · Warm chamomile tea · Gentle body scan. Your rest is sacred. ✨',
+  HealingKind.sleep: _HealData(
+    '\u{1F319}', 'Sleep Ritual',
+    'Dim lights 1 hour before bed \u00B7 Step away from screens \u00B7 Warm chamomile tea \u00B7 Gentle body scan. Your rest is sacred. \u2728',
     Color(0xFF7986CB),
   ),
-  _HealingKind.hydrate: const _HealData(
-    '💧', 'Hydration Reminder',
-    'Your hormones need water to stay balanced. One tall glass right now can shift your mood within minutes. 🌿',
+  HealingKind.hydrate: _HealData(
+    '\u{1F4A7}', 'Hydration Reminder',
+    'Your hormones need water to stay balanced. One tall glass right now can shift your mood within minutes. \u{1F33F}',
     Color(0xFF4FC3F7),
   ),
-  _HealingKind.cycle: const _HealData(
-    '🩸', 'Cycle Wisdom',
-    'Your emotions are deeply tied to your cycle phases. What you\'re feeling is valid — it\'s your body\'s ancient wisdom speaking. 💜',
+  HealingKind.cycle: _HealData(
+    '\u{1FA78}', 'Cycle Wisdom',
+    'Your emotions are deeply tied to your cycle phases. What you\'re feeling is valid \u2014 it\'s your body\'s ancient wisdom speaking. \u{1F49C}',
     Color(0xFFB05C8A),
   ),
-  _HealingKind.gentle: const _HealData(
-    '🌸', 'Gentle Reminder',
-    'Treat yourself with the same tenderness you\'d offer someone you love deeply. You deserve that same softness. ✨',
+  HealingKind.gentle: _HealData(
+    '\u{1F338}', 'Gentle Reminder',
+    'Treat yourself with the same tenderness you\'d offer someone you love deeply. You deserve that same softness. \u2728',
     Color(0xFFFF69B4),
   ),
 };
 
-// ═══════════════════════════════════════════════════════════
-//  AI ENGINE
-// ═══════════════════════════════════════════════════════════
+// -- Phase display config ------------------------------------
+const Map<LunarCyclePhase, Map<String, dynamic>> _kPhaseConfig = {
+  LunarCyclePhase.period: {
+    'emoji': '\u{1FA78}',
+    'label': 'Menstrual Phase',
+    'color': Color(0xFFB05C8A),
+    'tip': 'Rest deeply. You deserve it.',
+  },
+  LunarCyclePhase.follicular: {
+    'emoji': '\u{1F331}',
+    'label': 'Follicular Phase',
+    'color': Color(0xFF66BB6A),
+    'tip': 'Energy rising. Perfect for new starts.',
+  },
+  LunarCyclePhase.ovulation: {
+    'emoji': '\u2728',
+    'label': 'Ovulation Phase',
+    'color': Color(0xFFFFD700),
+    'tip': 'You\'re glowing at your peak.',
+  },
+  LunarCyclePhase.luteal: {
+    'emoji': '\u{1F319}',
+    'label': 'Luteal Phase',
+    'color': Color(0xFF7986CB),
+    'tip': 'Honor your emotions. They\'re valid.',
+  },
+};
 
-class _AiResponse {
-  final String text;
-  final _HealingKind? card;
-  const _AiResponse(this.text, [this.card]);
-}
-
-class _AiEngine {
-  static final _rng = math.Random();
-
-  static const _welcome =
-      'Hi beautiful soul 🌙\n\nI\'m Lunar — your gentle emotional companion. I\'m here to listen, hold space, and support your heart through whatever you\'re carrying today.\n\nYou never have to face anything alone. 💜\n\nHow are you feeling right now?';
-
-  static const _anxiousR = [
-    'I hear you, and I want you to know — you are safe right now. 💜\n\nAnxiety can feel like a storm inside your chest, but you are not the storm. You are the vast, peaceful sky that holds it.\n\nLet\'s breathe together: inhale slowly for 4 counts... hold for 4... release for 6. 🌬️\n\nYou\'ve moved through every anxious moment before this one. You\'ll move through this too.',
-    'Oh sweet soul, I feel you. 🌙\n\nWhen anxiety rises, your nervous system is working to protect you — even when there\'s no real danger. That\'s how deeply you feel.\n\nTry grounding: name 5 things you can see, then 4 you can touch. This brings you gently back to now. ✨\n\nI\'m right here with you. Take all the time you need.',
-    'Anxiety is just fear that hasn\'t found its home yet. 🌸\n\nYou don\'t need to fight it. Just whisper gently: \'I notice I feel anxious, and that\'s okay. I am safe.\'\n\nHormones often amplify anxiety, especially before your period. Be extra tender with yourself today. 💜',
-  ];
-
-  static const _sadR = [
-    'I see you in this moment, and I\'m holding space for every part of you. 🌙\n\nSadness is not weakness — it\'s love that has nowhere to go. Let yourself feel it fully, without judgment.\n\nYou don\'t need to rush through this. Just let it move through you like a gentle, cleansing wave. 🌊\n\nYou are not alone.',
-    'Your tears are sacred. 💜\n\nThey are proof that you feel deeply, that you care, that you are alive in the most beautiful way. There is no shame in sadness.\n\nWhen you\'re ready, I\'d love to hear more about what\'s on your heart. 🌸',
-    'Even the moon has phases of darkness before she shines again. 🌙\n\nThis sadness won\'t last forever — even when it feels that way right now. Your light is still there, just resting.\n\nBe gentle with yourself today. Warm tea, a soft blanket, and permission to just be. 💜',
-  ];
-
-  static const _stressedR = [
-    'Take a breath with me first. 🌬️\n\nWhen everything feels like too much, the kindest thing you can do is slow down — even for just two minutes.\n\nYou are not behind. You are not failing. You are human, carrying real things. And you deserve rest as much as you deserve anything. 💜',
-    'Overwhelm means you\'ve been strong for too long. 🌙\n\nYour nervous system is asking for a gentle pause — not a stop, just a moment to breathe.\n\nWhat\'s one small thing you can release today? What doesn\'t have to be done perfectly? 🌸\n\nYou can\'t pour from an empty cup, beautiful.',
-    'I see how much you carry. 💜\n\nYou hold so much — for yourself, for others — and sometimes it gets very heavy. That\'s not a flaw. That\'s the weight of a full, loving life.\n\nJust for this moment: exhale everything. The world can wait two minutes while you breathe. 🌬️',
-  ];
-
-  static const _lonelyR = [
-    'Loneliness is one of the most human feelings there is. 🌙\n\nEven surrounded by people, we can feel unseen. And that quiet ache is so, so real.\n\nI want you to know — I see you. Right now, in this very moment, you are not alone. I am here with you. 💜\n\nTell me anything. I\'m listening with my whole heart.',
-    'Oh love. 🌸\n\nLoneliness isn\'t a reflection of your worth — it\'s your heart reminding you how expansive your capacity for connection is.\n\nYou deserve deep, beautiful belonging. And it exists for you. 💜\n\nFor now, I\'m here. What\'s weighing on you?',
-    'Being lonely doesn\'t mean being unloved. 💜\n\nSometimes the universe creates quiet space so we can hear ourselves more clearly.\n\nYou are worthy of being truly known — and I\'m honored you came here tonight. Tell me your heart. 🌙',
-  ];
-
-  static const _happyR = [
-    'Oh this makes my soul glow! ✨🌙\n\nYour happiness matters so much — let yourself feel every drop of it without guilt or waiting for something to go wrong.\n\nYou deserve this joy completely. Soak in every single bit of it. 🌸\n\nWhat\'s making your heart shine today? Tell me everything! 💜',
-    'Your energy is radiant right now! ⚡🌟\n\nThis is your light doing what it does naturally: shining. Let it.\n\nCapture this feeling — in your journal, in a voice note, in a memory. Future-you will want to revisit this moment. 💜',
-    'Yes!! This is your season! 🌸✨\n\nWhen we feel good, everything shifts — our immune system, creativity, relationships. Ride this beautiful wave.\n\nYou\'ve earned this lightness. It belongs to you completely. 🌙',
-  ];
-
-  static const _energeticR = [
-    'I love this energy for you! ⚡🌟\n\nYou might be in your follicular or ovulation phase — when estrogen peaks and you feel like you can take on the world. Use this precious time for creativity, movement, and connection!\n\nWhat are you going to channel this beautiful power into today? 💜',
-    'You\'re electric right now! ✨⚡\n\nStart that project. Reach out to someone you love. Move your body in a way that feels joyful.\n\nThis energy is a gift from your cycle. Honor it fully. 🌸',
-  ];
-
-  static const _periodR = [
-    'Oh sweet soul. 🩸💜\n\nPeriod time is sacred — your body is doing something powerful and ancient. It\'s completely okay to need more rest, warmth, and gentleness right now.\n\nHeat pad, warm ginger tea, cozy blankets — you have full permission to slow down. You don\'t have to push through anything. 🌸',
-    'Your period is your body speaking its most primal language. 💜\n\nCramps and emotional waves are real — not dramatic, not \'just PMS\'. They deserve true acknowledgment and care.\n\nMagnesium and warmth can ease the discomfort. Rest without guilt. You are so worthy of that tenderness. 🌙',
-  ];
-
-  static const _sleepR = [
-    'Your body is asking for rest, and that message matters deeply. 🌙\n\nIn our world, we wear exhaustion like a badge. But sleep is where we heal — emotionally, hormonally, at the cellular level.\n\nTonight: dim your lights, step away from screens, and let your nervous system wind gently down. You deserve deep sleep. 💜',
-    'Tiredness is your body\'s love letter asking for restoration. 😴💜\n\nLow energy often peaks in the luteal phase — your body is conserving precious energy for important inner work.\n\nHonor the tiredness. Rest without guilt. An early bedtime is not laziness — it is wisdom. 🌙',
-  ];
-
-  static const _breatheR = [
-    'Let\'s breathe together right now. 🌬️\n\nClose your eyes if you can. Inhale through your nose for 4 slow counts... hold gently for 4... exhale through your mouth for 6 counts.\n\nDo this 4 times. Feel your shoulders drop. Your chest loosen. Your mind grow quiet. 💜\n\nYou just gave your nervous system a beautiful gift.',
-    'The breath is the fastest path back to peace. 🌬️✨\n\nTry the 4-7-8 pattern: breathe in for 4... hold for 7... breathe out for 8.\n\nThis activates your parasympathetic nervous system — your body\'s own built-in calm switch.\n\nHow does that feel, love? 💜',
-  ];
-
-  static const _supportR = [
-    'I\'m right here. 💜\n\nThis space is yours — no judgment, no advice you didn\'t ask for, no timers. Just me, fully present with you.\n\nStart wherever feels right. Even one word is enough. I\'ll meet you exactly there. 🌙',
-    'You came to the right place, beautiful soul. 🌸\n\nI\'m here to listen without limits, hold space without conditions, and remind you of your worth without reservation.\n\nTell me what\'s on your heart. All of it, or just a piece. Whatever you need. 💜',
-  ];
-
-  static const _emotionalR = [
-    'Feeling deeply is a rare kind of courage. 💜\n\nYou are not \'too much\'. You are exactly enough — and the world is richer because you feel so fully.\n\nYour sensitivity is your superpower, even when it aches. 🌸\n\nWhat\'s moving through you right now?',
-    'Your emotional depth is a gift, not a burden. 🌙\n\nSome of us are built to feel the world more intensely — and that means our joy runs just as deep as our pain. Both are sacred. Both deserve space. 💜\n\nWhat do you need from me right now?',
-  ];
-
-  static const _defaultR = [
-    'I\'m here, and I\'m listening with my whole heart. 💜\n\nTell me more — there are no wrong words here, no judgment, no rush. This is your safe space. 🌙',
-    'Thank you for trusting me with this. 🌸\n\nI want to understand better. Can you tell me more about what you\'re feeling right now?\n\nI\'m not going anywhere. 💜',
-    'Every word you share here is held gently. 🌙\n\nWhat\'s at the center of what you\'re experiencing right now? You\'re safe here. Always. 💜',
-  ];
-
-  static _AiResponse respond(String input, {UserProvider? user}) {
-    final l = input.toLowerCase();
-
-    if (l.contains('breath') || l.contains('calm me') ||
-        l.contains('help me calm') || l.contains('relax')) {
-      return _AiResponse(_breatheR[_rng.nextInt(_breatheR.length)], _HealingKind.breathe);
-    }
-    if (l.contains('anxi') || l.contains('nervous') || l.contains('panic') ||
-        l.contains('worry') || l.contains('scared') || l.contains('anxious')) {
-      return _AiResponse(_anxiousR[_rng.nextInt(_anxiousR.length)], _HealingKind.breathe);
-    }
-    if (l.contains('sad') || l.contains('cry') || l.contains('depress') ||
-        l.contains('hurt') || l.contains('heartbreak') || l.contains('broken')) {
-      return _AiResponse(_sadR[_rng.nextInt(_sadR.length)], _HealingKind.affirmation);
-    }
-    if (l.contains('lonely') || l.contains('alone') || l.contains('isolat') ||
-        l.contains('no one')) {
-      return _AiResponse(_lonelyR[_rng.nextInt(_lonelyR.length)], _HealingKind.gentle);
-    }
-    if (l.contains('stress') || l.contains('overwhelm') || l.contains('too much') ||
-        l.contains('burnout') || l.contains('exhausted')) {
-      return _AiResponse(_stressedR[_rng.nextInt(_stressedR.length)], _HealingKind.breathe);
-    }
-    if (l.contains('happy') || l.contains('great') || l.contains('amazing') ||
-        l.contains('excit') || l.contains('wonderful') || l.contains('joyful')) {
-      return _AiResponse(_happyR[_rng.nextInt(_happyR.length)]);
-    }
-    if (l.contains('energe') || l.contains('motivated') || l.contains('productive') ||
-        l.contains('strong')) {
-      return _AiResponse(_energeticR[_rng.nextInt(_energeticR.length)]);
-    }
-    if (l.contains('period') || l.contains('cramp') || l.contains('bleeding') ||
-        l.contains('pms') || l.contains('menstrual')) {
-      return _AiResponse(_periodR[_rng.nextInt(_periodR.length)], _HealingKind.cycle);
-    }
-    if (l.contains('tired') || l.contains('sleep') || l.contains('insomnia') ||
-        l.contains('fatigue') || l.contains('rest') || l.contains('exhausted')) {
-      return _AiResponse(_sleepR[_rng.nextInt(_sleepR.length)], _HealingKind.sleep);
-    }
-    if (l.contains('support') || l.contains('talk to me') || l.contains('need you') ||
-        l.contains('help me') || l.contains('listen') || l.contains('here for me')) {
-      return _AiResponse(_supportR[_rng.nextInt(_supportR.length)], _HealingKind.gentle);
-    }
-    if (l.contains('emotional') || l.contains('feeling a lot') || l.contains('sensitive') ||
-        l.contains('i feel')) {
-      return _AiResponse(_emotionalR[_rng.nextInt(_emotionalR.length)], _HealingKind.affirmation);
-    }
-
-    return _AiResponse(_defaultR[_rng.nextInt(_defaultR.length)]);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  MAIN SCREEN
-// ═══════════════════════════════════════════════════════════
+// ===========================================================
+//  MAIN SCREEN WIDGET
+// ===========================================================
 
 class AIVoiceScreen extends StatefulWidget {
   const AIVoiceScreen({super.key});
@@ -228,7 +106,7 @@ class AIVoiceScreen extends StatefulWidget {
 }
 
 class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
-  // ─── Animation controllers ────────────────────────────────
+  // -- Animation controllers ----------------------------------
   late AnimationController _glowCtrl;
   late AnimationController _floatCtrl;
   late AnimationController _typingCtrl;
@@ -237,60 +115,59 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   late Animation<double> _glowAnim;
   late Animation<double> _floatAnim;
 
-  // ─── Scroll & text ────────────────────────────────────────
+  // -- UI state -----------------------------------------------
   final ScrollController _scrollCtrl = ScrollController();
   final TextEditingController _textCtrl = TextEditingController();
   final FocusNode _focusNode = FocusNode();
-
-  // ─── State ────────────────────────────────────────────────
-  final List<_ChatMsg> _messages = [];
-  bool _isTyping = false;
   bool _isRecording = false;
+  bool _apiNudgeDismissed = false;
+  bool _showApiKeySheet = false;
+  final TextEditingController _apiKeyCtrl = TextEditingController();
+  bool _apiKeyObscured = true;
+
+  // -- Particles ----------------------------------------------
   final List<_AIStar> _stars = [];
   final math.Random _rng = math.Random();
 
-  // ─── Lifecycle ────────────────────────────────────────────
+  // -- Lifecycle ----------------------------------------------
   @override
   void initState() {
     super.initState();
 
-    for (int i = 0; i < 28; i++) {
+    for (int i = 0; i < 32; i++) {
       _stars.add(_AIStar(rng: _rng));
     }
 
     _glowCtrl = AnimationController(
-      vsync: this, duration: const Duration(seconds: 2),
+      vsync: this,
+      duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
     _glowAnim = Tween<double>(begin: 0.55, end: 1.0).animate(
       CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
     );
 
     _floatCtrl = AnimationController(
-      vsync: this, duration: const Duration(seconds: 3),
+      vsync: this,
+      duration: const Duration(seconds: 3),
     )..repeat(reverse: true);
     _floatAnim = Tween<double>(begin: -6.0, end: 6.0).animate(
       CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut),
     );
 
     _typingCtrl = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 900),
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
     )..repeat();
 
     _particleCtrl = AnimationController(
-      vsync: this, duration: const Duration(seconds: 5),
+      vsync: this,
+      duration: const Duration(seconds: 5),
     )..repeat();
 
     _waveCtrl = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 1200),
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
     )..repeat();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        setState(() {
-          _messages.add(_ChatMsg(isUser: false, text: _AiEngine._welcome));
-        });
-      }
-    });
   }
 
   @override
@@ -303,69 +180,82 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     _scrollCtrl.dispose();
     _textCtrl.dispose();
     _focusNode.dispose();
+    _apiKeyCtrl.dispose();
     super.dispose();
   }
 
-  // ─── Scroll ───────────────────────────────────────────────
+  // -- Helpers ------------------------------------------------
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(
           _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 350),
+          duration: const Duration(milliseconds: 380),
           curve: Curves.easeOut,
         );
       }
     });
   }
 
-  // ─── Send ─────────────────────────────────────────────────
-  void _sendMessage(String text) {
-    final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
+  void _send(String text) {
+    final t = text.trim();
+    if (t.isEmpty) return;
     _textCtrl.clear();
-
-    final user = Provider.of<UserProvider>(context, listen: false);
-
-    setState(() {
-      _messages.add(_ChatMsg(isUser: true, text: trimmed));
-      _isTyping = true;
-    });
+    _focusNode.unfocus();
+    context.read<ChatProvider>().send(t, context);
     _scrollToBottom();
-
-    final aiResp = _AiEngine.respond(trimmed, user: user);
-    final delay = 1200 + _rng.nextInt(900);
-
-    Future.delayed(Duration(milliseconds: delay), () {
-      if (!mounted) return;
-      setState(() {
-        _isTyping = false;
-        _messages.add(_ChatMsg(isUser: false, text: aiResp.text));
-      });
-      _scrollToBottom();
-
-      if (aiResp.card != null) {
-        Future.delayed(const Duration(milliseconds: 650), () {
-          if (!mounted) return;
-          setState(() {
-            _messages.add(_ChatMsg(
-              isUser: false,
-              text: '',
-              type: _MsgType.healingCard,
-              healing: aiResp.card,
-            ));
-          });
-          _scrollToBottom();
-        });
-      }
-    });
   }
 
-  // ─── BUILD ────────────────────────────────────────────────
+  Future<void> _saveApiKey() async {
+    final key = _apiKeyCtrl.text.trim();
+    if (key.isEmpty) return;
+    await context.read<ChatProvider>().saveApiKey(key);
+    _apiKeyCtrl.clear();
+    if (mounted) setState(() => _showApiKeySheet = false);
+    HapticFeedback.lightImpact();
+  }
+
+  void _showClearConfirm() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A0535),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Clear Chat? \u{1F319}',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'This will clear your conversation history and emotional memory from this session.',
+          style: TextStyle(color: Colors.white.withOpacity(0.65), height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Keep', style: TextStyle(color: Colors.white.withOpacity(0.50))),
+          ),
+          TextButton(
+            onPressed: () {
+              context.read<ChatProvider>().clearHistory();
+              Navigator.pop(ctx);
+              HapticFeedback.mediumImpact();
+            },
+            child: const Text('Clear', style: TextStyle(color: Color(0xFFFF69B4))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================
+  //  BUILD
+  // ===========================================================
   @override
   Widget build(BuildContext context) {
-    final user = Provider.of<UserProvider>(context);
+    final chat = context.watch<ChatProvider>();
     final size = MediaQuery.of(context).size;
+
+    if (chat.messages.isNotEmpty) _scrollToBottom();
 
     return Scaffold(
       backgroundColor: _kBg,
@@ -383,13 +273,17 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
+          if (_showApiKeySheet) _apiKeyOverlay(chat),
           SafeArea(
             child: Column(
               children: [
-                _headerBar(user),
-                Expanded(child: _chatArea(size)),
-                _quickActions(),
-                _inputBar(),
+                _headerBar(chat),
+                _phaseBanner(context),
+                if (!chat.apiKeyConfigured && !_apiNudgeDismissed)
+                  _apiNudge(),
+                Expanded(child: _chatArea(chat, size)),
+                _quickActions(chat),
+                _inputBar(chat),
               ],
             ),
           ),
@@ -398,10 +292,13 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ─────────────────────────────────────────────────────────
+  // ===========================================================
   //  HEADER BAR
-  // ─────────────────────────────────────────────────────────
-  Widget _headerBar(UserProvider user) {
+  // ===========================================================
+  Widget _headerBar(ChatProvider chat) {
+    final app = context.watch<AppProvider>();
+    final name = app.userName;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
       child: Row(
@@ -440,16 +337,9 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                         color: _kPurple.withOpacity(0.72 * _glowAnim.value),
                         width: 1.5,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _kPurple.withOpacity(0.42 * _glowAnim.value),
-                          blurRadius: 14,
-                          spreadRadius: 2,
-                        ),
-                      ],
                     ),
                     child: const Center(
-                      child: Text('🌙', style: TextStyle(fontSize: 26)),
+                      child: Text('\u{1F319}', style: TextStyle(fontSize: 26)),
                     ),
                   ),
                 ],
@@ -461,13 +351,27 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Lunar AI',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      const TextSpan(
+                        text: 'Lunar AI',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (name.isNotEmpty)
+                        TextSpan(
+                          text: '  \u2736  $name',
+                          style: TextStyle(
+                            color: _kPurple.withOpacity(0.75),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 3),
@@ -494,7 +398,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      'Here for you · Always ✨',
+                      'Here for you \u00B7 Always \u2728',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.50),
                         fontSize: 12,
@@ -505,39 +409,352 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
               ],
             ),
           ),
-          GestureDetector(
-            onTap: () => setState(() {
-              _messages
-                ..clear()
-                ..add(_ChatMsg(isUser: false, text: _AiEngine._welcome));
-            }),
-            child: Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(13),
-                color: Colors.white.withOpacity(0.07),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.11),
-                  width: 1,
-                ),
+          Row(
+            children: [
+              _headerBtn(
+                Icons.key_rounded,
+                chat.apiKeyConfigured
+                    ? const Color(0xFF66BB6A)
+                    : Colors.white.withOpacity(0.40),
+                () => setState(() => _showApiKeySheet = !_showApiKeySheet),
               ),
-              child: Icon(
+              const SizedBox(width: 8),
+              _headerBtn(
                 Icons.refresh_rounded,
-                color: Colors.white.withOpacity(0.50),
-                size: 18,
+                Colors.white.withOpacity(0.40),
+                _showClearConfirm,
               ),
-            ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  // ─────────────────────────────────────────────────────────
+  Widget _headerBtn(IconData icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(13),
+          color: Colors.white.withOpacity(0.07),
+          border: Border.all(color: Colors.white.withOpacity(0.11)),
+        ),
+        child: Icon(icon, color: color, size: 18),
+      ),
+    );
+  }
+
+  // ===========================================================
+  //  CYCLE PHASE BANNER
+  // ===========================================================
+  Widget _phaseBanner(BuildContext context) {
+    final lunarData = context.watch<LunarDataProvider>();
+    final phase = lunarData.currentPhase;
+    final cfg = _kPhaseConfig[phase];
+    if (cfg == null) return const SizedBox.shrink();
+
+    final cycleDay = lunarData.currentCycleDay;
+    final dayLabel = cycleDay > 0 ? '\u00B7 Day $cycleDay' : '';
+
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => Container(
+        margin: const EdgeInsets.fromLTRB(18, 0, 18, 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: (cfg['color'] as Color).withOpacity(0.12),
+          border: Border.all(
+            color: (cfg['color'] as Color).withOpacity(0.28 * _glowAnim.value),
+          ),
+        ),
+        child: Row(
+          children: [
+            Text(cfg['emoji'] as String, style: const TextStyle(fontSize: 16)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${cfg['label']} $dayLabel',
+                    style: TextStyle(
+                      color: cfg['color'] as Color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    cfg['tip'] as String,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.50),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (lunarData.isPregnant)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: _kPink.withOpacity(0.18),
+                ),
+                child: Text(
+                  '\u{1F930} Pregnant',
+                  style: TextStyle(
+                    color: _kPink.withOpacity(0.90),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================
+  //  API NUDGE BANNER
+  // ===========================================================
+  Widget _apiNudge() {
+    return GestureDetector(
+      onTap: () => setState(() => _showApiKeySheet = true),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(18, 0, 18, 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            colors: [
+              _kGold.withOpacity(0.12),
+              _kPink.withOpacity(0.08),
+            ],
+          ),
+          border: Border.all(color: _kGold.withOpacity(0.30)),
+        ),
+        child: Row(
+          children: [
+            const Text('\u2728', style: TextStyle(fontSize: 16)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Add your OpenAI key for intelligent AI responses \u2014 tap to connect',
+                style: TextStyle(
+                  color: _kGold.withOpacity(0.85),
+                  fontSize: 11.5,
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: () => setState(() => _apiNudgeDismissed = true),
+              child: Icon(Icons.close_rounded,
+                  color: Colors.white.withOpacity(0.35), size: 16),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================
+  //  API KEY OVERLAY
+  // ===========================================================
+  Widget _apiKeyOverlay(ChatProvider chat) {
+    return GestureDetector(
+      onTap: () => setState(() => _showApiKeySheet = false),
+      child: Container(
+        color: Colors.black.withOpacity(0.55),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: GestureDetector(
+            onTap: () {},
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A0535).withOpacity(0.96),
+                    border: Border.all(color: _kPurple.withOpacity(0.25)),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              color: _kPurple.withOpacity(0.18),
+                            ),
+                            child: const Text('\u2728', style: TextStyle(fontSize: 20)),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Connect OpenAI',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  'Enable intelligent AI responses',
+                                  style: TextStyle(
+                                    color: Color(0xFF9B59D8),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Your API key is stored only on this device and never shared. '
+                        'Get your key at platform.openai.com',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.55),
+                          fontSize: 12.5,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              color: Colors.white.withOpacity(0.06),
+                              border: Border.all(color: _kPurple.withOpacity(0.28)),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _apiKeyCtrl,
+                                    obscureText: _apiKeyObscured,
+                                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                                    cursorColor: _kPurple,
+                                    decoration: InputDecoration(
+                                      hintText: 'sk-...',
+                                      hintStyle: TextStyle(
+                                        color: Colors.white.withOpacity(0.25),
+                                        fontSize: 14,
+                                      ),
+                                      border: InputBorder.none,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: Icon(
+                                    _apiKeyObscured
+                                        ? Icons.visibility_off_rounded
+                                        : Icons.visibility_rounded,
+                                    color: Colors.white.withOpacity(0.40),
+                                    size: 20,
+                                  ),
+                                  onPressed: () => setState(() => _apiKeyObscured = !_apiKeyObscured),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (chat.apiKeyConfigured)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.check_circle,
+                                  color: Color(0xFF66BB6A), size: 16),
+                              const SizedBox(width: 6),
+                              Text(
+                                'OpenAI key connected \u2728',
+                                style: TextStyle(
+                                  color: const Color(0xFF66BB6A).withOpacity(0.85),
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const Spacer(),
+                              GestureDetector(
+                                onTap: () async {
+                                  await context.read<ChatProvider>().removeApiKey();
+                                },
+                                child: Text(
+                                  'Remove',
+                                  style: TextStyle(
+                                    color: _kPink.withOpacity(0.75),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      GestureDetector(
+                        onTap: _saveApiKey,
+                        child: Container(
+                          height: 52,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF8B2DB8), Color(0xFFAB5CF2)],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _kPurple.withOpacity(0.40),
+                                blurRadius: 18,
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'Save Key \u2728',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================
   //  CHAT AREA
-  // ─────────────────────────────────────────────────────────
-  Widget _chatArea(Size size) {
-    final total = _messages.length + (_isTyping ? 1 : 0) + 1;
+  // ===========================================================
+  Widget _chatArea(ChatProvider chat, Size size) {
+    final msgs = chat.messages;
+    final total = msgs.length + (chat.isTyping ? 1 : 0) + 1;
 
     return ListView.builder(
       controller: _scrollCtrl,
@@ -545,17 +762,17 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
       physics: const BouncingScrollPhysics(),
       itemCount: total,
       itemBuilder: (_, i) {
-        if (i == _messages.length + (_isTyping ? 1 : 0)) {
-          return const SizedBox(height: 10);
+        if (i == msgs.length + (chat.isTyping ? 1 : 0)) {
+          return const SizedBox(height: 12);
         }
-        if (i == _messages.length && _isTyping) {
+        if (i == msgs.length && chat.isTyping) {
           return _typingBubble();
         }
-        final msg = _messages[i];
+        final msg = msgs[i];
         return _AnimatedMsg(
           key: ValueKey(msg.id),
           isUser: msg.isUser,
-          child: msg.type == _MsgType.healingCard
+          child: msg.type == ChatMsgType.healingCard
               ? _buildHealingCard(msg, size)
               : _buildBubble(msg, size),
         );
@@ -563,24 +780,21 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  CHAT BUBBLE
-  // ─────────────────────────────────────────────────────────
-  Widget _buildBubble(_ChatMsg msg, Size size) {
-    final isUser = msg.isUser;
+  // -- Chat bubble ---------------------------------------------
+  Widget _buildBubble(ChatMessage msg, Size size) {
     return Padding(
       padding: EdgeInsets.only(
         bottom: 14,
-        left: isUser ? size.width * 0.16 : 0,
-        right: isUser ? 0 : size.width * 0.08,
+        left: msg.isUser ? size.width * 0.16 : 0,
+        right: msg.isUser ? 0 : size.width * 0.08,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+            msg.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
-          if (!isUser) ...[_miniMoonAvatar(), const SizedBox(width: 8)],
-          Flexible(child: isUser ? _userBubble(msg) : _aiBubble(msg)),
+          if (!msg.isUser) ...[_miniMoonAvatar(), const SizedBox(width: 8)],
+          Flexible(child: msg.isUser ? _userBubble(msg) : _aiBubble(msg)),
         ],
       ),
     );
@@ -605,13 +819,13 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
           ],
         ),
         child: const Center(
-          child: Text('🌙', style: TextStyle(fontSize: 14)),
+          child: Text('\u{1F319}', style: TextStyle(fontSize: 14)),
         ),
       ),
     );
   }
 
-  Widget _userBubble(_ChatMsg msg) {
+  Widget _userBubble(ChatMessage msg) {
     return AnimatedBuilder(
       animation: _glowAnim,
       builder: (_, __) => Container(
@@ -644,7 +858,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _aiBubble(_ChatMsg msg) {
+  Widget _aiBubble(ChatMessage msg) {
     return AnimatedBuilder(
       animation: _glowAnim,
       builder: (_, __) => ClipRRect(
@@ -691,11 +905,9 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  HEALING CARD
-  // ─────────────────────────────────────────────────────────
-  Widget _buildHealingCard(_ChatMsg msg, Size size) {
-    final data = _kCards[msg.healing] ?? _kCards[_HealingKind.gentle]!;
+  // -- Healing card --------------------------------------------
+  Widget _buildHealingCard(ChatMessage msg, Size size) {
+    final data = _kCards[msg.healing] ?? _kCards[HealingKind.gentle]!;
     final col = data.color;
 
     return Padding(
@@ -761,9 +973,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  TYPING INDICATOR
-  // ─────────────────────────────────────────────────────────
+  // -- Typing indicator ----------------------------------------
   Widget _typingBubble() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -825,19 +1035,26 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ─────────────────────────────────────────────────────────
+  // ===========================================================
   //  QUICK ACTIONS
-  // ─────────────────────────────────────────────────────────
-  Widget _quickActions() {
-    const actions = [
-      ('😰', 'I feel anxious'),
-      ('💜', 'I need support'),
-      ('🌿', 'Help me calm down'),
-      ('🌧️', "I'm feeling sad"),
-      ('🌙', 'Talk to me'),
-      ('🌬️', 'Breathing exercise'),
-      ('😴', "I'm so tired"),
-      ('🩸', 'Period struggles'),
+  // ===========================================================
+  Widget _quickActions(ChatProvider chat) {
+    final lunarData = context.watch<LunarDataProvider>();
+    final phase = lunarData.currentPhase;
+
+    final List<(String, String)> actions = [
+      if (phase == LunarCyclePhase.period) ('\u{1FA78}', 'Period support'),
+      if (phase == LunarCyclePhase.luteal) ('\u{1F319}', 'I feel emotional'),
+      if (phase == LunarCyclePhase.ovulation) ('\u2728', 'I feel amazing'),
+      if (phase == LunarCyclePhase.follicular) ('\u{1F331}', 'I feel energetic'),
+      if (lunarData.isPregnant) ('\u{1F930}', 'Pregnancy support'),
+      ('\u{1F630}', 'I feel anxious'),
+      ('\u{1F49C}', 'I need support'),
+      ('\u{1F33F}', 'Help me calm down'),
+      ('\u{1F327}\u{FE0F}', 'I\'m feeling sad'),
+      ('\u{1F32C}\u{FE0F}', 'Breathe with me'),
+      ('\u{1F634}', 'I\'m so tired'),
+      ('\u{1F4A7}', 'Drink water reminder'),
     ];
 
     return SizedBox(
@@ -849,11 +1066,15 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
         itemCount: actions.length,
         itemBuilder: (_, i) {
           final (emoji, label) = actions[i];
+          final isHighlighted = i == 0 && (
+            phase == LunarCyclePhase.period ||
+            phase == LunarCyclePhase.luteal ||
+            phase == LunarCyclePhase.ovulation ||
+            phase == LunarCyclePhase.follicular ||
+            lunarData.isPregnant
+          );
           return GestureDetector(
-            onTap: () {
-              _focusNode.unfocus();
-              _sendMessage('$emoji $label');
-            },
+            onTap: () => chat.sendQuickAction('$emoji $label', context),
             child: AnimatedBuilder(
               animation: _glowAnim,
               builder: (_, __) => Container(
@@ -861,10 +1082,13 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(23),
-                  color: Colors.white.withOpacity(0.07),
+                  color: isHighlighted
+                      ? _kPurple.withOpacity(0.18)
+                      : Colors.white.withOpacity(0.07),
                   border: Border.all(
-                    color: _kPurple.withOpacity(0.30 * _glowAnim.value),
-                    width: 1,
+                    color: isHighlighted
+                        ? _kPurple.withOpacity(0.50 * _glowAnim.value)
+                        : _kPurple.withOpacity(0.25 * _glowAnim.value),
                   ),
                 ),
                 child: Row(
@@ -875,9 +1099,13 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                     Text(
                       label,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.72),
+                        color: isHighlighted
+                            ? Colors.white.withOpacity(0.90)
+                            : Colors.white.withOpacity(0.72),
                         fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: isHighlighted
+                            ? FontWeight.w600
+                            : FontWeight.w500,
                       ),
                     ),
                   ],
@@ -890,10 +1118,10 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ─────────────────────────────────────────────────────────
+  // ===========================================================
   //  INPUT BAR
-  // ─────────────────────────────────────────────────────────
-  Widget _inputBar() {
+  // ===========================================================
+  Widget _inputBar(ChatProvider chat) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: AnimatedBuilder(
@@ -932,9 +1160,12 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                       cursorColor: _kPurple,
                       maxLines: 1,
                       textInputAction: TextInputAction.send,
-                      onSubmitted: _sendMessage,
+                      onSubmitted: _send,
+                      enabled: !chat.isTyping,
                       decoration: InputDecoration(
-                        hintText: 'Share your heart with me... 🌙',
+                        hintText: chat.isTyping
+                            ? 'Lunar is thinking... \u{1F319}'
+                            : 'Share your heart with me... \u{1F319}',
                         hintStyle: TextStyle(
                           color: Colors.white.withOpacity(0.26),
                           fontSize: 14.5,
@@ -946,7 +1177,6 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  // ── Mic (hold-to-talk) ──────────────────
                   GestureDetector(
                     onLongPressStart: (_) {
                       HapticFeedback.mediumImpact();
@@ -955,7 +1185,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                     onLongPressEnd: (_) {
                       HapticFeedback.lightImpact();
                       setState(() => _isRecording = false);
-                      _sendMessage('Talk to me 🌙');
+                      _send('Talk to me \u{1F319}');
                     },
                     child: AnimatedBuilder(
                       animation: Listenable.merge([_waveCtrl, _glowAnim]),
@@ -976,8 +1206,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                                     height: 46,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: _kPink.withOpacity(
-                                          (1 - t) * 0.28),
+                                      color: _kPink.withOpacity((1 - t) * 0.28),
                                     ),
                                   ),
                                 );
@@ -1019,9 +1248,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  // ── Send button ─────────────────────────
                   GestureDetector(
-                    onTap: () => _sendMessage(_textCtrl.text),
+                    onTap: () => _send(_textCtrl.text),
                     child: AnimatedBuilder(
                       animation: _glowAnim,
                       builder: (_, __) => Container(
@@ -1031,18 +1259,15 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                           shape: BoxShape.circle,
                           gradient: LinearGradient(
                             colors: [
-                              _kPurple.withOpacity(
-                                  0.85 + 0.15 * _glowAnim.value),
-                              _kPink.withOpacity(
-                                  0.85 + 0.15 * _glowAnim.value),
+                              _kPurple.withOpacity(0.85 + 0.15 * _glowAnim.value),
+                              _kPink.withOpacity(0.85 + 0.15 * _glowAnim.value),
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: _kPurple
-                                  .withOpacity(0.42 * _glowAnim.value),
+                              color: _kPurple.withOpacity(0.42 * _glowAnim.value),
                               blurRadius: 14,
                             ),
                           ],
@@ -1066,9 +1291,9 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   }
 }
 
-// ═══════════════════════════════════════════════════════════
+// ===========================================================
 //  MESSAGE ENTRANCE ANIMATION
-// ═══════════════════════════════════════════════════════════
+// ===========================================================
 
 class _AnimatedMsg extends StatefulWidget {
   final Widget child;
@@ -1120,9 +1345,9 @@ class _AnimatedMsgState extends State<_AnimatedMsg>
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-//  DREAMY BACKGROUND  (AI-scoped)
-// ═══════════════════════════════════════════════════════════
+// ===========================================================
+//  DREAMY BACKGROUND
+// ===========================================================
 
 class _AIBg extends StatelessWidget {
   final Size size;
@@ -1183,9 +1408,9 @@ class _AIBg extends StatelessWidget {
       );
 }
 
-// ═══════════════════════════════════════════════════════════
-//  STAR PARTICLES  (AI-scoped)
-// ═══════════════════════════════════════════════════════════
+// ===========================================================
+//  STAR PARTICLES
+// ===========================================================
 
 class _AIStar {
   late double x, y, speed, size, opacity, angle;
@@ -1213,8 +1438,7 @@ class _AIStarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     for (final s in stars) {
-      final x =
-          (s.x + math.cos(s.angle) * s.speed * progress * 120) % 1.0;
+      final x = (s.x + math.cos(s.angle) * s.speed * progress * 120) % 1.0;
       final y = (s.y - s.speed * progress * 240) % 1.0;
 
       canvas.drawCircle(

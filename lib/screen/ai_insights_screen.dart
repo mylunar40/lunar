@@ -16,13 +16,12 @@ const Color _iKBg     = Color(0xFF0A0118);
 const Color _iKPurple = Color(0xFFAB5CF2);
 const Color _iKPink   = Color(0xFFFF69B4);
 const Color _iKDeep   = Color(0xFF5C2DB8);
-const Color _iKGold   = Color(0xFFFFD700);
 
 // ═══════════════════════════════════════════════════════════
 //  INSIGHT MODEL
 // ═══════════════════════════════════════════════════════════
 
-enum _InsightType { pattern, trend, prediction, recommendation, healing }
+enum _InsightType { pattern, trend, recommendation, healing }
 
 class _Insight {
   final String icon;
@@ -360,7 +359,6 @@ class _AIInsightsState extends State<AIInsightsScreen>
 
   // ─── UI state ─────────────────────────────────────────────
   int? _expandedHealing;
-  bool _insightsLoaded = false;
   List<String> _moodHistory = [];
 
   // ─── Affirmation rotation ─────────────────────────────────
@@ -411,11 +409,6 @@ class _AIInsightsState extends State<AIInsightsScreen>
     }
 
     _loadMoodHistory();
-
-    // Stagger the content entrance
-    Future.delayed(const Duration(milliseconds: 120), () {
-      if (mounted) setState(() => _insightsLoaded = true);
-    });
   }
 
   Future<void> _loadMoodHistory() async {

@@ -10,7 +10,6 @@ import 'package:flutter/services.dart';
 const Color _hBg = Color(0xFF0A0118);
 const Color _hPurple = Color(0xFFAB5CF2);
 const Color _hPink = Color(0xFFFF69B4);
-const Color _hGold = Color(0xFFFFD700);
 const Color _hTeal = Color(0xFF4FC3F7);
 const Color _hGreen = Color(0xFF66BB6A);
 const Color _hIndigo = Color(0xFF7986CB);

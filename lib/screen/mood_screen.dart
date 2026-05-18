@@ -12,27 +12,12 @@ const Color _mBg = Color(0xFF0A0118);
 const Color _mPurple = Color(0xFFAB5CF2);
 const Color _mPink = Color(0xFFFF69B4);
 const Color _mGold = Color(0xFFFFD700);
-const Color _mTeal = Color(0xFF4FC3F7);
 const Color _mGreen = Color(0xFF66BB6A);
 const Color _mIndigo = Color(0xFF7986CB);
-const Color _mWarm = Color(0xFFFFB74D);
 
 // ═══════════════════════════════════════════════════════════
-//  MOOD DATA MODEL
+//  MOOD SCREEN
 // ═══════════════════════════════════════════════════════════
-class _MoodData {
-  final String key, emoji, label, aiMessage, healingTip;
-  final Color color;
-  const _MoodData({
-    required this.key,
-    required this.emoji,
-    required this.label,
-    required this.color,
-    required this.aiMessage,
-    required this.healingTip,
-  });
-}
-
 class MoodScreen extends StatefulWidget {
   const MoodScreen({super.key});
 

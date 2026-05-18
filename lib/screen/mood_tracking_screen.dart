@@ -46,7 +46,6 @@ class _MoodTrackingState extends State<MoodTrackingScreen>
   static const _kBg = Color(0xFF0A0118);
   static const _kPurple = Color(0xFFAB5CF2);
   static const _kPink = Color(0xFFFF69B4);
-  static const _kGold = Color(0xFFFFD700);
 
   // ─── Mood catalogue ───────────────────────────────────────
   static const List<_MEntry> _moodList = [

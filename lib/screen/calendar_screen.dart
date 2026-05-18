@@ -50,7 +50,6 @@ class _CalendarScreenState extends State<CalendarScreen>
   static const _kPurple = Color(0xFFAB5CF2);
   static const _kPink = Color(0xFFFF69B4);
   static const _kGold = Color(0xFFFFD700);
-  static const _kTeal = Color(0xFF4FC3F7);
   static const _kGreen = Color(0xFF66BB6A);
   static const _kIndigo = Color(0xFF7986CB);
   static const _kWarm = Color(0xFFFFB74D);
@@ -98,22 +97,6 @@ class _CalendarScreenState extends State<CalendarScreen>
     'Unknown': 'Log your cycle to unlock insights',
   };
 
-  static const Map<String, Color> _phaseGradientA = {
-    'Menstrual': Color(0xFFB05C8A),
-    'Follicular': Color(0xFF9B59B6),
-    'Ovulation': Color(0xFFFFD700),
-    'Luteal': Color(0xFF7B68EE),
-    'Unknown': Color(0xFFAB5CF2),
-  };
-
-  static const Map<String, Color> _phaseGradientB = {
-    'Menstrual': Color(0xFFE91E8C),
-    'Follicular': Color(0xFFAB5CF2),
-    'Ovulation': Color(0xFFFF69B4),
-    'Luteal': Color(0xFF5C2DB8),
-    'Unknown': Color(0xFF5C2DB8),
-  };
-
   // ─── Phase descriptions ───────────────────────────────────
   static const Map<String, String> _phaseDescs = {
     'Menstrual':
@@ -134,34 +117,6 @@ class _CalendarScreenState extends State<CalendarScreen>
     'Ovulation': '🌟',
     'Luteal': '🌙',
     'Unknown': '💫',
-  };
-
-  static const Map<String, List<String>> _insightMap = {
-    'Menstrual': [
-      'Be gentle with yourself today 🌸',
-      'Heat therapy may ease cramps 🌡️',
-      'Iron-rich foods support your body now 🩸',
-    ],
-    'Follicular': [
-      'Your energy is rising — embrace it ✨',
-      'Great time to start new projects 🌱',
-      'Social energy peaks this week 💫',
-    ],
-    'Ovulation': [
-      'Peak fertility window is now active 🥚',
-      'Your charisma is at its highest today ✨',
-      'Energy and confidence are soaring 🌟',
-    ],
-    'Luteal': [
-      'Emotional tide rising — honor it 💜',
-      'Cravings are hormonal — be kind to yourself 🍫',
-      'Rest deeply tonight for inner balance 🌙',
-    ],
-    'Unknown': [
-      'Log your cycle to unlock personalized insights 🌙',
-      'Tracking helps you understand your body ✨',
-      'Your wellness journey starts here 💜',
-    ],
   };
 
   // ─── Lifecycle ────────────────────────────────────────────
@@ -1341,65 +1296,6 @@ class _CalendarScreenState extends State<CalendarScreen>
                 .toList(),
           ),
         ),
-      ],
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────
-  //  AI INSIGHT PILLS
-  // ─────────────────────────────────────────────────────────
-  Widget _aiInsightPills(UserProvider user) {
-    final phase = _phaseLabel(user);
-    final insights = _insightMap[phase] ?? _insightMap['Unknown']!;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('Lunar AI Insights ✨'),
-        const SizedBox(height: 13),
-        ...insights.map((text) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: AnimatedBuilder(
-                animation: _glowAnim,
-                builder: (_, __) => Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFF5C2DB8).withOpacity(0.42),
-                        const Color(0xFFAB5CF2).withOpacity(0.24),
-                      ],
-                    ),
-                    border: Border.all(
-                      color: _kPurple.withOpacity(0.28 * _glowAnim.value),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.auto_awesome,
-                        color: _kPurple.withOpacity(0.85),
-                        size: 16,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          text,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.83),
-                            fontSize: 13,
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )),
       ],
     );
   }

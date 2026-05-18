@@ -1,10 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../user_provider.dart';
-import 'mood_screen.dart';
+import '../core/providers/lunar_data_provider.dart';
 import 'mood_tracking_screen.dart';
 import 'journal_screen.dart';
 import 'cycle_tracker_screen.dart';
@@ -19,7 +20,6 @@ import 'pregnancy_screen.dart';
 const Color _hBg = Color(0xFF0A0118);
 const Color _hPurple = Color(0xFFAB5CF2);
 const Color _hPink = Color(0xFFFF69B4);
-const Color _hDeep = Color(0xFF5C2DB8);
 const Color _hGold = Color(0xFFFFD700);
 const Color _hTeal = Color(0xFF4FC3F7);
 const Color _hGreen = Color(0xFF66BB6A);
@@ -41,11 +41,17 @@ class _HomeDashboardState extends State<HomeDashboard>
   late AnimationController _particleController;
   late AnimationController _breatheCtrl;
   late AnimationController _pulseCtrl;
+  late AnimationController _shimmerCtrl;
+  late AnimationController _entryCtrl;
 
   late Animation<double> _floatAnim;
   late Animation<double> _glowAnim;
   late Animation<double> _breatheAnim;
   late Animation<double> _pulseAnim;
+  late Animation<double> _shimmerAnim;
+
+  int _aiSubtitleIdx = 0;
+  Timer? _subtitleTimer;
 
   final List<_StarParticle> _particles = [];
   final List<_HeartParticle> _hearts = [];
@@ -57,8 +63,15 @@ class _HomeDashboardState extends State<HomeDashboard>
   double tempC = 36.6;
 
   final Set<int> _careCompleted = {};
-  bool _breathingActive = false;
   int? _pressedAction;
+
+  static const _aiSubtitles = [
+    'Your emotional wellness companion ✨',
+    'Always listening, always caring 💜',
+    'Powered by lunar intelligence 🌙',
+    'Here to support your journey 🌸',
+    'Ask me anything about your cycle 🔮',
+  ];
 
   static const _affirmations = [
     '"Your body is wise. Your emotions are valid. You are enough." 💜',
@@ -112,6 +125,24 @@ class _HomeDashboardState extends State<HomeDashboard>
     _pulseAnim = Tween<double>(begin: 0.7, end: 1.0)
         .animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
 
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
+    _shimmerAnim = Tween<double>(begin: -1.5, end: 2.5).animate(
+      CurvedAnimation(parent: _shimmerCtrl, curve: Curves.linear),
+    );
+
+    _entryCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    );
+    _entryCtrl.forward();
+
+    _subtitleTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) setState(() => _aiSubtitleIdx = (_aiSubtitleIdx + 1) % _aiSubtitles.length);
+    });
+
     for (int i = 0; i < 28; i++) _particles.add(_StarParticle(rng: _rng));
     for (int i = 0; i < 12; i++) _hearts.add(_HeartParticle(rng: _rng));
   }
@@ -124,6 +155,9 @@ class _HomeDashboardState extends State<HomeDashboard>
     _particleController.dispose();
     _breatheCtrl.dispose();
     _pulseCtrl.dispose();
+    _shimmerCtrl.dispose();
+    _entryCtrl.dispose();
+    _subtitleTimer?.cancel();
     super.dispose();
   }
 
@@ -354,7 +388,14 @@ class _HomeDashboardState extends State<HomeDashboard>
   @override
   Widget build(BuildContext context) {
     final user = Provider.of<UserProvider>(context);
+    final lunarData = context.watch<LunarDataProvider>();
     final size = MediaQuery.of(context).size;
+
+    // ── Override static health vars with real live data ───────────────
+    waterGlasses = lunarData.todayWaterGlasses;
+    sleepHours = lunarData.lastSleepHours;
+    weightKg = lunarData.lastWeightKg;
+    tempC = lunarData.lastTempC;
 
     return Scaffold(
       backgroundColor: _hBg,
@@ -385,25 +426,25 @@ class _HomeDashboardState extends State<HomeDashboard>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 18),
-                        _topBar(user),
+                        _staggeredSection(_topBar(user), 0),
                         const SizedBox(height: 12),
-                        _emotionalWeatherStrip(user),
+                        _staggeredSection(_emotionalWeatherStrip(user), 1),
                         const SizedBox(height: 26),
-                        _orbitalTracker(user),
+                        _staggeredSection(_orbitalTracker(user), 2),
                         const SizedBox(height: 20),
-                        _moonCompanionRow(user),
+                        _staggeredSection(_moonCompanionRow(user), 3),
                         const SizedBox(height: 26),
-                        _quickActions(context),
+                        _staggeredSection(_quickActions(context), 4),
                         const SizedBox(height: 22),
-                        _pregnancyCard(context),
+                        _staggeredSection(_pregnancyCard(context), 5),
                         const SizedBox(height: 26),
-                        _insightCarousel(user),
+                        _staggeredSection(_insightCarousel(user), 6),
                         const SizedBox(height: 26),
-                        _healthSnapshot(),
+                        _staggeredSection(_healthSnapshot(), 7),
                         const SizedBox(height: 26),
-                        _aiCard(context, user),
+                        _staggeredSection(_aiCard(context, user), 8),
                         const SizedBox(height: 26),
-                        _dailyCare(),
+                        _staggeredSection(_dailyCare(), 9),
                         const SizedBox(height: 100),
                       ],
                     ),
@@ -460,18 +501,32 @@ class _HomeDashboardState extends State<HomeDashboard>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
+                _timeOfDay(),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.50),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
                 _greeting(user),
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 17,
+                  fontSize: 16,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.2,
                   height: 1.3,
                 ),
               ),
               const SizedBox(height: 5),
-              _pill('Cycle: 28 days', const Color(0xFFAB5CF2),
-                  const Color(0xFFD8A8FF)),
+              Row(children: [
+                _pill('Cycle: 28 days', const Color(0xFFAB5CF2),
+                    const Color(0xFFD8A8FF)),
+                const SizedBox(width: 6),
+                _liveStatusPill(),
+              ]),
             ],
           ),
         ),
@@ -1311,12 +1366,30 @@ class _HomeDashboardState extends State<HomeDashboard>
   //  HEALTH SNAPSHOT
   // ─────────────────────────────────────────────────────────
   Widget _healthSnapshot() {
+    final lunarData = context.read<LunarDataProvider>();
+    final energyLabel = lunarData.energyLevel == 'high'
+        ? 'High'
+        : lunarData.energyLevel == 'low'
+            ? 'Low'
+            : 'Medium';
+    final energyProgress = lunarData.energyLevel == 'high'
+        ? 0.90
+        : lunarData.energyLevel == 'low'
+            ? 0.35
+            : 0.60;
     final items = [
-      _HealthItem('💧', 'Water', '$waterGlasses/8', 'glasses'),
-      _HealthItem('😴', 'Sleep', '$sleepHours', 'hrs'),
-      _HealthItem('⚖️', 'Weight', '$weightKg', 'kg'),
-      _HealthItem('🌡️', 'Temp', '$tempC', '°C'),
-      _HealthItem('💜', 'Energy', 'High', ''),
+      _HealthItem('💧', 'Water', '$waterGlasses/8', 'glasses',
+          progress: (waterGlasses / 8).clamp(0.0, 1.0),
+          accentColor: _hTeal),
+      _HealthItem('😴', 'Sleep', sleepHours.toStringAsFixed(1), 'hrs',
+          progress: (sleepHours / 9).clamp(0.0, 1.0),
+          accentColor: _hIndigo),
+      _HealthItem('⚖️', 'Weight', weightKg.toStringAsFixed(1), 'kg',
+          progress: 0.72, accentColor: _hWarm),
+      _HealthItem('🌡️', 'Temp', tempC.toStringAsFixed(1), '°C',
+          progress: 0.80, accentColor: _hPink),
+      _HealthItem('💜', 'Energy', energyLabel, '',
+          progress: energyProgress, accentColor: _hPurple),
     ];
 
     return Column(
@@ -1329,10 +1402,20 @@ class _HomeDashboardState extends State<HomeDashboard>
           physics: const BouncingScrollPhysics(),
           child: Row(
             children: items.map((item) {
+              final isWater = item.label == 'Water';
               return Padding(
                 padding: const EdgeInsets.only(right: 12),
-                child: _glassCard(
-                  width: 90,
+                child: GestureDetector(
+                  onTap: isWater
+                      ? () {
+                          HapticFeedback.lightImpact();
+                          context
+                              .read<LunarDataProvider>()
+                              .addWaterGlass();
+                        }
+                      : null,
+                  child: _glassCard(
+                    width: 90,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -1358,8 +1441,25 @@ class _HomeDashboardState extends State<HomeDashboard>
                             color: Colors.white.withOpacity(0.65),
                             fontSize: 11),
                       ),
+                      const SizedBox(height: 8),
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.0, end: item.progress),
+                        duration: const Duration(milliseconds: 1100),
+                        curve: Curves.easeOutCubic,
+                        builder: (_, v, __) => ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: v,
+                            minHeight: 3.5,
+                            backgroundColor: Colors.white.withOpacity(0.07),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                item.accentColor.withOpacity(0.82)),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
+                ),
                 ),
               );
             }).toList(),
@@ -1412,51 +1512,154 @@ class _HomeDashboardState extends State<HomeDashboard>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Lunar AI 🌙',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 21,
-                            fontWeight: FontWeight.bold),
+                      Row(children: [
+                        const Text(
+                          'Lunar AI 🌙',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 21,
+                              fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(width: 10),
+                        AnimatedBuilder(
+                          animation: _pulseAnim,
+                          builder: (_, __) => Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              color: _hGreen.withOpacity(0.18),
+                              border: Border.all(
+                                  color: _hGreen.withOpacity(0.5), width: 1),
+                            ),
+                            child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 5,
+                                    height: 5,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _hGreen,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: _hGreen.withOpacity(
+                                              _pulseAnim.value * 0.9),
+                                          blurRadius: 6,
+                                          spreadRadius: 1,
+                                        )
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text('Online',
+                                      style: TextStyle(
+                                          color: _hGreen,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w600)),
+                                ]),
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 6),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 600),
+                        transitionBuilder: (child, anim) => FadeTransition(
+                          opacity: anim,
+                          child: SlideTransition(
+                            position: Tween(
+                                    begin: const Offset(0, 0.15),
+                                    end: Offset.zero)
+                                .animate(CurvedAnimation(
+                                    parent: anim, curve: Curves.easeOut)),
+                            child: child,
+                          ),
+                        ),
+                        child: Text(
+                          _aiSubtitles[_aiSubtitleIdx],
+                          key: ValueKey(_aiSubtitleIdx),
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.52),
+                              fontSize: 11.5,
+                              fontStyle: FontStyle.italic,
+                              height: 1.4),
+                        ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Text(
                         _aiInsight(user),
                         style: TextStyle(
                             color: Colors.white.withOpacity(0.75),
-                            fontSize: 14,
+                            fontSize: 13,
                             height: 1.4),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
                       Row(
                         children: [
                           Expanded(
                             child: GestureDetector(
                               onTap: () => _nav(context, const AIVoiceScreen()),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 13),
-                                decoration: BoxDecoration(
+                              child: AnimatedBuilder(
+                                animation: _shimmerAnim,
+                                builder: (_, __) => ClipRRect(
                                   borderRadius: BorderRadius.circular(30),
-                                  gradient: const LinearGradient(colors: [
-                                    Color(0xFFAB5CF2),
-                                    Color(0xFFFF69B4),
-                                  ]),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFAB5CF2)
-                                          .withOpacity(0.5),
-                                      blurRadius: 16,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 13),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(30),
+                                      gradient: const LinearGradient(colors: [
+                                        Color(0xFFAB5CF2),
+                                        Color(0xFFFF69B4),
+                                      ]),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFFAB5CF2)
+                                              .withOpacity(0.5),
+                                          blurRadius: 16,
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                                child: const Text(
-                                  'Talk to Lunar ✨',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13),
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        const Text(
+                                          'Talk to Lunar ✨',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13),
+                                        ),
+                                        Positioned.fill(
+                                          child: OverflowBox(
+                                            maxWidth: double.infinity,
+                                            child: Transform.translate(
+                                              offset: Offset(
+                                                  _shimmerAnim.value * 60, 0),
+                                              child: Container(
+                                                width: 60,
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    colors: [
+                                                      Colors.white
+                                                          .withOpacity(0.0),
+                                                      Colors.white
+                                                          .withOpacity(0.22),
+                                                      Colors.white
+                                                          .withOpacity(0.0),
+                                                    ],
+                                                    begin: Alignment.centerLeft,
+                                                    end: Alignment.centerRight,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -1729,6 +1932,68 @@ class _HomeDashboardState extends State<HomeDashboard>
             letterSpacing: 0.2),
       );
 
+  String _timeOfDay() {
+    final h = DateTime.now().hour;
+    if (h >= 5 && h < 12) return 'Good Morning ☀️';
+    if (h >= 12 && h < 17) return 'Good Afternoon 🌞';
+    if (h >= 17 && h < 21) return 'Good Evening 🌅';
+    return 'Good Night 🌙';
+  }
+
+  Widget _liveStatusPill() {
+    return AnimatedBuilder(
+      animation: _pulseAnim,
+      builder: (_, __) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: _hGreen.withOpacity(0.15),
+          border: Border.all(color: _hGreen.withOpacity(0.4), width: 1),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _hGreen,
+              boxShadow: [
+                BoxShadow(
+                  color: _hGreen.withOpacity(_pulseAnim.value),
+                  blurRadius: 6,
+                  spreadRadius: 1,
+                )
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text('Live',
+              style: TextStyle(
+                  color: _hGreen,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _staggeredSection(Widget child, int index) {
+    final start = (index * 0.12).clamp(0.0, 0.88);
+    final end = (start + 0.45).clamp(0.0, 1.0);
+    final anim = CurvedAnimation(
+      parent: _entryCtrl,
+      curve: Interval(start, end, curve: Curves.easeOutCubic),
+    );
+    return FadeTransition(
+      opacity: anim,
+      child: SlideTransition(
+        position:
+            Tween(begin: const Offset(0, 0.06), end: Offset.zero).animate(anim),
+        child: child,
+      ),
+    );
+  }
+
   void _nav(BuildContext ctx, Widget screen) =>
       Navigator.push(ctx, MaterialPageRoute(builder: (_) => screen));
 }
@@ -1778,6 +2043,28 @@ class _DreamyBackground extends StatelessWidget {
               bottom: 0,
               right: -50,
               child: _blob(250, const Color(0xFFFF69B4), 0.15)),
+          // Moon glow — top-right ambient
+          Positioned(
+              top: -40,
+              right: -50,
+              child: _blob(240, const Color(0xFFFFD700), 0.12)),
+          Positioned(
+              top: 10,
+              right: 0,
+              child: _blob(110, const Color(0xFFFFF8DC), 0.08)),
+          // Cloud depth layers
+          Positioned(
+              top: size.height * 0.18,
+              left: -80,
+              child: _blob(200, const Color(0xFF7B2FF7), 0.09)),
+          Positioned(
+              top: size.height * 0.60,
+              right: -90,
+              child: _blob(230, const Color(0xFF9B59B6), 0.07)),
+          Positioned(
+              top: size.height * 0.26,
+              left: size.width * 0.5 - 95,
+              child: _blob(190, const Color(0xFFFF69B4), 0.05)),
         ],
       ),
     );
@@ -1993,7 +2280,10 @@ class _InsightCard {
 
 class _HealthItem {
   final String icon, label, value, unit;
-  _HealthItem(this.icon, this.label, this.value, this.unit);
+  final double progress;
+  final Color accentColor;
+  _HealthItem(this.icon, this.label, this.value, this.unit,
+      {this.progress = 0.5, this.accentColor = const Color(0xFFAB5CF2)});
 }
 
 class _CareTip {
