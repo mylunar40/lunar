@@ -1,4 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 /// Static wrapper around FirebaseAuth + GoogleSignIn.
@@ -71,7 +73,9 @@ class AuthService {
 
   // ── Error Helpers ──────────────────────────────────────
   static String friendlyError(dynamic e) {
+    debugPrint('[AuthService] Error type: ${e.runtimeType}');
     if (e is FirebaseAuthException) {
+      debugPrint('[AuthService] FirebaseAuthException — code: ${e.code} | message: ${e.message}');
       switch (e.code) {
         case 'email-already-in-use':
           return 'This email is already registered. Try signing in.';
@@ -82,6 +86,7 @@ class AuthService {
         case 'user-not-found':
           return 'No account found with this email.';
         case 'wrong-password':
+        case 'invalid-credential':
           return 'Incorrect password. Please try again.';
         case 'too-many-requests':
           return 'Too many attempts. Please wait and try again.';
@@ -89,10 +94,26 @@ class AuthService {
           return 'No internet connection. Please check your network.';
         case 'user-disabled':
           return 'This account has been disabled.';
+        case 'operation-not-allowed':
+          return 'Email/password sign-in is not enabled. Please contact support.';
         default:
-          return e.message ?? 'An error occurred. Please try again.';
+          return e.message ?? 'Authentication error. Please try again.';
       }
     }
+    if (e is FirebaseException) {
+      debugPrint('[AuthService] FirebaseException — code: ${e.code} | message: ${e.message} | plugin: ${e.plugin}');
+      switch (e.code) {
+        case 'permission-denied':
+          return 'Account created! Please log in to continue.';
+        case 'unavailable':
+          return 'Service temporarily unavailable. Please try again.';
+        case 'not-found':
+          return 'Data not found. Please try again.';
+        default:
+          return e.message ?? 'A Firebase error occurred. Please try again.';
+      }
+    }
+    debugPrint('[AuthService] Unknown error: $e');
     return 'An unexpected error occurred. Please try again.';
   }
 }

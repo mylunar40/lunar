@@ -12,7 +12,6 @@ import '../models/chat_message.dart';
 import '../models/cycle_model.dart';
 import '../data/local_cache.dart';
 import '../../services/lunar_ai_service.dart';
-import '../../user_provider.dart';
 import 'app_provider.dart';
 import 'lunar_data_provider.dart';
 
@@ -208,15 +207,15 @@ class ChatProvider extends ChangeNotifier {
       // Pregnancy week
       int? pregnancyWeek;
       if (lunarData.isPregnant && lunarData.pregnancyData != null) {
-        pregnancyWeek = lunarData.pregnancyData!.weeksPregnant.clamp(1, 42).toInt();
+        pregnancyWeek =
+            lunarData.pregnancyData!.weeksPregnant.clamp(1, 42).toInt();
       }
 
       return {
         'name': app.userName,
         'cyclePhase': phaseLabel,
-        'cycleDay': lunarData.currentCycleDay > 0
-            ? lunarData.currentCycleDay
-            : null,
+        'cycleDay':
+            lunarData.currentCycleDay > 0 ? lunarData.currentCycleDay : null,
         'isPregnant': app.pregnancyMode || lunarData.isPregnant,
         'pregnancyWeek': pregnancyWeek,
         'lastMood': lastMoodEmoji,
@@ -259,26 +258,45 @@ class ChatProvider extends ChangeNotifier {
 
   static EmotionTag? _detectEmotion(String text) {
     final l = text.toLowerCase();
-    if (l.contains('anxi') || l.contains('panic') || l.contains('worry') ||
-        l.contains('scared') || l.contains('nervous')) return EmotionTag.anxious;
-    if (l.contains('sad') || l.contains('cry') || l.contains('depress') ||
-        l.contains('hurt') || l.contains('broken')) return EmotionTag.sad;
+    if (l.contains('anxi') ||
+        l.contains('panic') ||
+        l.contains('worry') ||
+        l.contains('scared') ||
+        l.contains('nervous')) return EmotionTag.anxious;
+    if (l.contains('sad') ||
+        l.contains('cry') ||
+        l.contains('depress') ||
+        l.contains('hurt') ||
+        l.contains('broken')) return EmotionTag.sad;
     if (l.contains('lonely') || l.contains('alone') || l.contains('isolat')) {
       return EmotionTag.lonely;
     }
-    if (l.contains('stress') || l.contains('overwhelm') || l.contains('too much') ||
+    if (l.contains('stress') ||
+        l.contains('overwhelm') ||
+        l.contains('too much') ||
         l.contains('burnout')) return EmotionTag.stressed;
-    if (l.contains('happy') || l.contains('great') || l.contains('amazing') ||
-        l.contains('excit') || l.contains('wonderful')) return EmotionTag.happy;
-    if (l.contains('energe') || l.contains('motivated') || l.contains('strong')) {
+    if (l.contains('happy') ||
+        l.contains('great') ||
+        l.contains('amazing') ||
+        l.contains('excit') ||
+        l.contains('wonderful')) return EmotionTag.happy;
+    if (l.contains('energe') ||
+        l.contains('motivated') ||
+        l.contains('strong')) {
       return EmotionTag.energetic;
     }
-    if (l.contains('tired') || l.contains('exhaust') || l.contains('fatigue') ||
+    if (l.contains('tired') ||
+        l.contains('exhaust') ||
+        l.contains('fatigue') ||
         l.contains('sleep')) return EmotionTag.tired;
-    if (l.contains('emotional') || l.contains('sensitive') || l.contains('i feel')) {
+    if (l.contains('emotional') ||
+        l.contains('sensitive') ||
+        l.contains('i feel')) {
       return EmotionTag.emotional;
     }
-    if (l.contains('period') || l.contains('cramp') || l.contains('pms') ||
+    if (l.contains('period') ||
+        l.contains('cramp') ||
+        l.contains('pms') ||
         l.contains('menstrual')) return EmotionTag.period;
     return null;
   }

@@ -2,6 +2,9 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../core/providers/auth_provider.dart';
+import '../core/providers/lunar_data_provider.dart';
 
 // ═══════════════════════════════════════════════════════════
 //  LUNAR PREGNANCY COMPANION — Warm Emotional Journey
@@ -531,14 +534,6 @@ class _PWellnessItem {
 //  JOURNAL ENTRY
 // ═══════════════════════════════════════════════════════════
 
-class _PJournalEntry {
-  final String id, type, emoji, note;
-  final DateTime date;
-  _PJournalEntry({required this.type, required this.emoji, required this.note})
-      : id = '${DateTime.now().microsecondsSinceEpoch}',
-        date = DateTime.now();
-}
-
 // ═══════════════════════════════════════════════════════════
 //  AFFIRMATIONS
 // ═══════════════════════════════════════════════════════════
@@ -585,6 +580,7 @@ class _PregnancyState extends State<PregnancyScreen>
   final math.Random _rng = math.Random();
 
   int _week = 16;
+  bool _weekInitialized = false;
   int _affirmIdx = 0;
   bool _showJournalInput = false;
   int _activeJournalType = 0;
@@ -608,7 +604,6 @@ class _PregnancyState extends State<PregnancyScreen>
         ['High ⚡', 'Good ✨', 'Medium 🌤️', 'Low 😴', 'Very low 😔']),
   ];
 
-  final List<_PJournalEntry> _journal = [];
   final TextEditingController _journalCtrl = TextEditingController();
 
   static const List<(String, String, Color)> _kJournalTypes = [
@@ -654,6 +649,22 @@ class _PregnancyState extends State<PregnancyScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_weekInitialized) {
+      _weekInitialized = true;
+      final ld = Provider.of<LunarDataProvider>(context, listen: false);
+      _week = ld.currentPregnancyWeek;
+      // Sync wellness selections from provider
+      final w = ld.pregWellness;
+      for (final item in _wellness) {
+        final val = w[item.label.toLowerCase()];
+        if (val != null) item.selected = val;
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _glowCtrl.dispose();
     _floatCtrl.dispose();
@@ -690,6 +701,14 @@ class _PregnancyState extends State<PregnancyScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final lunarData = context.watch<LunarDataProvider>();
+    final auth = context.read<LunarAuthProvider>();
+    // Keep local _week in sync when provider changes externally
+    final providerWeek = lunarData.currentPregnancyWeek;
+    if (_weekInitialized && providerWeek != _week && _week == 16) {
+      WidgetsBinding.instance.addPostFrameCallback(
+          (_) => setState(() => _week = providerWeek));
+    }
     final data = _PGrowthEngine.forWeek(_week);
     final tc = _PGrowthEngine.trimesterColor(_week);
 
@@ -698,14 +717,16 @@ class _PregnancyState extends State<PregnancyScreen>
       body: Stack(
         children: [
           _PBackground(size: size, week: _week),
-          AnimatedBuilder(
-            animation: _particleCtrl,
-            builder: (_, __) => CustomPaint(
-              size: size,
-              painter: _PPainter(
-                  stars: _stars,
-                  hearts: _hearts,
-                  progress: _particleCtrl.value),
+          RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: _particleCtrl,
+              builder: (_, __) => CustomPaint(
+                size: size,
+                painter: _PPainter(
+                    stars: _stars,
+                    hearts: _hearts,
+                    progress: _particleCtrl.value),
+              ),
             ),
           ),
           SafeArea(
@@ -722,13 +743,17 @@ class _PregnancyState extends State<PregnancyScreen>
                         const SizedBox(height: 24),
                         _pregnancyOrb(data, tc),
                         const SizedBox(height: 20),
-                        _trimesterTimeline(),
+                        _trimesterTimeline(lunarData, auth),
                         const SizedBox(height: 26),
                         _babyGrowthCard(data, tc),
                         const SizedBox(height: 26),
+                        _sectionLabel('Baby Kicks', '👣'),
+                        const SizedBox(height: 14),
+                        _kickCounterCard(lunarData, auth),
+                        const SizedBox(height: 26),
                         _sectionLabel('Your Wellness', '💜'),
                         const SizedBox(height: 14),
-                        _wellnessGrid(),
+                        _wellnessGrid(lunarData, auth),
                         const SizedBox(height: 26),
                         _sectionLabel('AI Pregnancy Insights', '✨'),
                         const SizedBox(height: 14),
@@ -745,7 +770,7 @@ class _PregnancyState extends State<PregnancyScreen>
                         const SizedBox(height: 26),
                         _sectionLabel('Pregnancy Journal', '📓'),
                         const SizedBox(height: 14),
-                        _journalSection(),
+                        _journalSection(lunarData),
                         const SizedBox(height: 26),
                         _sectionLabel('Care & Reminders', '🩺'),
                         const SizedBox(height: 14),
@@ -775,7 +800,7 @@ class _PregnancyState extends State<PregnancyScreen>
               ],
             ),
           ),
-          if (_showJournalInput) _journalOverlay(context),
+          if (_showJournalInput) _journalOverlay(context, lunarData, auth),
         ],
       ),
     );
@@ -948,7 +973,7 @@ class _PregnancyState extends State<PregnancyScreen>
       );
 
   // ── TRIMESTER TIMELINE ────────────────────────────────────
-  Widget _trimesterTimeline() => _glassCard(
+  Widget _trimesterTimeline(LunarDataProvider lunarData, LunarAuthProvider auth) => _glassCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             const Text('🗓️', style: TextStyle(fontSize: 18)),
@@ -980,6 +1005,10 @@ class _PregnancyState extends State<PregnancyScreen>
               onChanged: (v) {
                 HapticFeedback.selectionClick();
                 setState(() => _week = v.round());
+              },
+              onChangeEnd: (v) {
+                lunarData.setPregnancyWeek(
+                    v.round(), uid: auth.firebaseUser?.uid);
               },
             ),
           ),
@@ -1160,13 +1189,150 @@ class _PregnancyState extends State<PregnancyScreen>
                 TextStyle(color: c, fontSize: 11, fontWeight: FontWeight.w600)),
       );
 
+  // ── KICK COUNTER CARD ─────────────────────────────────────
+  Widget _kickCounterCard(
+      LunarDataProvider lunarData, LunarAuthProvider auth) {
+    final kicks = lunarData.pregnancyKickCount;
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(colors: [
+                _pPink.withOpacity(0.16),
+                _pPurple.withOpacity(0.10),
+              ]),
+              border: Border.all(
+                  color: _pPink.withOpacity(_glowAnim.value * 0.55),
+                  width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                    color: _pPink.withOpacity(0.12 * _glowAnim.value),
+                    blurRadius: 22)
+              ],
+            ),
+            child: Column(children: [
+              Row(children: [
+                const Text('👣', style: TextStyle(fontSize: 20)),
+                const SizedBox(width: 10),
+                const Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text('Baby Kicks Today',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700)),
+                      Text('Track movements to feel connected',
+                          style: TextStyle(
+                              color: Color(0x80FFFFFF), fontSize: 11.5)),
+                    ])),
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    lunarData.resetPregnancyKicks(
+                        uid: auth.firebaseUser?.uid);
+                  },
+                  child: Text('Reset',
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.35),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500)),
+                ),
+              ]),
+              const SizedBox(height: 20),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.mediumImpact();
+                    lunarData.addPregnancyKick(uid: auth.firebaseUser?.uid);
+                  },
+                  child: AnimatedBuilder(
+                    animation: _pulseAnim,
+                    builder: (_, __) => Transform.scale(
+                      scale: _pulseAnim.value,
+                      child: Container(
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(colors: [
+                            _pPink.withOpacity(0.9),
+                            _pPink.withOpacity(0.5),
+                            _pPurple.withOpacity(0.2),
+                          ]),
+                          boxShadow: [
+                            BoxShadow(
+                                color:
+                                    _pPink.withOpacity(_glowAnim.value * 0.7),
+                                blurRadius: 28,
+                                spreadRadius: 6),
+                          ],
+                        ),
+                        child: const Center(
+                            child: Text('👣', style: TextStyle(fontSize: 38))),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 30),
+                Column(children: [
+                  Text('$kicks',
+                      style: TextStyle(
+                          color: _pPink,
+                          fontSize: 48,
+                          fontWeight: FontWeight.w900)),
+                  Text(kicks == 1 ? 'kick today' : 'kicks today',
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                  const SizedBox(height: 8),
+                  if (kicks >= 10)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: _pPink.withOpacity(0.18),
+                        border: Border.all(
+                            color: _pPink.withOpacity(0.45), width: 1),
+                      ),
+                      child: const Text('✨ Active baby!',
+                          style: TextStyle(
+                              color: Color(0xFFFF69B4),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600)),
+                    )
+                  else if (kicks >= 6)
+                    Text('Baby is moving well 💜',
+                        style: TextStyle(
+                            color: _pPurple.withOpacity(0.8), fontSize: 11.5))
+                  else
+                    Text('Tap the foot to count',
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.3),
+                            fontSize: 11)),
+                ]),
+              ]),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── WELLNESS GRID ─────────────────────────────────────────
-  Widget _wellnessGrid() => Column(
+  Widget _wellnessGrid(LunarDataProvider lunarData, LunarAuthProvider auth) => Column(
         children: _wellness
             .map((w) => Padding(
                   padding: const EdgeInsets.only(bottom: 11),
                   child: GestureDetector(
-                    onTap: () => _showWellnessSheet(w),
+                    onTap: () => _showWellnessSheet(w, lunarData, auth),
                     child: AnimatedBuilder(
                       animation: _glowAnim,
                       builder: (_, __) => ClipRRect(
@@ -1236,7 +1402,10 @@ class _PregnancyState extends State<PregnancyScreen>
             .toList(),
       );
 
-  void _showWellnessSheet(_PWellnessItem item) {
+  void _showWellnessSheet(
+      _PWellnessItem item,
+      LunarDataProvider lunarData,
+      LunarAuthProvider auth) {
     HapticFeedback.lightImpact();
     showModalBottomSheet(
       context: context,
@@ -1271,6 +1440,9 @@ class _PregnancyState extends State<PregnancyScreen>
                 onTap: () {
                   HapticFeedback.lightImpact();
                   setState(() => item.selected = opt);
+                  lunarData.setPregWellness(
+                      item.label.toLowerCase(), opt,
+                      uid: auth.firebaseUser?.uid);
                   Navigator.pop(context);
                 },
                 child: Container(
@@ -1363,7 +1535,7 @@ class _PregnancyState extends State<PregnancyScreen>
   }
 
   // ── JOURNAL ───────────────────────────────────────────────
-  Widget _journalSection() => Column(
+  Widget _journalSection(LunarDataProvider lunarData) => Column(
         children: [
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -1418,37 +1590,35 @@ class _PregnancyState extends State<PregnancyScreen>
               }).toList(),
             ),
           ),
-          if (_journal.isNotEmpty) ...[
+          if (lunarData.pregnancyJournals.isNotEmpty) ...[
             const SizedBox(height: 14),
-            ..._journal.reversed.take(3).map((e) {
-              const ms = [
-                'Jan',
-                'Feb',
-                'Mar',
-                'Apr',
-                'May',
-                'Jun',
-                'Jul',
-                'Aug',
-                'Sep',
-                'Oct',
-                'Nov',
-                'Dec'
-              ];
-              final ds = '${ms[e.date.month - 1]} ${e.date.day}';
+            ...lunarData.pregnancyJournals.take(3).map((e) {
+              final dateStr = e['date'] as String? ?? '';
+              String ds = '';
+              if (dateStr.isNotEmpty) {
+                try {
+                  final d = DateTime.parse(dateStr);
+                  const ms = [
+                    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+                  ];
+                  ds = '${ms[d.month - 1]} ${d.day}';
+                } catch (_) {}
+              }
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _glassCard(
                     child: Row(children: [
-                  Text(e.emoji, style: const TextStyle(fontSize: 24)),
+                  Text(e['emoji'] as String? ?? '📝',
+                      style: const TextStyle(fontSize: 24)),
                   const SizedBox(width: 12),
                   Expanded(
                       child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        Text(e.type,
-                            style: TextStyle(
+                        Text(e['type'] as String? ?? '',
+                            style: const TextStyle(
                                 color: _pPurple,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600)),
@@ -1459,7 +1629,7 @@ class _PregnancyState extends State<PregnancyScreen>
                                 fontSize: 11)),
                       ]),
                       const SizedBox(height: 4),
-                      Text(e.note,
+                      Text(e['note'] as String? ?? '',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -1491,7 +1661,8 @@ class _PregnancyState extends State<PregnancyScreen>
         ],
       );
 
-  Widget _journalOverlay(BuildContext context) {
+  Widget _journalOverlay(BuildContext context, LunarDataProvider lunarData,
+      LunarAuthProvider auth) {
     final (emoji, label, color) = _kJournalTypes[_activeJournalType];
     return GestureDetector(
       onTap: () {
@@ -1586,13 +1757,16 @@ class _PregnancyState extends State<PregnancyScreen>
                         onTap: () {
                           if (_journalCtrl.text.trim().isEmpty) return;
                           HapticFeedback.lightImpact();
-                          setState(() {
-                            _journal.add(_PJournalEntry(
-                                type: label,
-                                emoji: emoji,
-                                note: _journalCtrl.text.trim()));
-                            _showJournalInput = false;
-                          });
+                          final entry = {
+                            'type': label,
+                            'emoji': emoji,
+                            'note': _journalCtrl.text.trim(),
+                            'week': _week,
+                            'date': DateTime.now().toIso8601String(),
+                          };
+                          lunarData.addPregnancyJournal(entry,
+                              uid: auth.firebaseUser?.uid);
+                          setState(() => _showJournalInput = false);
                           _journalCtrl.clear();
                           FocusScope.of(context).unfocus();
                         },

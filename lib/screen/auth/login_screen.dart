@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -56,14 +57,22 @@ class _LoginScreenState extends State<LoginScreen>
 
     final auth = context.read<LunarAuthProvider>();
     final userProvider = context.read<UserProvider>();
+    debugPrint('[LoginScreen] Attempting email sign-in: ${_emailCtrl.text.trim()}');
     final ok = await auth.signInWithEmail(
-      email: _emailCtrl.text,
+      email: _emailCtrl.text.trim(),
       password: _passCtrl.text,
       userProvider: userProvider,
     );
+    debugPrint('[LoginScreen] signInWithEmail result: $ok | error: ${auth.error}');
 
-    if (mounted) setState(() => _loading = false);
-    if (!ok && mounted && auth.error != null) {
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (ok) {
+      // LoginScreen is pushed on top of the root route. Pop back to root so
+      // main.dart's AnimatedSwitcher (now showing MainNavigation) becomes visible.
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } else if (auth.error != null) {
       _showError(auth.error!);
       auth.clearError();
     }
@@ -73,9 +82,16 @@ class _LoginScreenState extends State<LoginScreen>
     HapticFeedback.lightImpact();
     setState(() => _loading = true);
     final auth = context.read<LunarAuthProvider>();
+    debugPrint('[LoginScreen] Attempting Google sign-in...');
     final ok = await auth.signInWithGoogle();
-    if (mounted) setState(() => _loading = false);
-    if (!ok && mounted && auth.error != null) {
+    debugPrint('[LoginScreen] Google sign-in result: $ok | error: ${auth.error}');
+
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (ok) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } else if (auth.error != null) {
       _showError(auth.error!);
       auth.clearError();
     }

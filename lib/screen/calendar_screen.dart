@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../user_provider.dart';
+import '../core/providers/lunar_data_provider.dart';
+import '../core/models/mood_model.dart';
 
 // ═══════════════════════════════════════════════════════════
 //  CALENDAR SCREEN — Lunar AI Premium Cycle Universe
@@ -38,6 +41,8 @@ class _CalendarScreenState extends State<CalendarScreen>
   DateTime _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime? _selectedDay;
   int _monthSwitchDir = 1; // for slide animation direction
+  int _forecastIdx = 0;
+  Timer? _forecastTimer;
 
   // ─── Log state ────────────────────────────────────────────
   String? _selectedMood;
@@ -119,6 +124,51 @@ class _CalendarScreenState extends State<CalendarScreen>
     'Unknown': '💫',
   };
 
+  // ─── AI Forecast messages (per phase) ────────────────────
+  static const Map<String, List<String>> _kAIForecasts = {
+    'Menstrual': [
+      'Rest and warmth are your medicine right now 🌸',
+      'Your body is doing powerful work — be gentle with yourself 🌙',
+      'Light movement may ease discomfort gently ✨',
+      'Iron-rich foods support your energy today 💜',
+    ],
+    'Follicular': [
+      'Ovulation energy is rising 🌸',
+      'Creative ideas will flow freely today ✨',
+      'Your confidence is quietly growing — trust it 🌱',
+      'Social energy builds beautifully in this phase 💫',
+    ],
+    'Ovulation': [
+      'You are at your magnetic peak today 🌟',
+      'Peak confidence energy — speak your truth 💜',
+      'Natural glow is undeniable right now ✨',
+      'This is your most creative window of the cycle 🌸',
+    ],
+    'Luteal': [
+      'You may feel emotionally softer tomorrow 🌙',
+      'Intuition is your greatest gift this week 💜',
+      'Nourish yourself deeply — you deserve it 🌿',
+      'Emotional sensitivity is a superpower, not a flaw ✨',
+    ],
+    'Unknown': [
+      'Log your cycle to unlock personalized forecasts 🌙',
+      'Your wellness journey starts with one data point 💜',
+      'Lunar AI is ready to learn your unique cycle 🌸',
+    ],
+  };
+
+  // ─── Rotating cycle intelligence quotes ──────────────────
+  static const List<String> _kRotatingInsights = [
+    'Sleep improved your mood this week ✨',
+    'Stress patterns increase before PMS 🌙',
+    'Hydration reduces fatigue significantly 💧',
+    'Your cycle consistency is strong this month 🌸',
+    'Emotional peaks align with your ovulation window 🌟',
+    'Rest during menstruation improves follicular energy 💜',
+    'Your energy typically dips 2 days before your period 🌙',
+    'Magnesium-rich foods ease PMS symptoms measurably 🌿',
+  ];
+
   // ─── Lifecycle ────────────────────────────────────────────
   @override
   void initState() {
@@ -169,6 +219,9 @@ class _CalendarScreenState extends State<CalendarScreen>
     for (int i = 0; i < 28; i++) {
       _particles.add(_CStarParticle(rng: _rng));
     }
+    _forecastTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (mounted) setState(() => _forecastIdx++);
+    });
   }
 
   @override
@@ -179,6 +232,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     _breatheCtrl.dispose();
     _pulseCtrl.dispose();
     _ringRotCtrl.dispose();
+    _forecastTimer?.cancel();
     super.dispose();
   }
 
@@ -298,6 +352,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   @override
   Widget build(BuildContext context) {
     final user = Provider.of<UserProvider>(context);
+    final lunarData = Provider.of<LunarDataProvider>(context);
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
@@ -326,26 +381,30 @@ class _CalendarScreenState extends State<CalendarScreen>
                 children: [
                   const SizedBox(height: 18),
                   _header(user),
+                  const SizedBox(height: 18),
+                  _cycleHeroCard(user),
                   const SizedBox(height: 24),
                   _orbitalCycleRing(user),
                   const SizedBox(height: 28),
-                  _monthCalendar(user),
+                  _monthCalendar(user, lunarData),
                   const SizedBox(height: 26),
                   _smartPredictions(user),
                   const SizedBox(height: 26),
                   _cycleIntelligence(user),
                   const SizedBox(height: 26),
-                  _dynamicInsightCards(user),
+                  _dynamicInsightCards(user, lunarData),
                   const SizedBox(height: 26),
-                  _moodSelector(),
+                  _moodSelector(lunarData),
                   const SizedBox(height: 26),
-                  _symptomLogger(),
+                  _symptomLogger(lunarData),
                   const SizedBox(height: 26),
-                  _statsCards(user),
+                  _statsCards(user, lunarData),
                   const SizedBox(height: 26),
-                  _analyticsSection(user),
+                  _rotatingInsightsBanner(),
                   const SizedBox(height: 26),
-                  _aiCompanionCard(),
+                  _analyticsSection(user, lunarData),
+                  const SizedBox(height: 26),
+                  _aiCompanionCard(context),
                   const SizedBox(height: 100),
                 ],
               ),
@@ -599,7 +658,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   // ─────────────────────────────────────────────────────────
   //  MONTH CALENDAR
   // ─────────────────────────────────────────────────────────
-  Widget _monthCalendar(UserProvider user) {
+  Widget _monthCalendar(UserProvider user, LunarDataProvider lunarData) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(26),
       child: BackdropFilter(
@@ -628,7 +687,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                 const SizedBox(height: 16),
                 _weekdayHeaders(),
                 const SizedBox(height: 8),
-                _calendarGrid(user),
+                _calendarGrid(user, lunarData),
                 const SizedBox(height: 14),
                 _legend(),
               ],
@@ -707,7 +766,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     );
   }
 
-  Widget _calendarGrid(UserProvider user) {
+  Widget _calendarGrid(UserProvider user, LunarDataProvider lunarData) {
     final today = DateTime.now();
     final first = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
     final offset = first.weekday - 1; // Mon=0
@@ -746,6 +805,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                   onTap: () {
                     HapticFeedback.selectionClick();
                     setState(() => _selectedDay = isSel ? null : date);
+                    if (!isSel) _showDaySheet(date, user, lunarData);
                   },
                   child: AnimatedBuilder(
                     animation: _glowAnim,
@@ -1303,12 +1363,14 @@ class _CalendarScreenState extends State<CalendarScreen>
   // ─────────────────────────────────────────────────────────
   //  DYNAMIC AI INSIGHTS  (data-reactive cards)
   // ─────────────────────────────────────────────────────────
-  Widget _dynamicInsightCards(UserProvider user) {
+  Widget _dynamicInsightCards(UserProvider user, LunarDataProvider lunarData) {
     final phase = _phaseLabel(user);
-    final hasLogged = _loggedMoods.isNotEmpty;
+    final hasLogged = _loggedMoods.isNotEmpty || lunarData.moodEntries.isNotEmpty;
     final hasCramps = _loggedSymptoms.values.any((s) => s.contains('Cramps'));
-    final hasTired = _loggedMoods.values.contains('😴');
-    final hasAnxious = _loggedMoods.values.contains('😰');
+    final hasTired = _loggedMoods.values.contains('😴') ||
+        lunarData.moodEntries.any((e) => e.emoji == '😴');
+    final hasAnxious = _loggedMoods.values.contains('😰') ||
+        lunarData.moodEntries.any((e) => e.emoji == '😰');
 
     final List<_AIInsight> insights = [];
 
@@ -1449,10 +1511,22 @@ class _CalendarScreenState extends State<CalendarScreen>
     );
   }
 
+  MoodLevel _emojiToLevel(String emoji) {
+    switch (emoji) {
+      case '😊': return MoodLevel.great;
+      case '⚡': return MoodLevel.great;
+      case '😌': return MoodLevel.good;
+      case '😴': return MoodLevel.low;
+      case '😢': return MoodLevel.low;
+      case '😰': return MoodLevel.veryLow;
+      default:   return MoodLevel.neutral;
+    }
+  }
+
   // ─────────────────────────────────────────────────────────
   //  MOOD SELECTOR
   // ─────────────────────────────────────────────────────────
-  Widget _moodSelector() {
+  Widget _moodSelector(LunarDataProvider lunarData) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1475,13 +1549,23 @@ class _CalendarScreenState extends State<CalendarScreen>
                 children: _moods.map((mood) {
                   final isSel = _selectedMood == mood.emoji;
                   return GestureDetector(
-                    onTap: () => setState(() {
-                      _selectedMood = isSel ? null : mood.emoji;
-                      if (!isSel) {
-                        final k = _dateKey(_selectedDay ?? DateTime.now());
-                        _loggedMoods[k] = mood.emoji;
-                      }
-                    }),
+                    onTap: () {
+                      setState(() {
+                        _selectedMood = isSel ? null : mood.emoji;
+                        if (!isSel) {
+                          final k = _dateKey(_selectedDay ?? DateTime.now());
+                          _loggedMoods[k] = mood.emoji;
+                          final targetDate = _selectedDay ?? DateTime.now();
+                          lunarData.logMood(MoodEntry(
+                            id: '${targetDate.toIso8601String()}_mood',
+                            date: targetDate,
+                            level: _emojiToLevel(mood.emoji),
+                            emoji: mood.emoji,
+                            label: mood.label,
+                          ));
+                        }
+                      });
+                    },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 220),
                       curve: Curves.easeInOut,
@@ -1540,7 +1624,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   // ─────────────────────────────────────────────────────────
   //  SYMPTOM LOGGER
   // ─────────────────────────────────────────────────────────
-  Widget _symptomLogger() {
+  Widget _symptomLogger(LunarDataProvider lunarData) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1674,13 +1758,20 @@ class _CalendarScreenState extends State<CalendarScreen>
   // ─────────────────────────────────────────────────────────
   //  STATS CARDS
   // ─────────────────────────────────────────────────────────
-  Widget _statsCards(UserProvider user) {
+  Widget _statsCards(UserProvider user, LunarDataProvider lunarData) {
+    final sleepHours = lunarData.lastSleepHours;
+    final water = lunarData.todayWaterGlasses;
+    final energy = lunarData.energyLevel;
+    final energyDisplay = energy[0].toUpperCase() + energy.substring(1);
+    final recentMood = lunarData.moodEntries.isNotEmpty
+        ? lunarData.moodEntries.first.emoji
+        : '—';
     final stats = [
       _CStatItem('🗓️', 'Cycle', '28 days', _kPurple),
-      _CStatItem('😊', 'Avg Mood', 'Happy', _kGold),
-      _CStatItem('😴', 'Sleep', '7.2h avg', const Color(0xFF7986CB)),
-      _CStatItem('💧', 'Water', '6/8 avg', const Color(0xFF4FC3F7)),
-      _CStatItem('🌙', 'Phase', _phaseLabel(user), _phaseColor(user)),
+      _CStatItem('😊', 'Mood', recentMood, _kGold),
+      _CStatItem('😴', 'Sleep', '${sleepHours.toStringAsFixed(1)}h', const Color(0xFF7986CB)),
+      _CStatItem('💧', 'Water', '$water/8', const Color(0xFF4FC3F7)),
+      _CStatItem('⚡', 'Energy', energyDisplay, _phaseColor(user)),
     ];
 
     return Column(
@@ -1756,14 +1847,15 @@ class _CalendarScreenState extends State<CalendarScreen>
   // ─────────────────────────────────────────────────────────
   //  ANALYTICS SECTION
   // ─────────────────────────────────────────────────────────
-  Widget _analyticsSection(UserProvider user) {
+  Widget _analyticsSection(UserProvider user, LunarDataProvider lunarData) {
     final cd = _cycleDay(user);
     final phase = _phaseLabel(user);
     final color = _phaseColor(user);
 
-    // Mock analytic bars for now (replace with real history data when available)
     final cycleProgress = cd > 0 ? (cd / 28.0).clamp(0.0, 1.0) : 0.0;
-    final moodScore = _loggedMoods.isEmpty ? 0.65 : 0.78;
+    final moodScore = lunarData.moodEntries.isNotEmpty
+        ? (lunarData.moodTrend.averageScore / 5.0).clamp(0.0, 1.0)
+        : 0.65;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1913,7 +2005,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   // ─────────────────────────────────────────────────────────
   //  AI COMPANION CARD
   // ─────────────────────────────────────────────────────────
-  Widget _aiCompanionCard() {
+  Widget _aiCompanionCard(BuildContext ctx) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(26),
       child: BackdropFilter(
@@ -1968,28 +2060,31 @@ class _CalendarScreenState extends State<CalendarScreen>
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 11),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          gradient: const LinearGradient(colors: [
-                            Color(0xFFAB5CF2),
-                            Color(0xFFFF69B4),
-                          ]),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _kPurple.withOpacity(0.45),
-                              blurRadius: 14,
+                      GestureDetector(
+                        onTap: () => HapticFeedback.lightImpact(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 11),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            gradient: const LinearGradient(colors: [
+                              Color(0xFFAB5CF2),
+                              Color(0xFFFF69B4),
+                            ]),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _kPurple.withOpacity(0.45),
+                                blurRadius: 14,
+                              ),
+                            ],
+                          ),
+                          child: const Text(
+                            'Talk to Lunar ✨',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
                             ),
-                          ],
-                        ),
-                        child: const Text(
-                          'Talk to Lunar ✨',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
                           ),
                         ),
                       ),
@@ -2015,6 +2110,364 @@ class _CalendarScreenState extends State<CalendarScreen>
     );
   }
 
+  // ─────────────────────────────────────────────────────────
+  //  CYCLE HERO CARD  (premium emotional forecast)
+  // ─────────────────────────────────────────────────────────
+  Widget _cycleHeroCard(UserProvider user) {
+    final phase = _phaseLabel(user);
+    final color = _phaseColor(user);
+    final cd = _cycleDay(user);
+    final forecasts = _kAIForecasts[phase] ?? _kAIForecasts['Unknown']!;
+    final forecast = forecasts[_forecastIdx % forecasts.length];
+
+    String nextEventChip = '';
+    if (user.lastPeriodDate != null && cd > 0) {
+      if (cd < 10) {
+        nextEventChip = '${10 - cd}d to Fertile Window';
+      } else if (cd >= 10 && cd <= 13) {
+        nextEventChip = '${14 - cd}d to Ovulation';
+      } else if (cd >= 14 && cd <= 16) {
+        nextEventChip = 'Ovulation Active 🌟';
+      } else if (cd >= 17 && cd <= 20) {
+        nextEventChip = '${21 - cd}d to PMS Window';
+      } else if (cd >= 21 && cd <= 27) {
+        nextEventChip = 'PMS Window — be gentle 💜';
+      } else {
+        nextEventChip = '${28 - cd}d to Next Period';
+      }
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_glowAnim, _breatheAnim]),
+          builder: (_, __) => Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  color.withOpacity(0.30),
+                  const Color(0xFF2D0B5C).withOpacity(0.65),
+                  _kPink.withOpacity(0.10),
+                ],
+              ),
+              border: Border.all(
+                color: color.withOpacity(_glowAnim.value * 0.58),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(_glowAnim.value * 0.24),
+                  blurRadius: 36,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Lunar Phase Orb with rotating shimmer ring
+                Column(
+                  children: [
+                    AnimatedBuilder(
+                      animation: Listenable.merge(
+                          [_floatAnim, _breatheAnim, _glowAnim, _ringRotCtrl]),
+                      builder: (_, __) => Transform.translate(
+                        offset: Offset(0, _floatAnim.value * 0.35),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // Outer atmosphere pulse
+                            Container(
+                              width: 90 * _breatheAnim.value,
+                              height: 90 * _breatheAnim.value,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    color.withOpacity(0),
+                                    color.withOpacity(
+                                        0.14 * _glowAnim.value),
+                                    Colors.transparent,
+                                  ],
+                                  stops: const [0.5, 0.82, 1.0],
+                                ),
+                              ),
+                            ),
+                            // Rotating dashed orbit ring
+                            Transform.rotate(
+                              angle: _ringRotCtrl.value * 2 * math.pi,
+                              child: RepaintBoundary(
+                                child: CustomPaint(
+                                  size: const Size(86, 86),
+                                  painter: _ShimmerRingPainter(
+                                    color: color,
+                                    glow: _glowAnim.value,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // Phase orb
+                            Transform.scale(
+                              scale: _breatheAnim.value,
+                              child: Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: RadialGradient(colors: [
+                                    color.withOpacity(0.55),
+                                    const Color(0xFF2D0B5C)
+                                        .withOpacity(0.85),
+                                  ]),
+                                  border: Border.all(
+                                    color: color.withOpacity(
+                                        _glowAnim.value * 0.65),
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: color.withOpacity(
+                                          _glowAnim.value * 0.52),
+                                      blurRadius: 22,
+                                      spreadRadius: 3,
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    _phaseEmojis[phase] ?? '💫',
+                                    style: const TextStyle(fontSize: 26),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      cd > 0 ? 'Day $cd' : '—',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 18),
+                // Right: phase + rotating AI forecast + next event chip
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _phaseEmotionalLabel[phase] ?? phase,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _phaseEnergy[phase] ?? '',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.45),
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Rotating AI emotional forecast
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 750),
+                        transitionBuilder: (child, anim) => FadeTransition(
+                          opacity: CurvedAnimation(
+                              parent: anim, curve: Curves.easeOut),
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.15),
+                              end: Offset.zero,
+                            ).animate(CurvedAnimation(
+                                parent: anim,
+                                curve: Curves.easeOutCubic)),
+                            child: child,
+                          ),
+                        ),
+                        child: Container(
+                          key: ValueKey(_forecastIdx),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 9),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            color: color.withOpacity(0.12),
+                            border: Border.all(
+                              color: color.withOpacity(0.30),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            forecast,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.85),
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (nextEventChip.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: color.withOpacity(0.16),
+                            border: Border.all(
+                              color: color.withOpacity(0.40),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            '⏱ $nextEventChip',
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  ROTATING INSIGHTS BANNER  (cycle intelligence feed)
+  // ─────────────────────────────────────────────────────────
+  Widget _rotatingInsightsBanner() {
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(colors: [
+                const Color(0xFF5C2DB8).withOpacity(0.38),
+                const Color(0xFFAB5CF2).withOpacity(0.18),
+              ]),
+              border: Border.all(
+                color: _kPurple.withOpacity(_glowAnim.value * 0.45),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(colors: [
+                      _kPurple
+                          .withOpacity(0.70 + 0.30 * _glowAnim.value),
+                      _kPurple.withOpacity(0.30),
+                    ]),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _kPurple
+                            .withOpacity(_glowAnim.value * 0.50),
+                        blurRadius: 12,
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                      child: Text('🔮', style: TextStyle(fontSize: 18))),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Text(
+                          'Cycle Intelligence',
+                          style: TextStyle(
+                            color: _kPurple.withOpacity(0.85),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          width: 5,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _kGreen,
+                            boxShadow: [
+                              BoxShadow(
+                                  color: _kGreen.withOpacity(0.7),
+                                  blurRadius: 4)
+                            ],
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 4),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 750),
+                        transitionBuilder: (child, anim) =>
+                            FadeTransition(
+                          opacity: CurvedAnimation(
+                              parent: anim, curve: Curves.easeOut),
+                          child: child,
+                        ),
+                        child: Text(
+                          _kRotatingInsights[
+                              _forecastIdx % _kRotatingInsights.length],
+                          key: ValueKey('ins_$_forecastIdx'),
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.80),
+                            fontSize: 12.5,
+                            height: 1.4,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ─── Helper ───────────────────────────────────────────────
   Widget _sectionTitle(String t) => Text(
         t,
@@ -2023,6 +2476,396 @@ class _CalendarScreenState extends State<CalendarScreen>
           fontSize: 18,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.2,
+        ),
+      );
+
+  // ─────────────────────────────────────────────────────────
+  //  DAILY DETAIL SHEET
+  // ─────────────────────────────────────────────────────────
+  void _showDaySheet(
+      DateTime date, UserProvider user, LunarDataProvider lunarData) {
+    final key = _dateKey(date);
+    final mood = _loggedMoods[key];
+    final symptoms = _loggedSymptoms[key]?.toList() ?? [];
+    final isPeriod = _isPeriodDay(date, user);
+    final isOv = _isOvulationDay(date, user);
+    final isFert = _isFertileDay(date, user);
+    final isPms = _isPmsDay(date, user);
+    final phase = isPeriod
+        ? 'Menstrual'
+        : isOv
+            ? 'Ovulation'
+            : isFert
+                ? 'Follicular'
+                : isPms
+                    ? 'Luteal'
+                    : 'Follicular';
+    final phaseColor = _phaseColor(user);
+    final isToday = _sameDay(date, DateTime.now());
+
+    // Cycle-day intelligence tip
+    final Map<String, String> tips = {
+      'Menstrual': 'Rest, warmth, and gentle movement support you now 🌸',
+      'Follicular': 'Your energy is rising — perfect for new beginnings ✨',
+      'Ovulation': 'Peak magnetism and creativity — embrace it fully 🌟',
+      'Luteal': 'Nourish yourself deeply; emotions are your compass 💜',
+    };
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.72,
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 32),
+            decoration: BoxDecoration(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(30)),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFF2D0B5C).withOpacity(0.92),
+                  const Color(0xFF0A0118).withOpacity(0.97),
+                ],
+              ),
+              border: Border(
+                top: BorderSide(
+                  color: phaseColor.withOpacity(0.45),
+                  width: 1.5,
+                ),
+              ),
+            ),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Drag pill
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(2),
+                        color: Colors.white.withOpacity(0.22),
+                      ),
+                    ),
+                  ),
+                  // Date header
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(colors: [
+                            phaseColor.withOpacity(0.42),
+                            phaseColor.withOpacity(0.12),
+                          ]),
+                          border: Border.all(
+                              color: phaseColor.withOpacity(0.65), width: 1.5),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${date.day}',
+                            style: TextStyle(
+                              color: phaseColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${_mName(date.month)} ${date.day}, ${date.year}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Row(children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 9, vertical: 3),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: phaseColor.withOpacity(0.18),
+                                  border: Border.all(
+                                      color: phaseColor.withOpacity(0.50),
+                                      width: 1),
+                                ),
+                                child: Text(
+                                  '${_phaseEmojis[phase] ?? '💫'} $phase',
+                                  style: TextStyle(
+                                    color: phaseColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              if (isToday) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 9, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    color: Colors.white.withOpacity(0.12),
+                                  ),
+                                  child: const Text(
+                                    'Today',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ]),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  // Phase tip
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: LinearGradient(colors: [
+                        phaseColor.withOpacity(0.16),
+                        phaseColor.withOpacity(0.06),
+                      ]),
+                      border: Border.all(
+                          color: phaseColor.withOpacity(0.30), width: 1),
+                    ),
+                    child: Text(
+                      tips[phase] ?? 'Tune in to how you feel today 💜',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.82),
+                        fontSize: 13,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  // Mood logged
+                  Row(children: [
+                    _sheetChip(
+                      mood != null ? '$mood Mood' : 'No mood logged',
+                      mood != null ? _kGold : Colors.white.withOpacity(0.25),
+                    ),
+                    const SizedBox(width: 10),
+                    if (isToday) ...[
+                      _sheetChip(
+                        '⚡ ${lunarData.energyLevel[0].toUpperCase()}${lunarData.energyLevel.substring(1)} energy',
+                        _kGreen,
+                      ),
+                    ],
+                  ]),
+                  if (symptoms.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      'Logged Symptoms',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.55),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: symptoms
+                          .map((s) => _sheetChip(s, _kPink))
+                          .toList(),
+                    ),
+                  ],
+                  if (isToday) ...[
+                    const SizedBox(height: 18),
+                    Row(children: [
+                      Expanded(
+                          child: _sheetInfoTile(
+                              '😴',
+                              'Sleep',
+                              '${lunarData.lastSleepHours.toStringAsFixed(1)}h',
+                              const Color(0xFF7986CB))),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: _sheetInfoTile(
+                              '💧',
+                              'Water',
+                              '${lunarData.todayWaterGlasses}/8',
+                              const Color(0xFF4FC3F7))),
+                    ]),
+                  ],
+                  const SizedBox(height: 24),
+                  // AI Cycle Insight for this day
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          gradient: LinearGradient(colors: [
+                            const Color(0xFF5C2DB8).withOpacity(0.32),
+                            phaseColor.withOpacity(0.12),
+                          ]),
+                          border: Border.all(
+                              color: _kPurple.withOpacity(0.38), width: 1),
+                        ),
+                        child: Row(children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(colors: [
+                                _kPurple.withOpacity(0.7),
+                                _kPurple.withOpacity(0.25),
+                              ]),
+                            ),
+                            child: const Center(
+                                child: Text('🔮',
+                                    style: TextStyle(fontSize: 16))),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Lunar AI Insight',
+                                  style: TextStyle(
+                                    color: _kPurple.withOpacity(0.85),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  (_kAIForecasts[phase] ??
+                                          _kAIForecasts['Unknown']!)
+                                      .first,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.75),
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // Close
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        color: Colors.white.withOpacity(0.08),
+                        border: Border.all(
+                            color: Colors.white.withOpacity(0.14), width: 1),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'Close',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sheetChip(String label, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: color.withOpacity(0.14),
+          border:
+              Border.all(color: color.withOpacity(0.50), width: 1),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: color == Colors.white.withOpacity(0.25)
+                ? Colors.white.withOpacity(0.50)
+                : color,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+
+  Widget _sheetInfoTile(
+      String icon, String label, String value, Color color) =>
+      Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: color.withOpacity(0.10),
+          border: Border.all(color: color.withOpacity(0.30), width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(icon, style: const TextStyle(fontSize: 18)),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.48),
+                fontSize: 11,
+              ),
+            ),
+          ],
         ),
       );
 }
@@ -2094,6 +2937,19 @@ class _CalDreamyBg extends StatelessWidget {
               bottom: 0,
               right: -50,
               child: _blob(250, const Color(0xFFFF69B4), 0.15)),
+          // Extra nebula depth
+          Positioned(
+              top: size.height * 0.20,
+              right: -30,
+              child: _blob(180, const Color(0xFF4FC3F7), 0.07)),
+          Positioned(
+              top: size.height * 0.62,
+              left: -20,
+              child: _blob(200, const Color(0xFFFFD700), 0.06)),
+          Positioned(
+              top: size.height * 0.78,
+              right: -40,
+              child: _blob(160, const Color(0xFFAB5CF2), 0.09)),
         ],
       ),
     );
@@ -2307,4 +3163,46 @@ class _AIInsight {
   final String icon, title, body;
   final Color color;
   _AIInsight(this.icon, this.title, this.body, this.color);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SHIMMER RING PAINTER  (rotating orbit around hero orb)
+// ═══════════════════════════════════════════════════════════
+
+class _ShimmerRingPainter extends CustomPainter {
+  final Color color;
+  final double glow;
+  const _ShimmerRingPainter({required this.color, required this.glow});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2 - 5;
+    const segments = 24;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+
+    for (int i = 0; i < segments; i++) {
+      if (i % 2 != 0) continue;
+      paint.color = color.withOpacity(0.30 + 0.20 * glow);
+      final start = 2 * math.pi * i / segments;
+      final sweep = 2 * math.pi / segments * 0.65;
+      canvas.drawArc(
+          Rect.fromCircle(center: c, radius: r), start, sweep, false, paint);
+    }
+    // Bright spark at top of ring
+    canvas.drawCircle(
+      Offset(c.dx, c.dy - r),
+      2.8,
+      Paint()
+        ..color = color.withOpacity(0.90 * glow)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ShimmerRingPainter old) =>
+      old.glow != glow || old.color != color;
 }

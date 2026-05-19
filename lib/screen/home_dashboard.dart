@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../user_provider.dart';
+import '../core/providers/app_provider.dart';
 import '../core/providers/lunar_data_provider.dart';
 import 'mood_tracking_screen.dart';
 import 'journal_screen.dart';
@@ -143,8 +144,8 @@ class _HomeDashboardState extends State<HomeDashboard>
       if (mounted) setState(() => _aiSubtitleIdx = (_aiSubtitleIdx + 1) % _aiSubtitles.length);
     });
 
-    for (int i = 0; i < 28; i++) _particles.add(_StarParticle(rng: _rng));
-    for (int i = 0; i < 12; i++) _hearts.add(_HeartParticle(rng: _rng));
+    for (int i = 0; i < 18; i++) _particles.add(_StarParticle(rng: _rng));
+    for (int i = 0; i < 8; i++) _hearts.add(_HeartParticle(rng: _rng));
   }
 
   @override
@@ -426,15 +427,29 @@ class _HomeDashboardState extends State<HomeDashboard>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 18),
-                        _staggeredSection(_topBar(user), 0),
-                        const SizedBox(height: 12),
+                        _staggeredSection(_heroSection(user), 0),
+                        const SizedBox(height: 20),
                         _staggeredSection(_emotionalWeatherStrip(user), 1),
+                        const SizedBox(height: 16),
+                        _staggeredSection(_liveAIInsightBanner(user), 1),
+                        const SizedBox(height: 22),
+                        _staggeredSection(_todayOverview(user, lunarData), 2),
+                        const SizedBox(height: 22),
+                        _staggeredSection(_wellnessRingsRow(lunarData), 2),
+                        const SizedBox(height: 22),
+                        _staggeredSection(_moodForecast(user), 3),
+                        const SizedBox(height: 22),
+                        _staggeredSection(_wellnessScore(lunarData), 4),
+                        const SizedBox(height: 26),
+                        _staggeredSection(_quickActions(context), 4),
                         const SizedBox(height: 26),
                         _staggeredSection(_orbitalTracker(user), 2),
                         const SizedBox(height: 20),
                         _staggeredSection(_moonCompanionRow(user), 3),
-                        const SizedBox(height: 26),
-                        _staggeredSection(_quickActions(context), 4),
+                        const SizedBox(height: 22),
+                        _staggeredSection(_lunarEnergyCard(user, lunarData), 4),
+                        const SizedBox(height: 22),
+                        _staggeredSection(_aiSuggestionChips(user, lunarData), 5),
                         const SizedBox(height: 22),
                         _staggeredSection(_pregnancyCard(context), 5),
                         const SizedBox(height: 26),
@@ -500,27 +515,24 @@ class _HomeDashboardState extends State<HomeDashboard>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                _timeOfDay(),
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.50),
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _greeting(user),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.2,
-                  height: 1.3,
-                ),
-              ),
+              _headerGreeting(user),
               const SizedBox(height: 5),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 700),
+                transitionBuilder: (child, anim) =>
+                    FadeTransition(opacity: anim, child: child),
+                child: Text(
+                  _greeting(user),
+                  key: ValueKey(_greeting(user)),
+                  style: TextStyle(
+                    color: const Color(0xFFD8A8FF).withOpacity(0.82),
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
               Row(children: [
                 _pill('Cycle: 28 days', const Color(0xFFAB5CF2),
                     const Color(0xFFD8A8FF)),
@@ -1132,6 +1144,14 @@ class _HomeDashboardState extends State<HomeDashboard>
           '🌸', 'Community', () => _nav(context, const CommunityScreen())),
       _QuickAction('🌙', 'Sleep', () => _nav(context, const SleepScreen())),
       _QuickAction('🤰', 'Pregnancy', () => _nav(context, const PregnancyScreen())),
+      _QuickAction(
+          '💧',
+          'Water',
+          () {
+            HapticFeedback.lightImpact();
+            context.read<LunarDataProvider>().addWaterGlass();
+          }),
+      _QuickAction('🧘‍♀️', 'Meditate', () => _nav(context, const SleepScreen())),
     ];
 
     return Column(
@@ -1586,8 +1606,8 @@ class _HomeDashboardState extends State<HomeDashboard>
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        _aiInsight(user),
+                      _TypewriterText(
+                        text: _aiInsight(user),
                         style: TextStyle(
                             color: Colors.white.withOpacity(0.75),
                             fontSize: 13,
@@ -1932,14 +1952,6 @@ class _HomeDashboardState extends State<HomeDashboard>
             letterSpacing: 0.2),
       );
 
-  String _timeOfDay() {
-    final h = DateTime.now().hour;
-    if (h >= 5 && h < 12) return 'Good Morning ☀️';
-    if (h >= 12 && h < 17) return 'Good Afternoon 🌞';
-    if (h >= 17 && h < 21) return 'Good Evening 🌅';
-    return 'Good Night 🌙';
-  }
-
   Widget _liveStatusPill() {
     return AnimatedBuilder(
       animation: _pulseAnim,
@@ -1996,6 +2008,1661 @@ class _HomeDashboardState extends State<HomeDashboard>
 
   void _nav(BuildContext ctx, Widget screen) =>
       Navigator.push(ctx, MaterialPageRoute(builder: (_) => screen));
+
+  // ─────────────────────────────────────────────────────────
+  //  HEADER GREETING WITH USER NAME
+  // ─────────────────────────────────────────────────────────
+  Widget _headerGreeting(UserProvider user) {
+    final app = context.read<AppProvider>();
+    final name = app.userName.isNotEmpty ? app.userName : null;
+    final timeLabel = _timeOfDayShort();
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned(
+          left: -14,
+          top: -8,
+          child: AnimatedBuilder(
+            animation: _glowAnim,
+            builder: (_, __) => Container(
+              width: 220,
+              height: 44,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFFAB5CF2)
+                        .withOpacity(_glowAnim.value * 0.22),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        RichText(
+          text: TextSpan(
+            style: const TextStyle(fontFamily: 'Roboto'),
+            children: [
+              TextSpan(
+                text: name != null
+                    ? '$timeLabel, $name '
+                    : '$timeLabel ',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.15,
+                  height: 1.3,
+                ),
+              ),
+              const TextSpan(
+                text: '🌙',
+                style: TextStyle(fontSize: 15),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _timeOfDayShort() {
+    final h = DateTime.now().hour;
+    if (h >= 5 && h < 12) return 'Good Morning';
+    if (h >= 12 && h < 17) return 'Good Afternoon';
+    if (h >= 17 && h < 21) return 'Good Evening';
+    return 'Good Night';
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  LUNAR ENERGY CARD
+  // ─────────────────────────────────────────────────────────
+  Widget _lunarEnergyCard(UserProvider user, LunarDataProvider lunarData) {
+    final phaseColor = _phaseRingColor(user);
+    final energyLevel = lunarData.energyLevel == 'high'
+        ? 0.88
+        : lunarData.energyLevel == 'low'
+            ? 0.32
+            : 0.62;
+    final energyLabel = lunarData.energyLevel == 'high'
+        ? 'High'
+        : lunarData.energyLevel == 'low'
+            ? 'Low'
+            : 'Balanced';
+    final moodDesc = sleepHours < 6.5
+        ? 'Tired 😴'
+        : waterGlasses < 4
+            ? 'Drained 💧'
+            : lunarData.energyLevel == 'high'
+                ? 'Radiant 😊'
+                : lunarData.energyLevel == 'low'
+                    ? 'Gentle 🌸'
+                    : 'Calm 😌';
+    final stressLabel = sleepHours < 6.5
+        ? 'Elevated 🌊'
+        : waterGlasses < 4
+            ? 'Moderate 💧'
+            : 'Low ✨';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Lunar Energy'),
+        const SizedBox(height: 13),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: AnimatedBuilder(
+              animation: Listenable.merge([_glowAnim, _shimmerAnim]),
+              builder: (_, __) => Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(28),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      phaseColor.withOpacity(0.30),
+                      const Color(0xFF1A0835).withOpacity(0.80),
+                      phaseColor.withOpacity(0.14),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: phaseColor.withOpacity(_glowAnim.value * 0.70),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: phaseColor.withOpacity(_glowAnim.value * 0.32),
+                      blurRadius: 40,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    // Shimmer sweep
+                    Positioned.fill(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(28),
+                        child: OverflowBox(
+                          maxWidth: double.infinity,
+                          child: Transform.translate(
+                            offset: Offset(_shimmerAnim.value * 220, 0),
+                            child: Container(
+                              width: 80,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.white.withOpacity(0.0),
+                                    Colors.white.withOpacity(0.06),
+                                    Colors.white.withOpacity(0.0),
+                                  ],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Floating tiny stars
+                    ...List.generate(5, (i) {
+                      final baseX = 36.0 + i * 52.0;
+                      final baseY = 6.0 + (i % 2) * 20.0;
+                      final twinkle = (0.2 +
+                              0.65 *
+                                  math.sin(
+                                      _shimmerAnim.value * math.pi * 2 +
+                                          i * 1.3))
+                          .clamp(0.0, 1.0);
+                      return Positioned(
+                        left: baseX,
+                        top: baseY,
+                        child: Opacity(
+                          opacity: twinkle,
+                          child: Container(
+                            width: 3,
+                            height: 3,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              boxShadow: [
+                                BoxShadow(
+                                    color: phaseColor.withOpacity(0.9),
+                                    blurRadius: 5),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Phase badge + label
+                        Row(children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              color: phaseColor.withOpacity(0.22),
+                              border: Border.all(
+                                  color: phaseColor.withOpacity(0.55),
+                                  width: 1),
+                            ),
+                            child: Text(
+                              _phaseLabel(user).replaceAll('\n', ' '),
+                              style: TextStyle(
+                                  color: phaseColor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          const Spacer(),
+                          Text('Lunar Energy',
+                              style: TextStyle(
+                                  color: Colors.white.withOpacity(0.45),
+                                  fontSize: 11)),
+                        ]),
+                        const SizedBox(height: 18),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // Circular energy ring
+                            SizedBox(
+                              width: 86,
+                              height: 86,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  RepaintBoundary(
+                                    child: TweenAnimationBuilder<double>(
+                                      tween: Tween(begin: 0.0, end: energyLevel),
+                                      duration:
+                                          const Duration(milliseconds: 1500),
+                                      curve: Curves.easeOutCubic,
+                                      builder: (_, v, __) => CustomPaint(
+                                        size: const Size(86, 86),
+                                        painter: _EnergyRingPainter(
+                                          progress: v,
+                                          color: phaseColor,
+                                          glow: _glowAnim.value,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '${(energyLevel * 100).toInt()}%',
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.w800),
+                                      ),
+                                      Text(
+                                        energyLabel,
+                                        style: TextStyle(
+                                            color: phaseColor,
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _energyStat(
+                                      '😌', 'Mood', moodDesc, phaseColor),
+                                  const SizedBox(height: 10),
+                                  _energyStat(
+                                      '⚡', 'Stress', stressLabel, _hTeal),
+                                  const SizedBox(height: 10),
+                                  _energyStat('💧', 'Hydration',
+                                      '$waterGlasses/8 glasses', _hTeal),
+                                  const SizedBox(height: 10),
+                                  _energyStat('😴', 'Sleep',
+                                      '${sleepHours.toStringAsFixed(1)} hrs',
+                                      _hIndigo),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _energyStat(
+      String icon, String label, String value, Color color) {
+    return Row(children: [
+      Text(icon, style: const TextStyle(fontSize: 12)),
+      const SizedBox(width: 6),
+      Text('$label: ',
+          style: TextStyle(
+              color: Colors.white.withOpacity(0.50), fontSize: 11)),
+      Expanded(
+        child: Text(value,
+            style: TextStyle(
+                color: color, fontSize: 11, fontWeight: FontWeight.w600),
+            overflow: TextOverflow.ellipsis),
+      ),
+    ]);
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  TODAY OVERVIEW
+  // ─────────────────────────────────────────────────────────
+  Widget _todayOverview(UserProvider user, LunarDataProvider lunarData) {
+    final phaseColor = _phaseRingColor(user);
+    final cycleDay = user.lastPeriodDate == null
+        ? '–'
+        : '${DateTime.now().difference(user.lastPeriodDate!).inDays + 1}';
+    final phaseName = _phaseLabel(user).replaceAll('\n', ' ');
+    final energyLabel = lunarData.energyLevel == 'high'
+        ? 'High ⚡'
+        : lunarData.energyLevel == 'low'
+            ? 'Low 🌿'
+            : 'Balanced ✨';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Today'),
+        const SizedBox(height: 13),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: AnimatedBuilder(
+              animation: Listenable.merge([_glowAnim, _breatheAnim]),
+              builder: (_, __) => Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      phaseColor.withOpacity(0.22),
+                      const Color(0xFF1A0835).withOpacity(0.75),
+                      const Color(0xFF0A0118).withOpacity(0.45),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: phaseColor.withOpacity(_glowAnim.value * 0.60),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: phaseColor.withOpacity(_glowAnim.value * 0.25),
+                      blurRadius: 36,
+                      spreadRadius: 3,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Text(
+                                'Cycle Day ',
+                                style: TextStyle(
+                                    color: Colors.white.withOpacity(0.55),
+                                    fontSize: 13),
+                              ),
+                              Text(
+                                cycleDay,
+                                style: TextStyle(
+                                  color: phaseColor,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            phaseName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _todayBadge('Energy', energyLabel, _hGold),
+                              _todayBadge(
+                                  'Mood', _moodPrediction(user), phaseColor),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 9),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(14),
+                              color: Colors.white.withOpacity(0.05),
+                              border: Border.all(
+                                  color: phaseColor.withOpacity(0.28),
+                                  width: 1),
+                            ),
+                            child: Row(children: [
+                              const Text('💜',
+                                  style: TextStyle(fontSize: 13)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _selfCareSuggestion(user),
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.80),
+                                    fontSize: 11.5,
+                                    fontStyle: FontStyle.italic,
+                                    height: 1.45,
+                                  ),
+                                ),
+                              ),
+                            ]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    _circularPhaseIndicator(user),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _todayBadge(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: color.withOpacity(0.14),
+        border: Border.all(color: color.withOpacity(0.42), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.48),
+                  fontSize: 9.5,
+                  letterSpacing: 0.3)),
+          Text(value,
+              style: TextStyle(
+                  color: color,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
+  Widget _circularPhaseIndicator(UserProvider user) {
+    final progress = _phaseProgress(user);
+    final phaseColor = _phaseRingColor(user);
+    final phaseIcon = _phaseIcon(user);
+    return AnimatedBuilder(
+      animation: Listenable.merge([_glowAnim, _breatheAnim]),
+      builder: (_, __) => SizedBox(
+        width: 92,
+        height: 92,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Breathing glow aura
+            Container(
+              width: 92 * _breatheAnim.value,
+              height: 92 * _breatheAnim.value,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    phaseColor.withOpacity(0),
+                    phaseColor.withOpacity(_glowAnim.value * 0.22),
+                    Colors.transparent,
+                  ],
+                  stops: const [0, 0.65, 1.0],
+                ),
+              ),
+            ),
+            // Progress ring
+            RepaintBoundary(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: progress),
+                duration: const Duration(milliseconds: 1600),
+                curve: Curves.easeOutCubic,
+                builder: (_, v, __) => CustomPaint(
+                  size: const Size(92, 92),
+                  painter: _EnergyRingPainter(
+                    progress: v,
+                    color: phaseColor,
+                    glow: _glowAnim.value,
+                  ),
+                ),
+              ),
+            ),
+            // Center content
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(phaseIcon, style: const TextStyle(fontSize: 22)),
+                const SizedBox(height: 2),
+                Text(
+                  '${(progress * 100).toInt()}%',
+                  style: TextStyle(
+                      color: phaseColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  double _phaseProgress(UserProvider user) {
+    if (user.lastPeriodDate == null) return 0.0;
+    final day = DateTime.now().difference(user.lastPeriodDate!).inDays + 1;
+    return (day / 28).clamp(0.0, 1.0);
+  }
+
+  String _phaseIcon(UserProvider user) {
+    switch (_phaseOf(user)) {
+      case _CyclePhase.period:
+        return '🩸';
+      case _CyclePhase.follicular:
+        return '🌱';
+      case _CyclePhase.ovulation:
+        return '🌸';
+      case _CyclePhase.luteal:
+        return '🌙';
+      default:
+        return '🔮';
+    }
+  }
+
+  String _moodPrediction(UserProvider user) {
+    if (sleepHours < 6.5) return 'Tired 😴';
+    if (waterGlasses < 4) return 'Drained 💧';
+    switch (_phaseOf(user)) {
+      case _CyclePhase.period:
+        return 'Tender 🌸';
+      case _CyclePhase.follicular:
+        return 'Rising ✨';
+      case _CyclePhase.ovulation:
+        return 'Confident 💫';
+      case _CyclePhase.luteal:
+        return 'Reflective 💜';
+      default:
+        final h = DateTime.now().hour;
+        if (h < 10) return 'Fresh 🌤️';
+        if (h < 16) return 'Focused 🎯';
+        return 'Winding Down 🌙';
+    }
+  }
+
+  String _selfCareSuggestion(UserProvider user) {
+    if (sleepHours < 6.5)
+      return 'Wind down early — rest rebalances your entire hormonal system.';
+    if (waterGlasses < 4)
+      return 'Sip water now. Hydration lifts mood and energy within minutes.';
+    switch (_phaseOf(user)) {
+      case _CyclePhase.period:
+        return 'Warmth and rest are powerful healers right now. Take it slow.';
+      case _CyclePhase.follicular:
+        return 'Start something new today. Your creative energy is rising.';
+      case _CyclePhase.ovulation:
+        return 'Connect with someone you love. Your magnetism is at its peak.';
+      case _CyclePhase.luteal:
+        return 'Journal your emotions tonight — clarity comes from reflection.';
+      default:
+        return 'Take a moment to breathe and honor how far you\'ve come.';
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  MOOD FORECAST
+  // ─────────────────────────────────────────────────────────
+  Widget _moodForecast(UserProvider user) {
+    final moods = _moodCards(user);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Mood Forecast'),
+        const SizedBox(height: 13),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: moods.asMap().entries.map((entry) {
+              final i = entry.key;
+              final mood = entry.value;
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                    child: AnimatedBuilder(
+                      animation:
+                          Listenable.merge([_glowAnim, _shimmerAnim]),
+                      builder: (_, __) => Container(
+                        width: 112,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              mood.color.withOpacity(0.28),
+                              mood.color.withOpacity(0.08),
+                            ],
+                          ),
+                          border: Border.all(
+                            color: mood.color
+                                .withOpacity(_glowAnim.value * 0.55),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: mood.color
+                                  .withOpacity(_glowAnim.value * 0.20),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Stack(
+                          children: [
+                            // Tiny floating star particles
+                            ...List.generate(3, (j) {
+                              final px = j * 28.0 + 6.0;
+                              final py = j % 2 == 0 ? 4.0 : 14.0;
+                              final twinkle = (0.25 +
+                                      0.65 *
+                                          math.sin(
+                                              _shimmerAnim.value *
+                                                  math.pi *
+                                                  2 +
+                                              i * 0.9 +
+                                              j * 1.1))
+                                  .clamp(0.0, 1.0);
+                              return Positioned(
+                                left: px,
+                                top: py,
+                                child: Opacity(
+                                  opacity: twinkle,
+                                  child: Container(
+                                    width: 2.5,
+                                    height: 2.5,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: mood.color.withOpacity(0.20),
+                                    border: Border.all(
+                                        color:
+                                            mood.color.withOpacity(0.40),
+                                        width: 1),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: mood.color.withOpacity(
+                                            _glowAnim.value * 0.35),
+                                        blurRadius: 12,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Center(
+                                    child: Text(mood.emoji,
+                                        style: const TextStyle(
+                                            fontSize: 20)),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  mood.label,
+                                  style: TextStyle(
+                                    color: mood.color,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  mood.subtitle,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.50),
+                                    fontSize: 10,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<_MoodCard> _moodCards(UserProvider user) {
+    switch (_phaseOf(user)) {
+      case _CyclePhase.period:
+        return [
+          _MoodCard('😌', 'Tender', 'softness', _hPink),
+          _MoodCard('🌙', 'Dreamy', 'inward', _hIndigo),
+          _MoodCard('🌸', 'Gentle', 'nurture', const Color(0xFFE98BC8)),
+          _MoodCard('💧', 'Emotional', 'flowing', _hTeal),
+          _MoodCard('🕯️', 'Still', 'peaceful', _hWarm),
+        ];
+      case _CyclePhase.follicular:
+        return [
+          _MoodCard('🌱', 'Rising', 'fresh start', _hGreen),
+          _MoodCard('✨', 'Curious', 'exploring', _hPurple),
+          _MoodCard('🎨', 'Creative', 'inspired', _hPink),
+          _MoodCard('🌤️', 'Optimistic', 'hopeful', _hGold),
+          _MoodCard('⚡', 'Energized', 'moving', _hTeal),
+        ];
+      case _CyclePhase.ovulation:
+        return [
+          _MoodCard('💫', 'Confident', 'radiant', _hGold),
+          _MoodCard('🌟', 'Magnetic', 'glowing', _hPink),
+          _MoodCard('💃', 'Social', 'connected', _hPurple),
+          _MoodCard('🔥', 'Bold', 'powerful', const Color(0xFFFF7043)),
+          _MoodCard('💕', 'Romantic', 'warm', const Color(0xFFE91E8C)),
+        ];
+      case _CyclePhase.luteal:
+        return [
+          _MoodCard('💜', 'Emotional', 'deep', _hPurple),
+          _MoodCard('🌊', 'Reflective', 'inward', _hIndigo),
+          _MoodCard('🍂', 'Sensitive', 'tender', _hWarm),
+          _MoodCard('🌙', 'Intuitive', 'aware', const Color(0xFF9C8FDB)),
+          _MoodCard('📖', 'Thoughtful', 'introspective', _hTeal),
+        ];
+      default:
+        return [
+          _MoodCard('😊', 'Calm', 'peaceful', _hPurple),
+          _MoodCard('✨', 'Present', 'grounded', _hTeal),
+          _MoodCard('🌸', 'Gentle', 'kind', _hPink),
+          _MoodCard('💫', 'Hopeful', 'bright', _hGold),
+          _MoodCard('🌙', 'Dreamy', 'flowing', _hIndigo),
+        ];
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  WELLNESS SCORE
+  // ─────────────────────────────────────────────────────────
+  int _calcWellnessScore(LunarDataProvider lunarData) {
+    int score = 0;
+    final sleep = lunarData.lastSleepHours;
+    if (sleep >= 8) {
+      score += 30;
+    } else if (sleep >= 7) {
+      score += 25;
+    } else if (sleep >= 6) {
+      score += 18;
+    } else if (sleep >= 5) {
+      score += 10;
+    } else {
+      score += 5;
+    }
+    score +=
+        ((lunarData.todayWaterGlasses / 8) * 30).round().clamp(0, 30);
+    if (lunarData.energyLevel == 'high') {
+      score += 25;
+    } else if (lunarData.energyLevel == 'medium') {
+      score += 18;
+    } else {
+      score += 10;
+    }
+    final temp = lunarData.lastTempC;
+    score += (temp >= 36.0 && temp <= 37.2) ? 15 : 8;
+    return score.clamp(0, 100);
+  }
+
+  Widget _wellnessScore(LunarDataProvider lunarData) {
+    final score = _calcWellnessScore(lunarData);
+    final scoreColor = score >= 80
+        ? _hGreen
+        : score >= 60
+            ? _hGold
+            : score >= 40
+                ? _hWarm
+                : _hPink;
+    final scoreLabel = score >= 80
+        ? 'Excellent'
+        : score >= 60
+            ? 'Good'
+            : score >= 40
+                ? 'Fair'
+                : 'Low';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Wellness Score'),
+        const SizedBox(height: 13),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: AnimatedBuilder(
+              animation: _glowAnim,
+              builder: (_, __) => Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      scoreColor.withOpacity(0.20),
+                      const Color(0xFF0D0120).withOpacity(0.78),
+                      scoreColor.withOpacity(0.08),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: scoreColor.withOpacity(_glowAnim.value * 0.55),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          scoreColor.withOpacity(_glowAnim.value * 0.22),
+                      blurRadius: 32,
+                      spreadRadius: 3,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // Animated score ring with counter
+                    SizedBox(
+                      width: 92,
+                      height: 92,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          RepaintBoundary(
+                            child: TweenAnimationBuilder<double>(
+                              tween: Tween(begin: 0.0, end: score / 100),
+                              duration:
+                                  const Duration(milliseconds: 1600),
+                              curve: Curves.easeOutCubic,
+                              builder: (_, v, __) => CustomPaint(
+                                size: const Size(92, 92),
+                                painter: _EnergyRingPainter(
+                                  progress: v,
+                                  color: scoreColor,
+                                  glow: _glowAnim.value,
+                                ),
+                              ),
+                            ),
+                          ),
+                          TweenAnimationBuilder<int>(
+                            tween: IntTween(begin: 0, end: score),
+                            duration:
+                                const Duration(milliseconds: 1600),
+                            curve: Curves.easeOutCubic,
+                            builder: (_, v, __) => Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '$v%',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900),
+                                ),
+                                Text(
+                                  scoreLabel,
+                                  style: TextStyle(
+                                      color: scoreColor,
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _scoreBar(
+                              '😴',
+                              'Sleep',
+                              (lunarData.lastSleepHours / 9)
+                                  .clamp(0.0, 1.0),
+                              _hIndigo),
+                          const SizedBox(height: 10),
+                          _scoreBar(
+                              '💧',
+                              'Hydration',
+                              (lunarData.todayWaterGlasses / 8)
+                                  .clamp(0.0, 1.0),
+                              _hTeal),
+                          const SizedBox(height: 10),
+                          _scoreBar(
+                              '⚡',
+                              'Energy',
+                              lunarData.energyLevel == 'high'
+                                  ? 0.88
+                                  : lunarData.energyLevel == 'low'
+                                      ? 0.35
+                                      : 0.62,
+                              _hGold),
+                          const SizedBox(height: 10),
+                          _scoreBar(
+                              '🌡️',
+                              'Temp',
+                              lunarData.lastTempC >= 36.0 &&
+                                      lunarData.lastTempC <= 37.2
+                                  ? 0.90
+                                  : 0.55,
+                              _hWarm),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _scoreBar(
+      String icon, String label, double value, Color color) {
+    return Row(children: [
+      Text(icon, style: const TextStyle(fontSize: 12)),
+      const SizedBox(width: 5),
+      SizedBox(
+        width: 46,
+        child: Text(label,
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.50), fontSize: 10)),
+      ),
+      Expanded(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: value),
+          duration: const Duration(milliseconds: 1200),
+          curve: Curves.easeOutCubic,
+          builder: (_, v, __) => ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: v,
+              minHeight: 5,
+              backgroundColor: Colors.white.withOpacity(0.07),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                  color.withOpacity(0.82)),
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(width: 6),
+      Text(
+        '${(value * 100).toInt()}%',
+        style: TextStyle(
+            color: color, fontSize: 9.5, fontWeight: FontWeight.w600),
+      ),
+    ]);
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  AI SUGGESTION CHIPS
+  // ─────────────────────────────────────────────────────────
+  Widget _aiSuggestionChips(
+      UserProvider user, LunarDataProvider lunarData) {
+    final chips = _generateChips(user, lunarData);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Suggestions for You'),
+        const SizedBox(height: 13),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: chips.asMap().entries.map((entry) {
+              final i = entry.key;
+              final chip = entry.value;
+              return Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: AnimatedBuilder(
+                  animation:
+                      Listenable.merge([_floatAnim, _glowAnim]),
+                  builder: (_, __) => Transform.translate(
+                    offset: Offset(
+                        0,
+                        _floatAnim.value *
+                            0.20 *
+                            (i % 2 == 0 ? 1.0 : -1.0)),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(30),
+                      child: BackdropFilter(
+                        filter:
+                            ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(30),
+                            gradient: LinearGradient(colors: [
+                              chip.color.withOpacity(0.24),
+                              chip.color.withOpacity(0.08),
+                            ]),
+                            border: Border.all(
+                              color: chip.color
+                                  .withOpacity(_glowAnim.value * 0.52),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: chip.color.withOpacity(
+                                    _glowAnim.value * 0.18),
+                                blurRadius: 14,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(chip.emoji,
+                                  style:
+                                      const TextStyle(fontSize: 14)),
+                              const SizedBox(width: 7),
+                              Text(chip.label,
+                                  style: TextStyle(
+                                      color: Colors.white
+                                          .withOpacity(0.88),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<_SuggestionChip> _generateChips(
+      UserProvider user, LunarDataProvider lunarData) {
+    final chips = <_SuggestionChip>[];
+    if (lunarData.todayWaterGlasses < 5) {
+      chips.add(_SuggestionChip('💧', 'Drink more water', _hTeal));
+    }
+    if (lunarData.lastSleepHours < 7) {
+      chips.add(_SuggestionChip('✨', 'Sleep earlier tonight', _hIndigo));
+    }
+    switch (_phaseOf(user)) {
+      case _CyclePhase.period:
+        chips.add(_SuggestionChip('🌸', 'Use a heat pad', _hPink));
+        chips.add(_SuggestionChip('🧘\u200d♀️', 'Rest & breathe', _hPurple));
+        break;
+      case _CyclePhase.follicular:
+        chips.add(_SuggestionChip('🎯', 'Plan your goals', _hGreen));
+        chips.add(_SuggestionChip('🌱', 'Start something new', _hTeal));
+        break;
+      case _CyclePhase.ovulation:
+        chips.add(
+            _SuggestionChip('💌', 'Connect with loved ones', _hPink));
+        chips.add(_SuggestionChip('🌟', 'Shine today', _hGold));
+        break;
+      case _CyclePhase.luteal:
+        chips.add(_SuggestionChip('📖', 'Journal emotions', _hPurple));
+        chips.add(
+            _SuggestionChip('🌙', 'Wind down early', _hIndigo));
+        break;
+      default:
+        chips.add(
+            _SuggestionChip('🌙', 'Try deep breathing', _hPurple));
+    }
+    chips.add(_SuggestionChip('💜', 'Journal your emotions', _hPink));
+    return chips;
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  HERO SECTION — Cinematic premium hero with large orb
+  // ─────────────────────────────────────────────────────────
+  Widget _heroSection(UserProvider user) {
+    final phaseColor = _phaseRingColor(user);
+    final phaseColors = _phaseColors(user);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Top greeting row: avatar + name + live status
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            AnimatedBuilder(
+              animation: _glowAnim,
+              builder: (_, __) => Container(
+                padding: const EdgeInsets.all(2.5),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: SweepGradient(colors: [
+                    Color.lerp(_hPurple, _hPink, _glowAnim.value)!,
+                    _hPink,
+                    Color.lerp(_hPurple, _hPink, _glowAnim.value)!,
+                  ]),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _hPurple.withOpacity(_glowAnim.value * 0.7),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Color(0xFF1E0A3C),
+                  child: Icon(Icons.person_rounded,
+                      color: Color(0xFFD8A8FF), size: 24),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _headerGreeting(user),
+                  const SizedBox(height: 3),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 700),
+                    transitionBuilder: (child, anim) =>
+                        FadeTransition(opacity: anim, child: child),
+                    child: Text(
+                      _aiSubtitles[_aiSubtitleIdx],
+                      key: ValueKey(_aiSubtitleIdx),
+                      style: TextStyle(
+                        color: const Color(0xFFD8A8FF).withOpacity(0.72),
+                        fontSize: 11.5,
+                        fontStyle: FontStyle.italic,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _liveStatusPill(),
+          ],
+        ),
+        const SizedBox(height: 30),
+        // HERO ORB — large, phase-reactive, breathing
+        RepaintBoundary(
+          child: AnimatedBuilder(
+            animation:
+                Listenable.merge([_glowAnim, _breatheAnim, _floatAnim]),
+            builder: (_, child) {
+              final glow = _glowAnim.value;
+              final breathe = _breatheAnim.value;
+              final float = _floatAnim.value * 0.55;
+              return Transform.translate(
+                offset: Offset(0, float),
+                child: SizedBox(
+                  width: 252,
+                  height: 252,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Outer atmospheric haze rings
+                      ...List.generate(3, (i) {
+                        final ringSize = 210.0 + i * 26;
+                        final opacity =
+                            (0.16 - i * 0.045).clamp(0.0, 1.0) * glow;
+                        return Container(
+                          width: ringSize * breathe,
+                          height: ringSize * breathe,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: phaseColor.withOpacity(opacity),
+                              width: 1.2,
+                            ),
+                          ),
+                        );
+                      }),
+                      // Soft ambient glow behind orb
+                      Container(
+                        width: 212,
+                        height: 212,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              phaseColor.withOpacity(0.0),
+                              phaseColor.withOpacity(glow * 0.15),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.0, 0.6, 1.0],
+                          ),
+                        ),
+                      ),
+                      // Main orb with phase gradient
+                      Transform.scale(
+                        scale: breathe,
+                        child: Container(
+                          width: 174,
+                          height: 174,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: phaseColors,
+                              center: const Alignment(-0.2, -0.3),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: phaseColor.withOpacity(glow * 0.90),
+                                blurRadius: 66,
+                                spreadRadius: 22,
+                              ),
+                              BoxShadow(
+                                color:
+                                    _hPink.withOpacity(glow * 0.40),
+                                blurRadius: 30,
+                                spreadRadius: 6,
+                              ),
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.42),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                            border: Border.all(
+                              color:
+                                  Colors.white.withOpacity(0.20 * glow),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: child,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('🌙', style: TextStyle(fontSize: 54)),
+                const SizedBox(height: 4),
+                Text(
+                  _cycleDayLabel(user),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.68),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _phaseLabel(user).replaceAll('\n', ' '),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        // Emotional greeting beneath orb
+        Text(
+          _greeting(user),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: const Color(0xFFD8A8FF).withOpacity(0.75),
+            fontSize: 13,
+            fontStyle: FontStyle.italic,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Phase + today badge row
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _pill(
+                _phaseLabel(user).replaceAll('\n', ' '), _hPurple, const Color(0xFFD8A8FF)),
+            const SizedBox(width: 8),
+            _pill(_cycleDayLabel(user), _hPink, Colors.white),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  LIVE AI INSIGHT BANNER — Rotating shimmer intelligence card
+  // ─────────────────────────────────────────────────────────
+  Widget _liveAIInsightBanner(UserProvider user) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: AnimatedBuilder(
+          animation:
+              Listenable.merge([_glowAnim, _shimmerAnim, _pulseAnim]),
+          builder: (_, __) => Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF5C2DB8).withOpacity(0.52),
+                  const Color(0xFFAB5CF2).withOpacity(0.28),
+                  const Color(0xFFFF69B4).withOpacity(0.15),
+                ],
+              ),
+              border: Border.all(
+                color: _hPurple.withOpacity(_glowAnim.value * 0.52),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _hPurple.withOpacity(_glowAnim.value * 0.20),
+                  blurRadius: 24,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                // Shimmer sweep
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: OverflowBox(
+                      maxWidth: double.infinity,
+                      child: Transform.translate(
+                        offset: Offset(_shimmerAnim.value * 200, 0),
+                        child: Container(
+                          width: 60,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(colors: [
+                              Colors.white.withOpacity(0.0),
+                              Colors.white.withOpacity(0.04),
+                              Colors.white.withOpacity(0.0),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    // Orb icon
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(colors: [
+                          _hGold
+                              .withOpacity(0.32 + 0.14 * _glowAnim.value),
+                          _hPurple.withOpacity(0.18),
+                        ]),
+                        border: Border.all(
+                          color: _hGold
+                              .withOpacity(0.55 * _glowAnim.value),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _hGold
+                                .withOpacity(0.28 * _glowAnim.value),
+                            blurRadius: 12,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                          child: Text('🔮',
+                              style: TextStyle(fontSize: 20))),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Lunar Intelligence',
+                                style: TextStyle(
+                                  color: _hPurple.withOpacity(0.82),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                              const Spacer(),
+                              Container(
+                                width: 5,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _hGreen,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _hGreen.withOpacity(
+                                          _pulseAnim.value * 0.9),
+                                      blurRadius: 6,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Live',
+                                style: TextStyle(
+                                  color: _hGreen,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          AnimatedSwitcher(
+                            duration:
+                                const Duration(milliseconds: 700),
+                            transitionBuilder: (child, anim) =>
+                                FadeTransition(
+                              opacity: CurvedAnimation(
+                                  parent: anim,
+                                  curve: Curves.easeOut),
+                              child: SlideTransition(
+                                position: Tween<Offset>(
+                                        begin:
+                                            const Offset(0, 0.2),
+                                        end: Offset.zero)
+                                    .animate(CurvedAnimation(
+                                        parent: anim,
+                                        curve:
+                                            Curves.easeOutCubic)),
+                                child: child,
+                              ),
+                            ),
+                            child: Text(
+                              _aiInsight(user),
+                              key: ValueKey(_aiInsight(user)),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.80),
+                                fontSize: 13,
+                                height: 1.45,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  WELLNESS RINGS — Apple Health-inspired animated ring row
+  // ─────────────────────────────────────────────────────────
+  Widget _wellnessRingsRow(LunarDataProvider lunarData) {
+    final rings = [
+      _RingData('💧', 'Hydration',
+          (lunarData.todayWaterGlasses / 8).clamp(0.0, 1.0), _hTeal),
+      _RingData('😴', 'Sleep',
+          (lunarData.lastSleepHours / 9).clamp(0.0, 1.0), _hIndigo),
+      _RingData(
+          '⚡',
+          'Energy',
+          lunarData.energyLevel == 'high'
+              ? 0.88
+              : lunarData.energyLevel == 'low'
+                  ? 0.32
+                  : 0.62,
+          _hGold),
+      _RingData(
+          '🌸',
+          'Balance',
+          lunarData.lastTempC >= 36.0 && lunarData.lastTempC <= 37.2
+              ? 0.90
+              : 0.55,
+          _hPink),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Wellness Rings'),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: rings.map(_wellnessRingItem).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _wellnessRingItem(_RingData ring) {
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => Column(
+        children: [
+          SizedBox(
+            width: 74,
+            height: 74,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Track ring (background)
+                CustomPaint(
+                  size: const Size(74, 74),
+                  painter: _EnergyRingPainter(
+                    progress: 1.0,
+                    color: ring.color.withOpacity(0.12),
+                    glow: 0,
+                  ),
+                ),
+                // Animated progress arc
+                RepaintBoundary(
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: ring.progress),
+                    duration: const Duration(milliseconds: 1600),
+                    curve: Curves.easeOutCubic,
+                    builder: (_, v, __) => CustomPaint(
+                      size: const Size(74, 74),
+                      painter: _EnergyRingPainter(
+                        progress: v,
+                        color: ring.color
+                            .withOpacity(0.78 + 0.22 * _glowAnim.value),
+                        glow: _glowAnim.value,
+                      ),
+                    ),
+                  ),
+                ),
+                // Center emoji
+                Text(ring.emoji,
+                    style: const TextStyle(fontSize: 20)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            ring.label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.58),
+              fontSize: 10.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${(ring.progress * 100).toInt()}%',
+            style: TextStyle(
+              color: ring.color,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2065,6 +3732,10 @@ class _DreamyBackground extends StatelessWidget {
               top: size.height * 0.26,
               left: size.width * 0.5 - 95,
               child: _blob(190, const Color(0xFFFF69B4), 0.05)),
+          // Animated nebula glow layer
+          RepaintBoundary(
+            child: _AnimatedNebula(size: size),
+          ),
         ],
       ),
     );
@@ -2313,6 +3984,259 @@ class _HeartParticle {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  MOOD CARD DATA MODEL
+// ═══════════════════════════════════════════════════════════
+class _MoodCard {
+  final String emoji, label, subtitle;
+  final Color color;
+  const _MoodCard(this.emoji, this.label, this.subtitle, this.color);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SUGGESTION CHIP DATA MODEL
+// ═══════════════════════════════════════════════════════════
+class _SuggestionChip {
+  final String emoji, label;
+  final Color color;
+  const _SuggestionChip(this.emoji, this.label, this.color);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RING DATA MODEL
+// ═══════════════════════════════════════════════════════════
+class _RingData {
+  final String emoji, label;
+  final double progress;
+  final Color color;
+  const _RingData(this.emoji, this.label, this.progress, this.color);
+}
+
+// ═══════════════════════════════════════════════════════════
 //  CYCLE PHASE ENUM
 // ═══════════════════════════════════════════════════════════
 enum _CyclePhase { period, follicular, ovulation, luteal, unknown }
+
+// ═══════════════════════════════════════════════════════════
+//  TYPEWRITER TEXT WIDGET
+// ═══════════════════════════════════════════════════════════
+class _TypewriterText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  const _TypewriterText({required this.text, required this.style});
+
+  @override
+  State<_TypewriterText> createState() => _TypewriterTextState();
+}
+
+class _TypewriterTextState extends State<_TypewriterText> {
+  int _visibleChars = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTypewriter();
+  }
+
+  @override
+  void didUpdateWidget(_TypewriterText old) {
+    super.didUpdateWidget(old);
+    if (old.text != widget.text) {
+      _timer?.cancel();
+      _visibleChars = 0;
+      _startTypewriter();
+    }
+  }
+
+  void _startTypewriter() {
+    _timer = Timer.periodic(const Duration(milliseconds: 35), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() {
+        if (_visibleChars < widget.text.length) {
+          _visibleChars++;
+        } else {
+          t.cancel();
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      widget.text.substring(0, _visibleChars),
+      style: widget.style,
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ENERGY RING PAINTER
+// ═══════════════════════════════════════════════════════════
+class _EnergyRingPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  final double glow;
+
+  const _EnergyRingPainter(
+      {required this.progress, required this.color, required this.glow});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2 - 7;
+
+    // Background ring
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..color = color.withOpacity(0.14)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6,
+    );
+
+    // Glow ring
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..color = color.withOpacity(0.08 * glow)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 12
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+
+    // Progress arc
+    final sweep = 2 * math.pi * progress;
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r),
+      -math.pi / 2,
+      sweep,
+      false,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3.0 * glow),
+    );
+
+    // Bright tip dot
+    if (progress > 0.02) {
+      final tipAngle = -math.pi / 2 + sweep;
+      final tipPos = Offset(
+          c.dx + r * math.cos(tipAngle), c.dy + r * math.sin(tipAngle));
+      canvas.drawCircle(
+        tipPos,
+        4,
+        Paint()
+          ..color = Colors.white
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4 * glow),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_EnergyRingPainter old) =>
+      old.progress != progress || old.glow != glow;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ANIMATED NEBULA
+// ═══════════════════════════════════════════════════════════
+class _AnimatedNebula extends StatefulWidget {
+  final Size size;
+  const _AnimatedNebula({required this.size});
+
+  @override
+  State<_AnimatedNebula> createState() => _AnimatedNebulaState();
+}
+
+class _AnimatedNebulaState extends State<_AnimatedNebula>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 7))
+      ..repeat(reverse: true);
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => CustomPaint(
+        size: widget.size,
+        painter: _NebulaPainter(t: _anim.value),
+      ),
+    );
+  }
+}
+
+class _NebulaPainter extends CustomPainter {
+  final double t;
+  const _NebulaPainter({required this.t});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    canvas.drawCircle(
+      Offset(w * 0.28, h * 0.12),
+      130,
+      Paint()
+        ..color = const Color(0xFF7B2FF7).withOpacity(0.055 + 0.035 * t)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 55),
+    );
+
+    canvas.drawCircle(
+      Offset(w * 0.78, h * 0.30),
+      110,
+      Paint()
+        ..color = const Color(0xFFFF69B4).withOpacity(0.04 + 0.03 * (1 - t))
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 70),
+    );
+
+    canvas.drawCircle(
+      Offset(w * 0.18, h * 0.62),
+      150,
+      Paint()
+        ..color = const Color(0xFF4A00E0).withOpacity(0.045 + 0.025 * t)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 65),
+    );
+
+    canvas.drawCircle(
+      Offset(w * 0.65, h * 0.72),
+      100,
+      Paint()
+        ..color = const Color(0xFFAB5CF2).withOpacity(0.035 + 0.02 * (1 - t))
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 50),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_NebulaPainter old) => old.t != t;
+}
+

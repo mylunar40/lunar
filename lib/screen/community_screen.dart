@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../core/providers/auth_provider.dart';
+import '../core/providers/community_provider.dart';
 
 // ═══════════════════════════════════════════════════════════
 //  LUNAR COMMUNITY — Safe Space Screen
@@ -27,6 +31,17 @@ enum _CCat {
 }
 
 extension _CCatX on _CCat {
+  String get id => const {
+    _CCat.all:              'all',
+    _CCat.periodTalk:       'periodTalk',
+    _CCat.pregnancy:        'pregnancy',
+    _CCat.emotionalHealing: 'emotionalHealing',
+    _CCat.relationships:    'relationships',
+    _CCat.anxietySupport:   'anxietySupport',
+    _CCat.selfCare:         'selfCare',
+    _CCat.sleepWellness:    'sleepWellness',
+  }[this]!;
+
   String get label => const {
     _CCat.all:              'All',
     _CCat.periodTalk:       'Period Talk',
@@ -64,11 +79,19 @@ extension _CCatX on _CCat {
 enum _CRxn { support, sendingLove, youreStrong, hugs, healingEnergy }
 
 extension _CRxnX on _CRxn {
+  String get id => const {
+    _CRxn.support:       'support',
+    _CRxn.sendingLove:   'sendingLove',
+    _CRxn.youreStrong:   'youreStrong',
+    _CRxn.hugs:          'hugs',
+    _CRxn.healingEnergy: 'healingEnergy',
+  }[this]!;
+
   String get emoji => const {
-    _CRxn.support:       '💜',
-    _CRxn.sendingLove:   '💌',
-    _CRxn.youreStrong:   '💪',
-    _CRxn.hugs:          '🤗',
+    _CRxn.support:       '🤍',
+    _CRxn.sendingLove:   '💜',
+    _CRxn.youreStrong:   '🌙',
+    _CRxn.hugs:          '🌸',
     _CRxn.healingEnergy: '✨',
   }[this]!;
 
@@ -76,7 +99,7 @@ extension _CRxnX on _CRxn {
     _CRxn.support:       'Support',
     _CRxn.sendingLove:   'Sending Love',
     _CRxn.youreStrong:   'You\'re Strong',
-    _CRxn.hugs:          'Hugs',
+    _CRxn.hugs:          'Warm Hugs',
     _CRxn.healingEnergy: 'Healing Energy',
   }[this]!;
 }
@@ -273,6 +296,26 @@ const List<(String, Color)> _kAvatars = [
   ('🌈', Color(0xFFFF7043)),
 ];
 
+const List<String> _kHealingQuotes = [
+  'You are never alone here 🌙',
+  'A soft space for healing and connection ✨',
+  'Every voice here is sacred and loved 💜',
+  'Your feelings are valid. Your voice matters 🌸',
+  'Healing is not linear — and that is okay 🌿',
+  'You are loved exactly as you are 🤍',
+  'This community holds you with care 🌙',
+  'Be kind · No judgment · You belong here 💜',
+];
+
+const List<(String, String, Color)> _kHealingCircles = [
+  ('🩸', 'Period\nSupport', Color(0xFFE53935)),
+  ('🤰', 'Pregnancy\nCircle', _cGold),
+  ('💜', 'Emotional\nHealing', _cPurple),
+  ('🌬️', 'Anxiety\nRelief', _cTeal),
+  ('🌙', 'Sleep\nWellness', _cIndigo),
+  ('🌿', 'Self\nLove', _cGreen),
+];
+
 const List<String> _kEmotionalTags = [
   'Feeling Hopeful', 'Need Support', 'Grateful', 'Anxious',
   'Processing', 'Healing', 'Celebrating', 'Struggling',
@@ -300,7 +343,6 @@ class _CommunityState extends State<CommunityScreen>
 
   _CCat _activeCat = _CCat.all;
   bool  _showCompose = false;
-  late  List<_CPost> _posts;
   final Set<String>  _viewedStories = {};
 
   // Compose state
@@ -309,11 +351,13 @@ class _CommunityState extends State<CommunityScreen>
   _CCat  _composeCat       = _CCat.emotionalHealing;
   final  Set<String> _composeTags = {};
   final  TextEditingController _composeCtrl = TextEditingController();
+  bool   _providerInitialized = false;
+  int    _quoteIdx = 0;
+  Timer? _quoteTimer;
 
   @override
   void initState() {
     super.initState();
-    _posts = _buildSeedPosts();
 
     _glowCtrl = AnimationController(vsync: this,
         duration: const Duration(seconds: 2))..repeat(reverse: true);
@@ -329,32 +373,51 @@ class _CommunityState extends State<CommunityScreen>
         duration: const Duration(seconds: 7))..repeat();
 
     for (int i = 0; i < 32; i++) _stars.add(_CStar(rng: _rng));
+    _quoteTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) setState(() => _quoteIdx = (_quoteIdx + 1) % _kHealingQuotes.length);
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_providerInitialized) {
+      _providerInitialized = true;
+      final auth = Provider.of<LunarAuthProvider>(context, listen: false);
+      final community =
+          Provider.of<CommunityProvider>(context, listen: false);
+      community.init(auth.firebaseUser?.uid);
+    }
   }
 
   @override
   void dispose() {
     _glowCtrl.dispose(); _floatCtrl.dispose(); _particleCtrl.dispose();
     _composeCtrl.dispose();
+    _quoteTimer?.cancel();
     super.dispose();
   }
-
-  List<_CPost> get _filtered => _activeCat == _CCat.all
-      ? _posts
-      : _posts.where((p) => p.category == _activeCat).toList();
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final community = Provider.of<CommunityProvider>(context);
+    final auth = Provider.of<LunarAuthProvider>(context, listen: false);
+    final posts = community.filteredPosts;
+
     return Scaffold(
       backgroundColor: _cBg,
       body: Stack(
         children: [
           _CBackground(size: size),
-          AnimatedBuilder(
-            animation: _particleCtrl,
-            builder: (_, __) => CustomPaint(
-              size: size,
-              painter: _CParticlePainter(stars: _stars, progress: _particleCtrl.value),
+          RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: _particleCtrl,
+              builder: (_, __) => CustomPaint(
+                size: size,
+                painter: _CParticlePainter(
+                    stars: _stars, progress: _particleCtrl.value),
+              ),
             ),
           ),
           SafeArea(
@@ -366,42 +429,450 @@ class _CommunityState extends State<CommunityScreen>
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(children: [
                       const SizedBox(height: 14),
-                      _headerBar(),
-                      const SizedBox(height: 18),
-                      _safetyBanner(),
+                      _emotionalHeader(),
                       const SizedBox(height: 18),
                     ]),
                   ),
                 ),
                 SliverToBoxAdapter(child: _storiesRow()),
                 SliverToBoxAdapter(child: const SizedBox(height: 18)),
-                SliverToBoxAdapter(child: _categoryTabs()),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _healingCirclesRow(),
+                  ),
+                ),
+                SliverToBoxAdapter(child: const SizedBox(height: 16)),
+                SliverToBoxAdapter(child: _categoryTabs(community)),
                 SliverToBoxAdapter(child: const SizedBox(height: 16)),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: _aiCompanionCard(),
+                    child: _aiCompanionCard(community.activeCategory),
                   ),
                 ),
                 SliverToBoxAdapter(child: const SizedBox(height: 14)),
-                ..._filtered.map((post) => SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                    child: _postCard(post),
-                  ),
-                )),
-                if (_filtered.isEmpty)
+                if (community.loadState == CommunityLoadState.loading &&
+                    posts.isEmpty)
+                  SliverToBoxAdapter(child: _loadingShimmer()),
+                ...posts.map((post) => SliverToBoxAdapter(
+                      child: Padding(
+                        padding:
+                            const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                        child: RepaintBoundary(
+                            child: _postCard(post, community, auth)),
+                      ),
+                    )),
+                // Seed posts shown when Firestore is empty
+                if (community.loadState == CommunityLoadState.loaded &&
+                    posts.isEmpty)
+                  ..._buildSeedPosts().map((post) => SliverToBoxAdapter(
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                          child: RepaintBoundary(
+                              child: _seedPostCard(post)),
+                        ),
+                      )),
+                if (community.loadState == CommunityLoadState.loaded &&
+                    posts.isEmpty &&
+                    _buildSeedPosts().isEmpty)
                   SliverToBoxAdapter(child: _emptyState()),
                 SliverToBoxAdapter(child: const SizedBox(height: 110)),
               ],
             ),
           ),
           Positioned(right: 20, bottom: 28, child: _composeFAB()),
-          if (_showCompose) _composeOverlay(context),
+          if (_showCompose) _composeOverlay(context, community, auth),
         ],
       ),
     );
   }
+
+  // ── EMOTIONAL HEADER ──────────────────────────────────────
+  Widget _emotionalHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header row: back + title + floating orb
+        Row(
+          children: [
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.maybePop(context);
+              },
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.07),
+                  border: Border.all(
+                      color: Colors.white.withOpacity(0.14), width: 1)),
+                child: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white, size: 16),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Safe Space 🌸',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.2)),
+                    Text('A gentle community for every woman',
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.4),
+                            fontSize: 12)),
+                  ]),
+            ),
+            AnimatedBuilder(
+              animation: Listenable.merge([_floatAnim, _glowAnim]),
+              builder: (_, __) => Transform.translate(
+                offset: Offset(0, _floatAnim.value * 0.4),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(colors: [
+                      _cPurple.withOpacity(_glowAnim.value * 0.85),
+                      Colors.transparent
+                    ]),
+                    boxShadow: [
+                      BoxShadow(
+                          color:
+                              _cPurple.withOpacity(_glowAnim.value * 0.5),
+                          blurRadius: 20,
+                          spreadRadius: 2)
+                    ],
+                  ),
+                  child: const Text('🌸', style: TextStyle(fontSize: 22)),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        // Rotating healing quote card with glassmorphism
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: AnimatedBuilder(
+              animation: _glowAnim,
+              builder: (_, __) => Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 18, vertical: 14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      _cDeep.withOpacity(0.55),
+                      _cPurple.withOpacity(0.28),
+                      _cPink.withOpacity(0.12),
+                    ],
+                  ),
+                  border: Border.all(
+                      color: _cPurple.withOpacity(_glowAnim.value * 0.52),
+                      width: 1.2),
+                  boxShadow: [
+                    BoxShadow(
+                        color:
+                            _cPurple.withOpacity(_glowAnim.value * 0.18),
+                        blurRadius: 20,
+                        spreadRadius: 2)
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // Moon orb icon
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(colors: [
+                          _cPurple
+                              .withOpacity(0.8 + 0.2 * _glowAnim.value),
+                          _cPink.withOpacity(0.35),
+                        ]),
+                        boxShadow: [
+                          BoxShadow(
+                              color: _cPurple
+                                  .withOpacity(_glowAnim.value * 0.60),
+                              blurRadius: 16,
+                              spreadRadius: 2)
+                        ],
+                      ),
+                      child: const Center(
+                          child: Text('🌙',
+                              style: TextStyle(fontSize: 22))),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Community Spirit',
+                                style: TextStyle(
+                                  color: _cPurple.withOpacity(0.85),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 9, vertical: 4),
+                                decoration: BoxDecoration(
+                                  borderRadius:
+                                      BorderRadius.circular(20),
+                                  color: _cGreen.withOpacity(0.14),
+                                  border: Border.all(
+                                      color: _cGreen.withOpacity(0.42),
+                                      width: 1),
+                                ),
+                                child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                          width: 5,
+                                          height: 5,
+                                          decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: _cGreen,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                    color: _cGreen
+                                                        .withOpacity(
+                                                            0.7),
+                                                    blurRadius: 4,
+                                                    spreadRadius: 1)
+                                              ])),
+                                      const SizedBox(width: 4),
+                                      Text('Safe',
+                                          style: TextStyle(
+                                              color: _cGreen,
+                                              fontSize: 10,
+                                              fontWeight:
+                                                  FontWeight.w600)),
+                                    ]),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          AnimatedSwitcher(
+                            duration:
+                                const Duration(milliseconds: 800),
+                            transitionBuilder: (child, anim) =>
+                                FadeTransition(
+                              opacity: CurvedAnimation(
+                                  parent: anim,
+                                  curve: Curves.easeOut),
+                              child: SlideTransition(
+                                position: Tween<Offset>(
+                                        begin:
+                                            const Offset(0, 0.2),
+                                        end: Offset.zero)
+                                    .animate(CurvedAnimation(
+                                        parent: anim,
+                                        curve:
+                                            Curves.easeOutCubic)),
+                                child: child,
+                              ),
+                            ),
+                            child: Text(
+                              _kHealingQuotes[_quoteIdx],
+                              key: ValueKey(_quoteIdx),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.82),
+                                fontSize: 13,
+                                height: 1.45,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── HEALING CIRCLES ROW (Architecture Scaffold) ───────────
+  Widget _healingCirclesRow() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Healing Circles',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 9, vertical: 3),
+              decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: _cPurple.withOpacity(0.16),
+                  border: Border.all(
+                      color: _cPurple.withOpacity(0.36))),
+              child: Text(
+                'Coming Soon',
+                style: TextStyle(
+                    color: _cPurple,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: _kHealingCircles.map((data) {
+              final (emoji, label, color) = data;
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: AnimatedBuilder(
+                  animation: _glowAnim,
+                  builder: (_, __) => ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter:
+                          ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                      child: Container(
+                        width: 86,
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14, horizontal: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              color.withOpacity(0.18),
+                              color.withOpacity(0.06),
+                            ],
+                          ),
+                          border: Border.all(
+                              color: color.withOpacity(
+                                  _glowAnim.value * 0.45),
+                              width: 1),
+                          boxShadow: [
+                            BoxShadow(
+                                color: color.withOpacity(
+                                    _glowAnim.value * 0.14),
+                                blurRadius: 12,
+                                spreadRadius: 1)
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(colors: [
+                                  color.withOpacity(0.55),
+                                  color.withOpacity(0.15)
+                                ]),
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: color.withOpacity(
+                                          _glowAnim.value * 0.40),
+                                      blurRadius: 10,
+                                      spreadRadius: 1)
+                                ],
+                              ),
+                              child: Center(
+                                  child: Text(emoji,
+                                      style: const TextStyle(
+                                          fontSize: 20))),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              label,
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.70),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w500,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _loadingShimmer() => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Column(children: [
+          const SizedBox(height: 20),
+          Text('Loading safe space...',
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.35), fontSize: 14)),
+          const SizedBox(height: 16),
+          AnimatedBuilder(
+            animation: _glowAnim,
+            builder: (_, __) => Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                      color: _cPurple.withOpacity(_glowAnim.value * 0.6),
+                      blurRadius: 20,
+                      spreadRadius: 4),
+                ],
+              ),
+              child: const Text('🌙',
+                  style: TextStyle(fontSize: 32),
+                  textAlign: TextAlign.center),
+            ),
+          ),
+        ]),
+      );
 
   // ── HEADER ────────────────────────────────────────────────
   Widget _headerBar() => Row(
@@ -597,7 +1068,7 @@ class _CommunityState extends State<CommunityScreen>
   }
 
   // ── CATEGORY TABS ─────────────────────────────────────────
-  Widget _categoryTabs() => SizedBox(
+  Widget _categoryTabs(CommunityProvider community) => SizedBox(
     height: 44,
     child: ListView.separated(
       scrollDirection: Axis.horizontal,
@@ -607,9 +1078,13 @@ class _CommunityState extends State<CommunityScreen>
       separatorBuilder: (_, __) => const SizedBox(width: 10),
       itemBuilder: (_, i) {
         final cat = _CCat.values[i];
-        final active = _activeCat == cat;
+        final active = community.activeCategory == cat.id;
         return GestureDetector(
-          onTap: () { HapticFeedback.selectionClick(); setState(() => _activeCat = cat); },
+          onTap: () {
+            HapticFeedback.selectionClick();
+            community.setCategory(cat.id);
+            setState(() => _activeCat = cat);
+          },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 240),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -638,8 +1113,12 @@ class _CommunityState extends State<CommunityScreen>
   );
 
   // ── AI COMPANION CARD ─────────────────────────────────────
-  Widget _aiCompanionCard() {
-    final (emoji, msg) = _kAISuggestions[_activeCat] ?? _kAISuggestions[_CCat.all]!;
+  Widget _aiCompanionCard(String activeCategoryId) {
+    final activeCat = _CCat.values.firstWhere(
+        (c) => c.id == activeCategoryId,
+        orElse: () => _CCat.all);
+    final (emoji, msg) =
+        _kAISuggestions[activeCat] ?? _kAISuggestions[_CCat.all]!;
     return AnimatedBuilder(
       animation: _glowAnim,
       builder: (_, __) => ClipRRect(
@@ -681,24 +1160,14 @@ class _CommunityState extends State<CommunityScreen>
   }
 
   // ── POST CARD ─────────────────────────────────────────────
-  Widget _postCard(_CPost post) {
-    if (post.isReported) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(20),
-            color: Colors.white.withOpacity(0.03),
-            border: Border.all(color: Colors.white.withOpacity(0.07))),
-          child: Row(children: [
-            Icon(Icons.flag_rounded, color: Colors.white.withOpacity(0.25), size: 16),
-            const SizedBox(width: 8),
-            Text('This post has been reported and is under review.',
-                style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12.5)),
-          ]),
-        ),
-      );
-    }
+  // ── LIVE FIRESTORE POST CARD ───────────────────────────────
+  Widget _postCard(
+      CommunityPost post, CommunityProvider community, LunarAuthProvider auth) {
+    final cat = _CCat.values.firstWhere((c) => c.id == post.category,
+        orElse: () => _CCat.emotionalHealing);
+    final avatarColor =
+        _colorFromHex(post.avatarColorHex);
+    final isBookmarked = community.isBookmarked(post.id);
 
     return AnimatedBuilder(
       animation: _glowAnim,
@@ -712,29 +1181,46 @@ class _CommunityState extends State<CommunityScreen>
               borderRadius: BorderRadius.circular(24),
               color: Colors.white.withOpacity(0.04),
               border: Border.all(
-                  color: post.category.color.withOpacity(_glowAnim.value * 0.28), width: 1)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _postHeader(post),
+                  color: cat.color.withOpacity(_glowAnim.value * 0.28),
+                  width: 1)),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              // Header
+              _livePostHeader(post, cat, avatarColor, isBookmarked, community, auth),
               const SizedBox(height: 12),
-              _postContent(post),
+              // Content
+              _livePostContent(post, community),
+              // Tags
               if (post.tags.isNotEmpty) ...[
                 const SizedBox(height: 10),
-                Wrap(spacing: 7, runSpacing: 7,
-                  children: post.tags.map((t) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(20),
-                      color: post.category.color.withOpacity(0.13),
-                      border: Border.all(color: post.category.color.withOpacity(0.32), width: 1)),
-                    child: Text(t, style: TextStyle(color: post.category.color,
-                        fontSize: 11, fontWeight: FontWeight.w500)),
-                  )).toList()),
+                Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: post.tags
+                        .map((t) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  color: cat.color.withOpacity(0.13),
+                                  border: Border.all(
+                                      color: cat.color.withOpacity(0.32),
+                                      width: 1)),
+                              child: Text(t,
+                                  style: TextStyle(
+                                      color: cat.color,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500)),
+                            ))
+                        .toList()),
               ],
               const SizedBox(height: 14),
               Container(height: 1, color: Colors.white.withOpacity(0.07)),
               const SizedBox(height: 12),
-              _reactionBar(post),
+              _liveReactionBar(post, community),
               const SizedBox(height: 10),
-              _postFooter(post),
+              _livePostFooter(post),
             ]),
           ),
         ),
@@ -742,134 +1228,228 @@ class _CommunityState extends State<CommunityScreen>
     );
   }
 
-  Widget _postHeader(_CPost post) => Row(children: [
-    Container(
-      width: 44, height: 44,
-      decoration: BoxDecoration(shape: BoxShape.circle,
-        gradient: RadialGradient(colors: [
-          post.avatarColor.withOpacity(0.85), post.avatarColor.withOpacity(0.3)]),
-        border: Border.all(color: post.avatarColor.withOpacity(0.5), width: 1.5),
-        boxShadow: [BoxShadow(color: post.avatarColor.withOpacity(0.28), blurRadius: 10)]),
-      child: Center(child: Text(post.avatarEmoji, style: const TextStyle(fontSize: 22))),
-    ),
-    const SizedBox(width: 12),
-    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Text(post.pseudonym, style: const TextStyle(color: Colors.white,
-            fontSize: 13.5, fontWeight: FontWeight.w600)),
-        if (post.isAnonymous) ...[
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10),
-              color: _cPurple.withOpacity(0.18),
-              border: Border.all(color: _cPurple.withOpacity(0.38))),
-            child: Text('anon', style: TextStyle(color: _cPurple, fontSize: 9.5,
-                fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ]),
-      const SizedBox(height: 3),
+  Widget _livePostHeader(
+      CommunityPost post,
+      _CCat cat,
+      Color avatarColor,
+      bool isBookmarked,
+      CommunityProvider community,
+      LunarAuthProvider auth) =>
       Row(children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(10),
-            color: post.category.color.withOpacity(0.16),
-            border: Border.all(color: post.category.color.withOpacity(0.38))),
-          child: Text('${post.category.emoji} ${post.category.label}',
-              style: TextStyle(color: post.category.color, fontSize: 10,
-                  fontWeight: FontWeight.w500)),
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(colors: [
+                avatarColor.withOpacity(0.85),
+                avatarColor.withOpacity(0.3)
+              ]),
+              border:
+                  Border.all(color: avatarColor.withOpacity(0.5), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                    color: avatarColor.withOpacity(0.28), blurRadius: 10)
+              ]),
+          child: Center(
+              child: Text(post.avatarEmoji,
+                  style: const TextStyle(fontSize: 22))),
         ),
-        const SizedBox(width: 8),
-        Text(_timeAgo(post.createdAt),
-            style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11)),
-      ]),
-    ])),
-    GestureDetector(
-      onTap: () => _showPostOptions(post),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Icon(Icons.more_horiz_rounded,
-            color: Colors.white.withOpacity(0.28), size: 20),
-      ),
-    ),
-  ]);
+        const SizedBox(width: 12),
+        Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              Row(children: [
+                Text(post.pseudonym,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600)),
+                if (post.isAnonymous) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: _cPurple.withOpacity(0.18),
+                        border:
+                            Border.all(color: _cPurple.withOpacity(0.38))),
+                    child: Text('anon',
+                        style: TextStyle(
+                            color: _cPurple,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w500)),
+                  ),
+                ],
+              ]),
+              const SizedBox(height: 3),
+              Row(children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: cat.color.withOpacity(0.16),
+                      border: Border.all(
+                          color: cat.color.withOpacity(0.38))),
+                  child: Text('${cat.emoji} ${cat.label}',
+                      style: TextStyle(
+                          color: cat.color,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500)),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                    post.createdAt != null
+                        ? _timeAgo(post.createdAt!)
+                        : 'just now',
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(0.3),
+                        fontSize: 11)),
+              ]),
+            ])),
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            community.toggleBookmark(post.id);
+          },
+          child: Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Icon(
+              isBookmarked
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_border_rounded,
+              color: isBookmarked
+                  ? _cPurple
+                  : Colors.white.withOpacity(0.28),
+              size: 20,
+            ),
+          ),
+        ),
+        GestureDetector(
+          onTap: () =>
+              _showLivePostOptions(post, community, auth),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Icon(Icons.more_horiz_rounded,
+                color: Colors.white.withOpacity(0.28), size: 20),
+          ),
+        ),
+      ]);
 
-  Widget _postContent(_CPost post) {
+  Widget _livePostContent(CommunityPost post, CommunityProvider community) {
     if (post.isSensitive && post.isBlurred) {
       return GestureDetector(
-        onTap: () { HapticFeedback.lightImpact(); setState(() => post.isBlurred = false); },
+        onTap: () {
+          HapticFeedback.lightImpact();
+          community.revealSensitivePost(post.id);
+        },
         child: Stack(children: [
           ImageFiltered(
             imageFilter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
             child: Text(post.content,
-                style: TextStyle(color: Colors.white.withOpacity(0.75),
-                    fontSize: 14.5, height: 1.55)),
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.75),
+                    fontSize: 14.5,
+                    height: 1.55)),
           ),
-          Positioned.fill(child: Center(child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(20),
-              color: Colors.black.withOpacity(0.55),
-              border: Border.all(color: Colors.white.withOpacity(0.18))),
+          Positioned.fill(
+              child: Center(
+                  child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.black.withOpacity(0.55),
+                border: Border.all(
+                    color: Colors.white.withOpacity(0.18))),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.visibility_off_rounded, color: Colors.white, size: 15),
+              const Icon(Icons.visibility_off_rounded,
+                  color: Colors.white, size: 15),
               const SizedBox(width: 6),
               Text('Sensitive content — tap to read',
-                  style: TextStyle(color: Colors.white.withOpacity(0.78), fontSize: 12)),
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.78),
+                      fontSize: 12)),
             ]),
           ))),
         ]),
       );
     }
-    return Text(post.content, style: TextStyle(color: Colors.white.withOpacity(0.82),
-        fontSize: 14.5, height: 1.55));
+    return Text(post.content,
+        style: TextStyle(
+            color: Colors.white.withOpacity(0.82),
+            fontSize: 14.5,
+            height: 1.55));
   }
 
-  Widget _reactionBar(_CPost post) {
+  Widget _liveReactionBar(
+      CommunityPost post, CommunityProvider community) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
       child: Row(
         children: _CRxn.values.map((rxn) {
-          final base     = post.reactions[rxn] ?? 0;
-          final isMine   = post.myReactions.contains(rxn);
-          final count    = base + (isMine ? 1 : 0);
+          final count = (post.reactions[rxn.id] ?? 0) +
+              (community.hasReacted(post.id, rxn.id) ? 1 : 0);
+          final isMine = community.hasReacted(post.id, rxn.id);
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();
-                setState(() {
-                  if (isMine) post.myReactions.remove(rxn);
-                  else        post.myReactions.add(rxn);
-                });
+                community.toggleReaction(
+                    postId: post.id, reaction: rxn.id);
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 11, vertical: 7),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  gradient: isMine ? LinearGradient(colors: [
-                    _cPurple.withOpacity(0.62), _cPink.withOpacity(0.42)]) : null,
+                  gradient: isMine
+                      ? LinearGradient(colors: [
+                          _cPurple.withOpacity(0.62),
+                          _cPink.withOpacity(0.42)
+                        ])
+                      : null,
                   color: isMine ? null : Colors.white.withOpacity(0.06),
                   border: Border.all(
-                      color: isMine ? _cPurple.withOpacity(0.7) : Colors.white.withOpacity(0.1),
+                      color: isMine
+                          ? _cPurple.withOpacity(0.7)
+                          : Colors.white.withOpacity(0.1),
                       width: 1),
-                  boxShadow: isMine ? [BoxShadow(color: _cPurple.withOpacity(0.35),
-                      blurRadius: 10)] : null,
+                  boxShadow: isMine
+                      ? [
+                          BoxShadow(
+                              color: _cPurple.withOpacity(0.35),
+                              blurRadius: 10)
+                        ]
+                      : null,
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Text(rxn.emoji, style: const TextStyle(fontSize: 13)),
                   const SizedBox(width: 5),
-                  Text(rxn.label, style: TextStyle(
-                      color: isMine ? Colors.white : Colors.white.withOpacity(0.52),
-                      fontSize: 11,
-                      fontWeight: isMine ? FontWeight.w600 : FontWeight.w400)),
+                  Text(rxn.label,
+                      style: TextStyle(
+                          color: isMine
+                              ? Colors.white
+                              : Colors.white.withOpacity(0.52),
+                          fontSize: 11,
+                          fontWeight: isMine
+                              ? FontWeight.w600
+                              : FontWeight.w400)),
                   if (count > 0) ...[
                     const SizedBox(width: 5),
-                    Text('$count', style: TextStyle(
-                        color: isMine ? Colors.white : Colors.white.withOpacity(0.4),
-                        fontSize: 10.5, fontWeight: FontWeight.w600)),
+                    Text('$count',
+                        style: TextStyle(
+                            color: isMine
+                                ? Colors.white
+                                : Colors.white.withOpacity(0.4),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600)),
                   ],
                 ]),
               ),
@@ -880,59 +1460,267 @@ class _CommunityState extends State<CommunityScreen>
     );
   }
 
-  Widget _postFooter(_CPost post) => Row(children: [
-    Icon(Icons.chat_bubble_outline_rounded,
-        color: Colors.white.withOpacity(0.28), size: 15),
-    const SizedBox(width: 5),
-    Text('${post.commentsCount} replies',
-        style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12)),
-    const Spacer(),
-    GestureDetector(
-      onTap: _showKindnessReminder,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(14),
-          color: _cPink.withOpacity(0.08),
-          border: Border.all(color: _cPink.withOpacity(0.22))),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Text('🌸', style: TextStyle(fontSize: 12)),
-          const SizedBox(width: 4),
-          Text('Reply with care', style: TextStyle(color: _cPink.withOpacity(0.7),
-              fontSize: 11, fontWeight: FontWeight.w500)),
-        ]),
-      ),
-    ),
-  ]);
+  Widget _livePostFooter(CommunityPost post) => Row(children: [
+        Icon(Icons.chat_bubble_outline_rounded,
+            color: Colors.white.withOpacity(0.28), size: 15),
+        const SizedBox(width: 5),
+        Text('${post.commentsCount} replies',
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.3), fontSize: 12)),
+        const Spacer(),
+        GestureDetector(
+          onTap: _showKindnessReminder,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+            decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: _cPink.withOpacity(0.08),
+                border: Border.all(color: _cPink.withOpacity(0.22))),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Text('🌸', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 4),
+              Text('Reply with care',
+                  style: TextStyle(
+                      color: _cPink.withOpacity(0.7),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500)),
+            ]),
+          ),
+        ),
+      ]);
 
-  // ── POST OPTIONS ──────────────────────────────────────────
-  void _showPostOptions(_CPost post) {
+  void _showLivePostOptions(CommunityPost post, CommunityProvider community,
+      LunarAuthProvider auth) {
     HapticFeedback.lightImpact();
     showModalBottomSheet(
-      context: context, backgroundColor: Colors.transparent,
+      context: context,
+      backgroundColor: Colors.transparent,
       builder: (_) => Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A0535),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          border: Border.all(color: Colors.white.withOpacity(0.09))),
+            color: const Color(0xFF1A0535),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(28)),
+            border:
+                Border.all(color: Colors.white.withOpacity(0.09))),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 40, height: 4,
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(2),
+          Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(2),
                   color: Colors.white.withOpacity(0.2))),
           const SizedBox(height: 20),
-          _optionTile(Icons.flag_outlined, 'Report Post', 'Not safe or hurtful content',
+          _optionTile(
+              Icons.flag_outlined,
+              'Report Post',
+              'Not safe or hurtful content',
               const Color(0xFFE53935), () {
-                setState(() => post.isReported = true);
-                Navigator.pop(context); _showSafetyAck();
-              }),
+            community.reportPost(post.id);
+            Navigator.pop(context);
+            _showSafetyAck();
+          }),
           const SizedBox(height: 10),
-          _optionTile(Icons.visibility_off_outlined, 'Hide Post', 'I don\'t want to see this',
-              Colors.white54, () { setState(() => _posts.remove(post)); Navigator.pop(context); }),
+          _optionTile(
+              Icons.visibility_off_outlined,
+              'Hide Post',
+              'I don\'t want to see this',
+              Colors.white54, () {
+            community.hidePost(post.id);
+            Navigator.pop(context);
+          }),
           const SizedBox(height: 10),
-          _optionTile(Icons.favorite_border_rounded, 'Send Healing',
-              'Share warmth with this person', _cPink, () { Navigator.pop(context); _showKindnessReminder(); }),
+          _optionTile(
+              Icons.favorite_border_rounded,
+              'Send Healing',
+              'Share warmth with this person',
+              _cPink, () {
+            Navigator.pop(context);
+            _showKindnessReminder();
+          }),
           const SizedBox(height: 8),
         ]),
+      ),
+    );
+  }
+
+  // ── SEED POST CARD (shown when Firestore feed is empty) ────
+  // ── SEED POST SUB-WIDGETS (_CPost) ────────────────────────
+  Widget _postHeader(_CPost post) => Row(children: [
+    Container(
+      width: 38, height: 38,
+      decoration: BoxDecoration(shape: BoxShape.circle,
+        gradient: RadialGradient(colors: [
+          post.avatarColor.withOpacity(0.9), post.avatarColor.withOpacity(0.4)])),
+      child: Center(child: Text(post.avatarEmoji, style: const TextStyle(fontSize: 18))),
+    ),
+    const SizedBox(width: 10),
+    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text(post.pseudonym, style: const TextStyle(color: Colors.white,
+            fontSize: 13, fontWeight: FontWeight.w600)),
+        if (post.isAnonymous) ...[
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8),
+              color: Colors.white.withOpacity(0.08)),
+            child: Text('Anonymous', style: TextStyle(
+                color: Colors.white.withOpacity(0.5), fontSize: 10))),
+        ],
+      ]),
+      Text(_timeAgo(post.createdAt), style: TextStyle(
+          color: Colors.white.withOpacity(0.38), fontSize: 11)),
+    ])),
+    Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12),
+        color: post.category.color.withOpacity(0.15),
+        border: Border.all(color: post.category.color.withOpacity(0.35))),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(post.category.emoji, style: const TextStyle(fontSize: 11)),
+        const SizedBox(width: 4),
+        Text(post.category.label, style: TextStyle(
+            color: post.category.color, fontSize: 10, fontWeight: FontWeight.w500)),
+      ]),
+    ),
+  ]);
+
+  Widget _postContent(_CPost post) {
+    if (post.isBlurred) {
+      return Stack(children: [
+        ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+          child: Text(post.content, style: TextStyle(
+              color: Colors.white.withOpacity(0.7), fontSize: 14, height: 1.5))),
+        Positioned.fill(child: GestureDetector(
+          onTap: () => setState(() => post.isBlurred = false),
+          child: Container(
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8),
+              color: Colors.black.withOpacity(0.3)),
+            child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('🌸', style: TextStyle(fontSize: 24)),
+              const SizedBox(height: 6),
+              Text('Sensitive Content — Tap to Reveal',
+                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12)),
+            ]))),
+        )),
+      ]);
+    }
+    return Text(post.content, style: TextStyle(
+        color: Colors.white.withOpacity(0.85), fontSize: 14, height: 1.5));
+  }
+
+  Widget _reactionBar(_CPost post) => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: _CRxn.values.map((rxn) {
+      final count = post.reactions[rxn] ?? 0;
+      final reacted = post.myReactions.contains(rxn);
+      return GestureDetector(
+        onTap: () => setState(() {
+          if (reacted) {
+            post.myReactions.remove(rxn);
+            if (count > 0) post.reactions[rxn] = count - 1;
+          } else {
+            post.myReactions.add(rxn);
+            post.reactions[rxn] = count + 1;
+          }
+        }),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(16),
+            color: reacted
+                ? _cPurple.withOpacity(0.25)
+                : Colors.white.withOpacity(0.05),
+            border: Border.all(
+                color: reacted
+                    ? _cPurple.withOpacity(0.6)
+                    : Colors.white.withOpacity(0.1))),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(rxn.emoji, style: const TextStyle(fontSize: 14)),
+            if (count > 0) ...[
+              const SizedBox(width: 4),
+              Text('$count', style: TextStyle(
+                  color: reacted ? _cPurple : Colors.white.withOpacity(0.5),
+                  fontSize: 11, fontWeight: FontWeight.w600)),
+            ],
+          ]),
+        ),
+      );
+    }).toList(),
+  );
+
+  Widget _postFooter(_CPost post) => Row(children: [
+    Icon(Icons.chat_bubble_outline_rounded,
+        color: Colors.white.withOpacity(0.35), size: 15),
+    const SizedBox(width: 5),
+    Text('${post.commentsCount} comments',
+        style: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 12)),
+    const Spacer(),
+    Text('🤍 be kind', style: TextStyle(
+        color: Colors.white.withOpacity(0.25), fontSize: 11,
+        fontStyle: FontStyle.italic)),
+  ]);
+
+  Widget _seedPostCard(_CPost post) {
+    if (post.isReported) return const SizedBox.shrink();
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              color: Colors.white.withOpacity(0.04),
+              border: Border.all(
+                  color: post.category.color
+                      .withOpacity(_glowAnim.value * 0.28),
+                  width: 1)),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              _postHeader(post),
+              const SizedBox(height: 12),
+              _postContent(post),
+              if (post.tags.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: post.tags
+                        .map((t) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  color: post.category.color
+                                      .withOpacity(0.13),
+                                  border: Border.all(
+                                      color: post.category.color
+                                          .withOpacity(0.32),
+                                      width: 1)),
+                              child: Text(t,
+                                  style: TextStyle(
+                                      color: post.category.color,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500)),
+                            ))
+                        .toList()),
+              ],
+              const SizedBox(height: 14),
+              Container(height: 1, color: Colors.white.withOpacity(0.07)),
+              const SizedBox(height: 12),
+              _reactionBar(post),
+              const SizedBox(height: 10),
+              _postFooter(post),
+            ]),
+          ),
+        ),
       ),
     );
   }
@@ -955,6 +1743,7 @@ class _CommunityState extends State<CommunityScreen>
           ]),
         ),
       );
+
 
   void _showSafetyAck() {
     showDialog(context: context, builder: (_) => Dialog(
@@ -1055,7 +1844,7 @@ class _CommunityState extends State<CommunityScreen>
   );
 
   // ── COMPOSE OVERLAY ───────────────────────────────────────
-  Widget _composeOverlay(BuildContext ctx) {
+  Widget _composeOverlay(BuildContext ctx, CommunityProvider community, LunarAuthProvider auth) {
     return GestureDetector(
       onTap: () { setState(() => _showCompose = false); FocusScope.of(ctx).unfocus(); },
       child: Container(
@@ -1290,25 +2079,24 @@ class _CommunityState extends State<CommunityScreen>
   void _submitPost() {
     if (_composeCtrl.text.trim().isEmpty) return;
     HapticFeedback.mediumImpact();
+    final community = Provider.of<CommunityProvider>(context, listen: false);
     final (emoji, color) = _kAvatars[_composeAvatarIdx];
-    final pseudonym = _composeAnon
-        ? 'Anonymous $emoji'
-        : 'You $emoji';
+    final colorHex = color.value.toRadixString(16).substring(2).toUpperCase();
+    final pseudonym = _composeAnon ? 'Anonymous $emoji' : 'You $emoji';
+    community.createPost(
+      pseudonym: pseudonym,
+      avatarEmoji: emoji,
+      avatarColorHex: colorHex,
+      isAnonymous: _composeAnon,
+      category: _composeCat.id,
+      content: _composeCtrl.text.trim(),
+      tags: _composeTags.toList(),
+    );
     setState(() {
-      _posts.insert(0, _CPost(
-        id: 'u_${DateTime.now().microsecondsSinceEpoch}',
-        pseudonym: pseudonym,
-        avatarEmoji: emoji, avatarColor: color,
-        isAnonymous: _composeAnon,
-        category: _composeCat,
-        content: _composeCtrl.text.trim(),
-        tags: _composeTags.toList(),
-        createdAt: DateTime.now(),
-      ));
       _showCompose = false;
       _composeTags.clear();
-      _composeCtrl.clear();
     });
+    _composeCtrl.clear();
     FocusScope.of(context).unfocus();
   }
 
@@ -1330,6 +2118,14 @@ class _CommunityState extends State<CommunityScreen>
   );
 
   // ── HELPERS ───────────────────────────────────────────────
+  Color _colorFromHex(String hex) {
+    try {
+      return Color(int.parse('FF$hex', radix: 16));
+    } catch (_) {
+      return _cPurple;
+    }
+  }
+
   String _timeAgo(DateTime dt) {
     final d = DateTime.now().difference(dt);
     if (d.inMinutes < 1)  return 'just now';
@@ -1359,6 +2155,13 @@ class _CBackground extends StatelessWidget {
       Positioned(top: 320,  left: -20,  child: _blob(240, _cTeal,   0.08)),
       Positioned(bottom: 90, right: -45,child: _blob(285, _cDeep,   0.2)),
       Positioned(bottom: 0,  left: -50, child: _blob(220, _cGold,   0.09)),
+      // Moon haze overlays
+      Positioned(top: -30, right: -30,  child: _blob(200, _cGold,   0.09)),
+      Positioned(top: size.height * 0.40, left: size.width * 0.5 - 120,
+          child: _blob(240, _cPurple, 0.06)),
+      Positioned(bottom: 180, left: -40, child: _blob(180, _cPink, 0.07)),
+      // Animated nebula depth layer
+      RepaintBoundary(child: _CAnimatedNebula(size: size)),
     ]),
   );
 
@@ -1414,4 +2217,91 @@ class _CParticlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_CParticlePainter o) => o.progress != progress;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ANIMATED NEBULA — Soft emotional atmosphere layer
+// ═══════════════════════════════════════════════════════════
+
+class _CAnimatedNebula extends StatefulWidget {
+  final Size size;
+  const _CAnimatedNebula({required this.size});
+
+  @override
+  State<_CAnimatedNebula> createState() => _CAnimatedNebulaState();
+}
+
+class _CAnimatedNebulaState extends State<_CAnimatedNebula>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 8))
+      ..repeat(reverse: true);
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _anim,
+        builder: (_, __) => CustomPaint(
+          size: widget.size,
+          painter: _CNebulaP(t: _anim.value),
+        ),
+      );
+}
+
+class _CNebulaP extends CustomPainter {
+  final double t;
+  const _CNebulaP({required this.t});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    canvas.drawCircle(
+      Offset(w * 0.25, h * 0.14),
+      140,
+      Paint()
+        ..color = const Color(0xFF7B2FF7).withOpacity(0.055 + 0.03 * t)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 55),
+    );
+    canvas.drawCircle(
+      Offset(w * 0.80, h * 0.30),
+      112,
+      Paint()
+        ..color =
+            const Color(0xFFFF69B4).withOpacity(0.04 + 0.025 * (1 - t))
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 65),
+    );
+    canvas.drawCircle(
+      Offset(w * 0.15, h * 0.62),
+      148,
+      Paint()
+        ..color = const Color(0xFF4A00E0).withOpacity(0.04 + 0.02 * t)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60),
+    );
+    canvas.drawCircle(
+      Offset(w * 0.68, h * 0.76),
+      105,
+      Paint()
+        ..color =
+            const Color(0xFFAB5CF2).withOpacity(0.035 + 0.015 * (1 - t))
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 48),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CNebulaP old) => old.t != t;
 }

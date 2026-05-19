@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -71,9 +72,14 @@ class _SignupScreenState extends State<SignupScreen>
       password: _passCtrl.text,
       userProvider: userProvider,
     );
+    debugPrint('[SignupScreen] signUpWithEmail result: $ok | error: ${auth.error}');
 
-    if (mounted) setState(() => _loading = false);
-    if (!ok && mounted && auth.error != null) {
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (ok) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } else if (auth.error != null) {
       _showError(auth.error!);
       auth.clearError();
     }
@@ -83,9 +89,16 @@ class _SignupScreenState extends State<SignupScreen>
     HapticFeedback.lightImpact();
     setState(() => _loading = true);
     final auth = context.read<LunarAuthProvider>();
+    debugPrint('[SignupScreen] Attempting Google sign-up...');
     final ok = await auth.signInWithGoogle();
-    if (mounted) setState(() => _loading = false);
-    if (!ok && mounted && auth.error != null) {
+    debugPrint('[SignupScreen] Google sign-up result: $ok | error: ${auth.error}');
+
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (ok) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } else if (auth.error != null) {
       _showError(auth.error!);
       auth.clearError();
     }

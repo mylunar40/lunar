@@ -101,27 +101,39 @@ class LunarAuthProvider extends ChangeNotifier {
   }) async {
     _setLoading(true);
     try {
+      debugPrint('[LunarAuth] signUpWithEmail — attempting for $email');
       final cred = await AuthService.signUpWithEmail(
         email: email,
         password: password,
         displayName: name,
       );
+      debugPrint('[LunarAuth] Firebase Auth user created: ${cred.user?.uid}');
+      // Firestore profile creation is best-effort: auth success is enough to
+      // proceed. A failure here (e.g. missing security rules) must NOT block
+      // the user from entering the app.
       if (cred.user != null) {
-        final model = LunarUserModel(
-          uid: cred.user!.uid,
-          name: name,
-          email: email,
-          authProvider: 'email',
-          isAnonymous: false,
-          cycleLength: userProvider?.lastPeriodDate != null ? 28 : 28,
-          lastPeriodDate: userProvider?.lastPeriodDate,
-          createdAt: DateTime.now(),
-        );
-        await FirestoreService.createUser(model);
+        try {
+          final model = LunarUserModel(
+            uid: cred.user!.uid,
+            name: name,
+            email: email,
+            authProvider: 'email',
+            isAnonymous: false,
+            cycleLength: 28,
+            lastPeriodDate: userProvider?.lastPeriodDate,
+            createdAt: DateTime.now(),
+          );
+          await FirestoreService.createUser(model);
+          debugPrint('[LunarAuth] Firestore user document created.');
+        } catch (firestoreErr) {
+          // Log but do not surface to user — account is created, they can proceed.
+          debugPrint('[LunarAuth] Firestore createUser failed (non-blocking): $firestoreErr');
+        }
       }
       _setLoading(false);
       return true;
     } catch (e) {
+      debugPrint('[LunarAuth] signUpWithEmail failed: $e');
       _error = AuthService.friendlyError(e);
       _setLoading(false);
       return false;

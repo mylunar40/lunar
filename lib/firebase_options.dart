@@ -44,11 +44,11 @@ class DefaultFirebaseOptions {
   // After running `flutterfire configure`, this file will be auto-filled.
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR_ANDROID_API_KEY',
-    appId: 'YOUR_ANDROID_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_PROJECT_ID.appspot.com',
+    apiKey: 'AIzaSyCDOKtvoJhy_mMqafXA2mNs0Vhdc5q_EkQ',
+    appId: '1:795015095091:android:df0518fa92d2ea0aebd446',
+    messagingSenderId: '795015095091',
+    projectId: 'lunar-ai-8e8dc',
+    storageBucket: 'lunar-ai-8e8dc.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

@@ -12,6 +12,7 @@ import '../engine/insight_engine.dart';
 import '../repositories/cycle_repository.dart';
 import '../repositories/health_repository.dart';
 import '../data/local_cache.dart';
+import '../services/firestore_service.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  LUNAR DATA PROVIDER
@@ -46,6 +47,10 @@ class LunarDataProvider extends ChangeNotifier {
 
   // ── Pregnancy ─────────────────────────────────────────────
   PregnancyData? _pregnancyData;
+  int _pregnancyWeekManual = 0;           // 0 = derive from dueDate
+  List<Map<String, dynamic>> _pregnancyJournals = [];
+  Map<String, String> _pregWellness = {}; // keyed by label lowercase
+  int _pregnancyKickCount = 0;
 
   // ── Journals ──────────────────────────────────────────────
   List<JournalEntry> _journalEntries = [];
@@ -117,6 +122,19 @@ class LunarDataProvider extends ChangeNotifier {
   bool get isPregnant => _pregnancyData != null;
 
   // ═══════════════════════════════════════════════════════════
+  //  GETTERS — Pregnancy extended
+  // ═══════════════════════════════════════════════════════════
+
+  List<Map<String, dynamic>> get pregnancyJournals =>
+      List.unmodifiable(_pregnancyJournals);
+  Map<String, String> get pregWellness =>
+      Map.unmodifiable(_pregWellness);
+  int get pregnancyKickCount => _pregnancyKickCount;
+  int get currentPregnancyWeek => _pregnancyWeekManual > 0
+      ? _pregnancyWeekManual
+      : (_pregnancyData?.weeksPregnant ?? 16);
+
+  // ═══════════════════════════════════════════════════════════
   //  GETTERS — Journal
   // ═══════════════════════════════════════════════════════════
 
@@ -153,6 +171,20 @@ class LunarDataProvider extends ChangeNotifier {
 
     _moodEntries = HealthRepository.loadMoodEntries()
       ..sort((a, b) => b.date.compareTo(a.date));
+
+    // Pregnancy extended
+    _pregnancyWeekManual = LocalCache.getInt('preg_week_manual') ?? 0;
+    _pregnancyJournals =
+        LocalCache.getJsonList('preg_journals') ?? [];
+    final _todayKey =
+        DateTime.now().toLocal().toIso8601String().substring(0, 10);
+    final rawWellness = LocalCache.getJson('preg_wellness_$_todayKey');
+    if (rawWellness != null) {
+      _pregWellness =
+          rawWellness.map((k, v) => MapEntry(k, v.toString()));
+    }
+    _pregnancyKickCount =
+        LocalCache.getInt('preg_kicks_$_todayKey') ?? 0;
   }
 
   void _refreshAnalytics() {
@@ -321,6 +353,91 @@ class LunarDataProvider extends ChangeNotifier {
   void setPregnancyData(PregnancyData? data) {
     _pregnancyData = data;
     _refreshAnalytics();
+    notifyListeners();
+  }
+
+  /// Persist a manually chosen week (computes due date from it).
+  Future<void> setPregnancyWeek(int week, {String? uid}) async {
+    _pregnancyWeekManual = week.clamp(4, 42);
+    await LocalCache.setInt('preg_week_manual', _pregnancyWeekManual);
+    final dueDate =
+        DateTime.now().add(Duration(days: (40 - week) * 7));
+    _pregnancyData =
+        PregnancyData(id: uid ?? 'local', dueDate: dueDate);
+    if (uid != null) {
+      await FirestoreService.updatePregnancyData(
+          uid, {'weekManual': week});
+    }
+    _refreshAnalytics();
+    notifyListeners();
+  }
+
+  /// Persist due date (week is derived from it).
+  Future<void> setPregDueDate(DateTime dueDate, {String? uid}) async {
+    _pregnancyWeekManual = 0;
+    await LocalCache.setInt('preg_week_manual', 0);
+    _pregnancyData =
+        PregnancyData(id: uid ?? 'local', dueDate: dueDate);
+    if (uid != null) {
+      await FirestoreService.updatePregnancyData(
+          uid, {'weekManual': 0});
+    }
+    _refreshAnalytics();
+    notifyListeners();
+  }
+
+  /// Log a wellness selection for today (mood, sleep, hydration, etc.).
+  Future<void> setPregWellness(String key, String value,
+      {String? uid}) async {
+    _pregWellness = {..._pregWellness, key: value};
+    final todayKey =
+        DateTime.now().toLocal().toIso8601String().substring(0, 10);
+    await LocalCache.setJson('preg_wellness_$todayKey', _pregWellness);
+    if (uid != null) {
+      await FirestoreService.updatePregnancyData(
+          uid, {'wellness': _pregWellness});
+    }
+    notifyListeners();
+  }
+
+  /// Increment today's baby kick counter.
+  Future<void> addPregnancyKick({String? uid}) async {
+    _pregnancyKickCount++;
+    final todayKey =
+        DateTime.now().toLocal().toIso8601String().substring(0, 10);
+    await LocalCache.setInt('preg_kicks_$todayKey', _pregnancyKickCount);
+    if (uid != null) {
+      await FirestoreService.updatePregnancyData(
+          uid, {'kickCount': _pregnancyKickCount});
+    }
+    notifyListeners();
+  }
+
+  /// Reset today's kick counter.
+  Future<void> resetPregnancyKicks({String? uid}) async {
+    _pregnancyKickCount = 0;
+    final todayKey =
+        DateTime.now().toLocal().toIso8601String().substring(0, 10);
+    await LocalCache.setInt('preg_kicks_$todayKey', 0);
+    if (uid != null) {
+      await FirestoreService.updatePregnancyData(
+          uid, {'kickCount': 0});
+    }
+    notifyListeners();
+  }
+
+  /// Add a pregnancy memory journal entry (bump note, feeling, milestone, etc.).
+  Future<void> addPregnancyJournal(
+    Map<String, dynamic> entry, {
+    String? uid,
+  }) async {
+    _pregnancyJournals =
+        [entry, ..._pregnancyJournals].take(100).toList();
+    await LocalCache.setJsonList('preg_journals', _pregnancyJournals);
+    if (uid != null) {
+      await FirestoreService.savePregnancyJournal(
+          uid: uid, data: entry);
+    }
     notifyListeners();
   }
 
