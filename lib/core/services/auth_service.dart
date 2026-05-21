@@ -96,6 +96,8 @@ class AuthService {
           return 'This account has been disabled.';
         case 'operation-not-allowed':
           return 'Email/password sign-in is not enabled. Please contact support.';
+        case 'admin-restricted-operation':
+          return 'Guest sign-in is not enabled. Please enable Anonymous Authentication in Firebase Console.';
         default:
           return e.message ?? 'Authentication error. Please try again.';
       }

@@ -42,7 +42,6 @@ class _HomeDashboardState extends State<HomeDashboard>
   late AnimationController _particleController;
   late AnimationController _breatheCtrl;
   late AnimationController _pulseCtrl;
-  late AnimationController _shimmerCtrl;
   late AnimationController _entryCtrl;
 
   late Animation<double> _floatAnim;
@@ -126,26 +125,22 @@ class _HomeDashboardState extends State<HomeDashboard>
     _pulseAnim = Tween<double>(begin: 0.7, end: 1.0)
         .animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
 
-    _shimmerCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    )..repeat();
-    _shimmerAnim = Tween<double>(begin: -1.5, end: 2.5).animate(
-      CurvedAnimation(parent: _shimmerCtrl, curve: Curves.linear),
-    );
-
     _entryCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1100),
     );
     _entryCtrl.forward();
 
+    // Shimmer – kept for unused section methods, not displayed in build
+    _shimmerAnim = Tween<double>(begin: -1.5, end: 2.5).animate(
+      CurvedAnimation(parent: _orbitController, curve: Curves.linear),
+    );
+
     _subtitleTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (mounted) setState(() => _aiSubtitleIdx = (_aiSubtitleIdx + 1) % _aiSubtitles.length);
     });
 
-    for (int i = 0; i < 18; i++) _particles.add(_StarParticle(rng: _rng));
-    for (int i = 0; i < 8; i++) _hearts.add(_HeartParticle(rng: _rng));
+    for (int i = 0; i < 10; i++) _particles.add(_StarParticle(rng: _rng));
   }
 
   @override
@@ -156,7 +151,6 @@ class _HomeDashboardState extends State<HomeDashboard>
     _particleController.dispose();
     _breatheCtrl.dispose();
     _pulseCtrl.dispose();
-    _shimmerCtrl.dispose();
     _entryCtrl.dispose();
     _subtitleTimer?.cancel();
     super.dispose();
@@ -430,14 +424,10 @@ class _HomeDashboardState extends State<HomeDashboard>
                         _staggeredSection(_heroSection(user), 0),
                         const SizedBox(height: 20),
                         _staggeredSection(_emotionalWeatherStrip(user), 1),
-                        const SizedBox(height: 16),
-                        _staggeredSection(_liveAIInsightBanner(user), 1),
                         const SizedBox(height: 22),
                         _staggeredSection(_todayOverview(user, lunarData), 2),
                         const SizedBox(height: 22),
                         _staggeredSection(_wellnessRingsRow(lunarData), 2),
-                        const SizedBox(height: 22),
-                        _staggeredSection(_moodForecast(user), 3),
                         const SizedBox(height: 22),
                         _staggeredSection(_wellnessScore(lunarData), 4),
                         const SizedBox(height: 26),
@@ -447,8 +437,6 @@ class _HomeDashboardState extends State<HomeDashboard>
                         const SizedBox(height: 20),
                         _staggeredSection(_moonCompanionRow(user), 3),
                         const SizedBox(height: 22),
-                        _staggeredSection(_lunarEnergyCard(user, lunarData), 4),
-                        const SizedBox(height: 22),
                         _staggeredSection(_aiSuggestionChips(user, lunarData), 5),
                         const SizedBox(height: 22),
                         _staggeredSection(_pregnancyCard(context), 5),
@@ -456,10 +444,6 @@ class _HomeDashboardState extends State<HomeDashboard>
                         _staggeredSection(_insightCarousel(user), 6),
                         const SizedBox(height: 26),
                         _staggeredSection(_healthSnapshot(), 7),
-                        const SizedBox(height: 26),
-                        _staggeredSection(_aiCard(context, user), 8),
-                        const SizedBox(height: 26),
-                        _staggeredSection(_dailyCare(), 9),
                         const SizedBox(height: 100),
                       ],
                     ),
@@ -687,9 +671,9 @@ class _HomeDashboardState extends State<HomeDashboard>
               boxShadow: [
                 BoxShadow(
                   color: const Color(0xFFAB5CF2)
-                      .withOpacity(_glowAnim.value * 0.28),
-                  blurRadius: 30,
-                  spreadRadius: 3,
+                      .withOpacity(_glowAnim.value * 0.18),
+                  blurRadius: 22,
+                  spreadRadius: 2,
                 )
               ],
             ),
@@ -841,16 +825,16 @@ class _HomeDashboardState extends State<HomeDashboard>
                     gradient: RadialGradient(colors: _phaseColors(user)),
                     boxShadow: [
                       BoxShadow(
-                        color: _phaseRingColor(user)
-                            .withOpacity(_glowAnim.value * 0.85),
-                        blurRadius: 48,
-                        spreadRadius: 14,
+                        color: const Color(0xFFFFD700)
+                            .withOpacity(_glowAnim.value * 0.35),
+                        blurRadius: 32,
+                        spreadRadius: 8,
                       ),
                       BoxShadow(
                         color: const Color(0xFFFF69B4)
-                            .withOpacity(_glowAnim.value * 0.55),
-                        blurRadius: 22,
-                        spreadRadius: 4,
+                            .withOpacity(_glowAnim.value * 0.35),
+                        blurRadius: 16,
+                        spreadRadius: 2,
                       ),
                     ],
                   ),
@@ -3294,15 +3278,15 @@ class _HomeDashboardState extends State<HomeDashboard>
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: phaseColor.withOpacity(glow * 0.90),
-                                blurRadius: 66,
-                                spreadRadius: 22,
+                                color: phaseColor.withOpacity(glow * 0.55),
+                                blurRadius: 44,
+                                spreadRadius: 12,
                               ),
                               BoxShadow(
                                 color:
-                                    _hPink.withOpacity(glow * 0.40),
-                                blurRadius: 30,
-                                spreadRadius: 6,
+                                    _hPink.withOpacity(glow * 0.25),
+                                blurRadius: 22,
+                                spreadRadius: 4,
                               ),
                               BoxShadow(
                                 color: Colors.black.withOpacity(0.42),

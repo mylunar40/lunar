@@ -8,8 +8,11 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/chat_message.dart';
 import '../models/cycle_model.dart';
+import '../models/emotional_memory.dart';
 import '../data/local_cache.dart';
 import '../../services/lunar_ai_service.dart';
 import 'app_provider.dart';
@@ -37,10 +40,19 @@ class ChatProvider extends ChangeNotifier {
   // ── Voice-ready structure (future implementation) ─────────
   bool _voiceMode = false; // Reserved for future voice feature
 
+  // ── Firestore sync ─────────────────────────────────────
+  String? _firestoreUid;
+  bool _firestoreSynced = false;
+  static const _firestoreCollection = 'chatHistory';
+
+  // ── Emotional memory (cross-session) ────────────────────────
+  DateTime? _previousSessionAt; // Time of the LAST session (before this one)
+
   // ── Premium features gate (structure only) ────────────────
   static const _historyLimit = 100; // Free tier: 100 stored messages
   static const _persistKey = 'lunar_chat_history_v1';
   static const _emotionKey = 'lunar_emotion_history_v1';
+  static const _lastSessionKey = 'lunar_last_session_v1';
 
   // ── Getters ───────────────────────────────────────────────
   List<ChatMessage> get messages => List.unmodifiable(_messages);
@@ -58,6 +70,25 @@ class ChatProvider extends ChangeNotifier {
         .key;
   }
 
+  // ── Emotional profile (cross-session intelligence) ────────
+  EmotionalProfile get emotionalProfile {
+    final happy = (_emotionCounts[EmotionTag.happy] ?? 0) +
+        (_emotionCounts[EmotionTag.energetic] ?? 0);
+    return EmotionalProfile(
+      dominantEmotion: dominantEmotion,
+      daysSinceLastVisit: _daysSinceLastSession(),
+      emotionCounts: Map.unmodifiable(_emotionCounts),
+      anxietyMentions: _emotionCounts[EmotionTag.anxious] ?? 0,
+      stressMentions: _emotionCounts[EmotionTag.stressed] ?? 0,
+      sleepMentions: _emotionCounts[EmotionTag.tired] ?? 0,
+      periodMentions: _emotionCounts[EmotionTag.period] ?? 0,
+      hasPositiveStreak: happy >= 3,
+    );
+  }
+
+  /// Generates a warm, personalised greeting based on emotional history.
+  String generateGreeting(String name) => emotionalProfile.generateGreeting(name);
+
   // Contextual phase label for UI display
   String get cyclePhaseDisplay => _lastPhaseLabel ?? '';
   String? _lastPhaseLabel;
@@ -69,6 +100,13 @@ class ChatProvider extends ChangeNotifier {
   Future<void> init() async {
     await _loadHistory();
     await _loadEmotionHistory();
+
+    // Record previous session time BEFORE overwriting with now
+    final lastStr = LocalCache.getString(_lastSessionKey);
+    _previousSessionAt =
+        lastStr != null ? DateTime.tryParse(lastStr) : null;
+    LocalCache.setString(_lastSessionKey, DateTime.now().toIso8601String());
+
     final key = await LunarAIService.getApiKey();
     _apiKeyConfigured = key != null && key.isNotEmpty;
     if (_messages.isEmpty) {
@@ -76,6 +114,14 @@ class ChatProvider extends ChangeNotifier {
     }
     _isLoaded = true;
     notifyListeners();
+  }
+
+  /// Call when auth state changes. Syncs Firestore history.
+  Future<void> setUser(String? uid) async {
+    if (uid == null || uid == _firestoreUid) return;
+    _firestoreUid = uid;
+    _firestoreSynced = false;
+    await _loadFromFirestore(uid);
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -99,6 +145,7 @@ class ChatProvider extends ChangeNotifier {
     _sessionMessageCount++;
     notifyListeners();
     _saveHistory(); // fire-and-forget
+    _syncMessageToFirestore(_messages.last); // fire-and-forget
 
     // Update emotional memory
     if (emotionTag != null) {
@@ -130,6 +177,66 @@ class ChatProvider extends ChangeNotifier {
     }
 
     _saveHistory(); // fire-and-forget
+    _syncMessageToFirestore(_messages
+        .lastWhere((m) => m.type != ChatMsgType.healingCard)); // sync AI reply
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  SEND WITH MEDIA
+  // ═══════════════════════════════════════════════════════════
+
+  Future<void> sendWithMedia(
+      XFile file, MediaType mediaType, BuildContext context) async {
+    if (_status == ChatStatus.thinking) return;
+
+    final ctx = _buildContext(context);
+    final history = _buildOpenAIHistory();
+
+    final attachment = MediaAttachment(
+      type: mediaType,
+      localPath: file.path,
+      fileName: file.name,
+    );
+
+    final caption = switch (mediaType) {
+      MediaType.image => '🖼️ Shared an image',
+      MediaType.video => '🎬 Shared a video',
+      MediaType.document => '📎 Shared a document',
+    };
+
+    _messages.add(ChatMessage.user(caption, media: attachment));
+    _status = ChatStatus.thinking;
+    _sessionMessageCount++;
+    notifyListeners();
+    _saveHistory();
+    _syncMessageToFirestore(_messages.last);
+
+    await Future.delayed(const Duration(milliseconds: 900));
+
+    final mediaPrompt = switch (mediaType) {
+      MediaType.image => 'The user shared an image with me. Please respond warmly and acknowledge it in your Lunar companion persona.',
+      MediaType.video => 'The user shared a video with me. Please respond warmly and acknowledge it.',
+      MediaType.document => 'The user shared a document with me. Please respond warmly and acknowledge it.',
+    };
+
+    final response = await LunarAIService.respond(
+      mediaPrompt,
+      context: ctx,
+      conversationHistory: history,
+    );
+
+    _status = ChatStatus.idle;
+    _messages.add(ChatMessage.ai(response.text, healing: response.healing));
+    notifyListeners();
+    _saveHistory();
+    _syncMessageToFirestore(_messages.last);
+
+    if (response.healing != null) {
+      await Future.delayed(const Duration(milliseconds: 680));
+      _messages.add(ChatMessage.healingCard(response.healing!));
+      notifyListeners();
+      _saveHistory();
+    }
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -152,6 +259,7 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
     LocalCache.setString(_persistKey, '[]');
     LocalCache.setString(_emotionKey, '[]');
+    _clearFirestoreHistory();
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -221,10 +329,69 @@ class ChatProvider extends ChangeNotifier {
         'lastMood': lastMoodEmoji,
         'waterGlasses': lunarData.todayWaterGlasses,
         'sleepHours': lunarData.lastSleepHours,
+        // ── Emotional memory ─────────────────────────────────
+        'memoryContext': _buildMemoryContextStr(),
+        'dominantEmotion': dominantEmotion?.name,
+        'daysSinceLastSession': _daysSinceLastSession(),
       };
     } catch (_) {
       return {};
     }
+  }
+
+  // ── Emotional memory helpers ─────────────────────────────
+
+  /// Days since the previous session (0 if first or same day).
+  int _daysSinceLastSession() {
+    if (_previousSessionAt == null) return 0;
+    return DateTime.now().difference(_previousSessionAt!).inDays;
+  }
+
+  /// Builds a soft memory context string for injection into the AI system prompt.
+  String? _buildMemoryContextStr() {
+    final parts = <String>[];
+    final anxious = _emotionCounts[EmotionTag.anxious] ?? 0;
+    final stressed = _emotionCounts[EmotionTag.stressed] ?? 0;
+    final tired = _emotionCounts[EmotionTag.tired] ?? 0;
+    final sad = _emotionCounts[EmotionTag.sad] ?? 0;
+    final lonely = _emotionCounts[EmotionTag.lonely] ?? 0;
+    final period = _emotionCounts[EmotionTag.period] ?? 0;
+    final happy = (_emotionCounts[EmotionTag.happy] ?? 0) +
+        (_emotionCounts[EmotionTag.energetic] ?? 0);
+    if (anxious >= 2) {
+      parts.add(
+          'She has mentioned feeling anxious $anxious times recently — be especially gentle and grounding.');
+    }
+    if (stressed >= 2) {
+      parts.add(
+          'She has felt overwhelmed or stressed $stressed times recently — validate before advising.');
+    }
+    if (tired >= 2) {
+      parts.add(
+          'Sleep struggles or exhaustion have come up $tired times — honor her tiredness with warmth.');
+    }
+    if (sad >= 2) {
+      parts.add(
+          'She has been feeling sad or down $sad times — hold extra emotional space, poetic validation first.');
+    }
+    if (lonely >= 1) {
+      parts.add(
+          'Loneliness has come up recently — emphasize your presence and connection.');
+    }
+    if (period >= 1) {
+      parts.add(
+          'She has mentioned her period or menstrual symptoms — be extra warm and comfort-aware.');
+    }
+    if (happy >= 3) {
+      parts.add(
+          'She has been in a positive emotional space recently — celebrate this gently.');
+    }
+    final days = _daysSinceLastSession();
+    if (days >= 3) {
+      parts.add(
+          'She has been away for $days days — welcome her return warmly with gentle acknowledgment.');
+    }
+    return parts.isEmpty ? null : parts.join('\n');
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -333,6 +500,85 @@ class ChatProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('[ChatProvider] Failed to save history: $e');
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  FIRESTORE PERSISTENCE
+  // ═══════════════════════════════════════════════════════════
+
+  Future<void> _loadFromFirestore(String uid) async {
+    if (_firestoreSynced) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection(_firestoreCollection)
+          .orderBy('timestamp')
+          .limitToLast(_historyLimit)
+          .get();
+      if (snap.docs.isEmpty) {
+        // First login — push existing local messages to Firestore
+        for (final m in _messages.where((m) => m.type != ChatMsgType.healingCard)) {
+          _syncMessageToFirestore(m);
+        }
+        _firestoreSynced = true;
+        return;
+      }
+      // Merge Firestore messages that are not already in local cache
+      final localIds = _messages.map((m) => m.id).toSet();
+      final remote = snap.docs
+          .map((d) {
+            try {
+              return ChatMessage.fromJson(d.data());
+            } catch (_) {
+              return null;
+            }
+          })
+          .whereType<ChatMessage>()
+          .where((m) => !localIds.contains(m.id))
+          .toList();
+      if (remote.isNotEmpty) {
+        _messages.insertAll(0, remote);
+        _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        _saveHistory();
+        notifyListeners();
+      }
+      _firestoreSynced = true;
+    } catch (e) {
+      debugPrint('[ChatProvider] Firestore load error: $e');
+    }
+  }
+
+  void _syncMessageToFirestore(ChatMessage msg) {
+    final uid = _firestoreUid;
+    if (uid == null || msg.type == ChatMsgType.healingCard) return;
+    try {
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection(_firestoreCollection)
+          .doc(msg.id)
+          .set(msg.toJson(), SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[ChatProvider] Firestore sync error: $e');
+    }
+  }
+
+  void _clearFirestoreHistory() {
+    final uid = _firestoreUid;
+    if (uid == null) return;
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection(_firestoreCollection)
+        .get()
+        .then((snap) {
+      for (final doc in snap.docs) {
+        doc.reference.delete();
+      }
+    }).catchError((e) {
+      debugPrint('[ChatProvider] Firestore clear error: $e');
+    });
   }
 
   Future<void> _loadEmotionHistory() async {

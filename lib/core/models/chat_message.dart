@@ -11,6 +11,41 @@ enum ChatMsgType { text, healingCard }
 // ── Healing card kind ─────────────────────────────────────
 enum HealingKind { breathe, affirmation, sleep, hydrate, cycle, gentle }
 
+// ── Media type ───────────────────────────────────────────
+enum MediaType { image, video, document }
+
+// ── Media attachment ──────────────────────────────────────
+class MediaAttachment {
+  final MediaType type;
+  final String localPath;
+  final String? storageUrl;
+  final String? fileName;
+
+  const MediaAttachment({
+    required this.type,
+    required this.localPath,
+    this.storageUrl,
+    this.fileName,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'type': type.name,
+        'localPath': localPath,
+        if (storageUrl != null) 'storageUrl': storageUrl,
+        if (fileName != null) 'fileName': fileName,
+      };
+
+  factory MediaAttachment.fromJson(Map<String, dynamic> j) => MediaAttachment(
+        type: MediaType.values.firstWhere(
+          (e) => e.name == j['type'],
+          orElse: () => MediaType.document,
+        ),
+        localPath: j['localPath'] as String? ?? '',
+        storageUrl: j['storageUrl'] as String?,
+        fileName: j['fileName'] as String?,
+      );
+}
+
 // ── Emotion tags (for memory system) ─────────────────────
 enum EmotionTag {
   anxious,
@@ -35,6 +70,9 @@ class ChatMessage {
   final HealingKind? healing;
   final DateTime timestamp;
   final EmotionTag? emotionTag;
+  final MediaAttachment? mediaAttachment;
+  // ── Message delivery status ────────────────────────────
+  final bool isDelivered;
 
   const ChatMessage({
     required this.id,
@@ -44,17 +82,21 @@ class ChatMessage {
     this.healing,
     required this.timestamp,
     this.emotionTag,
+    this.mediaAttachment,
+    this.isDelivered = true,
   });
 
   // ── Factories ──────────────────────────────────────────
 
-  factory ChatMessage.user(String text, {EmotionTag? emotionTag}) {
+  factory ChatMessage.user(String text,
+      {EmotionTag? emotionTag, MediaAttachment? media}) {
     return ChatMessage(
       id: '${DateTime.now().microsecondsSinceEpoch}_u',
       isUser: true,
       text: text,
       timestamp: DateTime.now(),
       emotionTag: emotionTag,
+      mediaAttachment: media,
     );
   }
 
@@ -105,6 +147,9 @@ class ChatMessage {
               (e) => e.name == json['emotionTag'],
               orElse: () => EmotionTag.neutral,
             ),
+      mediaAttachment: json['media'] == null
+          ? null
+          : MediaAttachment.fromJson(json['media'] as Map<String, dynamic>),
     );
   }
 
@@ -116,5 +161,6 @@ class ChatMessage {
         if (healing != null) 'healing': healing!.name,
         'timestamp': timestamp.toIso8601String(),
         if (emotionTag != null) 'emotionTag': emotionTag!.name,
+        if (mediaAttachment != null) 'media': mediaAttachment!.toJson(),
       };
 }

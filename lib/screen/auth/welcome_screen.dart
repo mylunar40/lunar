@@ -31,6 +31,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
   final List<_Particle> _particles = [];
   final math.Random _rng = math.Random();
+  bool _guestLoading = false;
 
   @override
   void initState() {
@@ -58,7 +59,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOutCubic);
     _entryCtrl.forward();
 
-    for (int i = 0; i < 22; i++) {
+    for (int i = 0; i < 12; i++) {
       _particles.add(_Particle(_rng));
     }
   }
@@ -73,9 +74,24 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   Future<void> _continueAsGuest() async {
+    if (_guestLoading) return;
+    setState(() => _guestLoading = true);
     final auth = context.read<LunarAuthProvider>();
-    await auth.signInAsGuest();
-    // Navigation handled automatically by auth state listener in main.dart
+    final ok = await auth.signInAsGuest();
+    if (!mounted) return;
+    setState(() => _guestLoading = false);
+    if (!ok) {
+      final msg = auth.error ?? 'Unable to continue as guest. Please try again.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: const Color(0xFF3D1060),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+    // On success, navigation handled automatically by auth state listener in main.dart
   }
 
   @override
@@ -171,17 +187,26 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                           ),
                           const SizedBox(height: 20),
                           GestureDetector(
-                            onTap: _continueAsGuest,
-                            child: Text(
-                              'Continue as Guest',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.42),
-                                fontSize: 13,
-                                decoration: TextDecoration.underline,
-                                decorationColor:
-                                    Colors.white.withOpacity(0.25),
-                              ),
-                            ),
+                            onTap: _guestLoading ? null : _continueAsGuest,
+                            child: _guestLoading
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1.5,
+                                      color: Colors.white38,
+                                    ),
+                                  )
+                                : Text(
+                                    'Continue as Guest',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.42),
+                                      fontSize: 13,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor:
+                                          Colors.white.withOpacity(0.25),
+                                    ),
+                                  ),
                           ),
                         ],
                       ),

@@ -1,9 +1,12 @@
 ﻿import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:image_picker/image_picker.dart';
 import '../core/models/chat_message.dart';
 import '../core/providers/chat_provider.dart';
 import '../core/providers/app_provider.dart';
@@ -143,6 +146,12 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   late AnimationController _pulseCtrl;
   late AnimationController _entryCtrl;
   late Animation<double> _pulseAnim;
+  // Focus animation for input bar
+  late AnimationController _focusCtrl;
+  late Animation<double> _focusAnim;
+  // Media FAB expansion animation
+  late AnimationController _mediaFabCtrl;
+  late Animation<double> _mediaFabAnim;
 
   // -- UI state -----------------------------------------------
   final ScrollController _scrollCtrl = ScrollController();
@@ -154,6 +163,18 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   bool _showApiKeySheet = false;
   final TextEditingController _apiKeyCtrl = TextEditingController();
   bool _apiKeyObscured = true;
+  bool _isFocused = false;
+  bool _showMediaOptions = false;
+
+  // -- Voice / STT state --------------------------------------
+  final stt.SpeechToText _sttService = stt.SpeechToText();
+  bool _sttAvailable = false;
+  String _voiceText = '';
+
+  // -- Media state --------------------------------------------
+  final ImagePicker _imagePicker = ImagePicker();
+  XFile? _pendingMedia;
+  MediaType? _pendingMediaType;
 
   // -- Sanctuary state ----------------------------------------
   bool _inSanctuary = true;
@@ -169,7 +190,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
-    for (int i = 0; i < 22; i++) {
+    for (int i = 0; i < 12; i++) {
       _stars.add(_AIStar(rng: _rng));
     }
 
@@ -229,6 +250,32 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 1000),
     )..forward();
 
+    _focusCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    _focusAnim = CurvedAnimation(parent: _focusCtrl, curve: Curves.easeOutCubic);
+
+    _mediaFabCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _mediaFabAnim = CurvedAnimation(parent: _mediaFabCtrl, curve: Curves.easeOutBack);
+
+    // Focus listener for input bar glow
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        _focusCtrl.forward();
+        setState(() => _isFocused = true);
+      } else {
+        _focusCtrl.reverse();
+        setState(() => _isFocused = false);
+      }
+    });
+
+    // Initialize speech-to-text
+    _initStt();
+
     _insightTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted && _inSanctuary) {
         setState(() => _insightIdx = (_insightIdx + 1) % _kInsights.length);
@@ -254,11 +301,14 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     _auraCtrl.dispose();
     _pulseCtrl.dispose();
     _entryCtrl.dispose();
+    _focusCtrl.dispose();
+    _mediaFabCtrl.dispose();
     _insightTimer?.cancel();
     _scrollCtrl.dispose();
     _textCtrl.dispose();
     _focusNode.dispose();
     _apiKeyCtrl.dispose();
+    _sttService.cancel();
     super.dispose();
   }
 
@@ -334,6 +384,120 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
         ],
       ),
     );
+  }
+
+  // ===========================================================
+  //  STT — SPEECH TO TEXT
+  // ===========================================================
+  Future<void> _initStt() async {
+    _sttAvailable = await _sttService.initialize(
+      onError: (e) {
+        debugPrint('[STT] error: $e');
+        if (mounted) setState(() => _isRecording = false);
+      },
+      onStatus: (s) {
+        if ((s == 'done' || s == 'notListening') && mounted) {
+          _handleVoiceResult();
+        }
+      },
+    );
+  }
+
+  void _startListening() async {
+    if (!_sttAvailable) {
+      // Graceful fallback if STT not available
+      HapticFeedback.mediumImpact();
+      setState(() => _isRecording = true);
+      return;
+    }
+    setState(() {
+      _isRecording = true;
+      _voiceText = '';
+    });
+    HapticFeedback.mediumImpact();
+    await _sttService.listen(
+      onResult: (r) {
+        if (mounted) setState(() => _voiceText = r.recognizedWords);
+      },
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 3),
+      localeId: 'en_US',
+      cancelOnError: true,
+    );
+  }
+
+  void _stopListening() {
+    _sttService.stop();
+    setState(() => _isRecording = false);
+    _handleVoiceResult();
+  }
+
+  void _handleVoiceResult() {
+    if (!mounted) return;
+    final text = _voiceText.trim();
+    setState(() {
+      _isRecording = false;
+      _voiceText = '';
+    });
+    if (text.isNotEmpty) {
+      _send(text);
+    }
+  }
+
+  // ===========================================================
+  //  MEDIA PICKER
+  // ===========================================================
+  Future<void> _pickImage(ImageSource source) async {
+    setState(() => _showMediaOptions = false);
+    _mediaFabCtrl.reverse();
+    try {
+      final file = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1280,
+      );
+      if (file != null && mounted) {
+        setState(() {
+          _pendingMedia = file;
+          _pendingMediaType = MediaType.image;
+        });
+      }
+    } catch (e) {
+      debugPrint('[Media] image pick error: $e');
+    }
+  }
+
+  Future<void> _pickVideo() async {
+    setState(() => _showMediaOptions = false);
+    _mediaFabCtrl.reverse();
+    try {
+      final file = await _imagePicker.pickVideo(
+        source: ImageSource.gallery,
+        maxDuration: const Duration(minutes: 5),
+      );
+      if (file != null && mounted) {
+        setState(() {
+          _pendingMedia = file;
+          _pendingMediaType = MediaType.video;
+        });
+      }
+    } catch (e) {
+      debugPrint('[Media] video pick error: $e');
+    }
+  }
+
+  void _clearPendingMedia() => setState(() {
+        _pendingMedia = null;
+        _pendingMediaType = null;
+      });
+
+  void _sendWithPendingMedia() {
+    final file = _pendingMedia;
+    final type = _pendingMediaType;
+    if (file == null || type == null) return;
+    _clearPendingMedia();
+    context.read<ChatProvider>().sendWithMedia(file, type, context);
+    _scrollToBottom();
   }
 
   // ===========================================================
@@ -1025,8 +1189,166 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
             msg.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           if (!msg.isUser) ...[_miniMoonAvatar(), const SizedBox(width: 8)],
-          Flexible(child: msg.isUser ? _userBubble(msg) : _aiBubble(msg)),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: msg.isUser
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                if (msg.mediaAttachment != null)
+                  _mediaPreviewCard(msg.mediaAttachment!),
+                if (msg.text.isNotEmpty)
+                  msg.isUser ? _userBubble(msg) : _aiBubble(msg),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _mediaPreviewCard(MediaAttachment media) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      width: 220,
+      constraints: const BoxConstraints(minHeight: 60),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: Colors.white.withOpacity(0.07),
+        border: Border.all(color: _kPurple.withOpacity(0.35), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: _kPurple.withOpacity(0.18),
+            blurRadius: 16,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: switch (media.type) {
+          MediaType.image => _imagePreview(media),
+          MediaType.video => _videoPreview(media),
+          MediaType.document => _documentPreview(media),
+        },
+      ),
+    );
+  }
+
+  Widget _imagePreview(MediaAttachment media) {
+    if (media.localPath.isEmpty) return _mediaPlaceholder(media);
+    return Stack(
+      children: [
+        Image.file(
+          File(media.localPath),
+          width: 220,
+          height: 160,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _mediaPlaceholder(media),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.black.withOpacity(0.50),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.image_rounded, color: Colors.white, size: 12),
+                SizedBox(width: 4),
+                Text('Image', style: TextStyle(color: Colors.white, fontSize: 10)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _videoPreview(MediaAttachment media) {
+    return Container(
+      height: 120,
+      color: Colors.black.withOpacity(0.55),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _kPurple.withOpacity(0.75),
+            ),
+            child: const Icon(Icons.play_arrow_rounded,
+                color: Colors.white, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            media.fileName ?? 'Video',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.65),
+              fontSize: 11,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _documentPreview(MediaAttachment media) {
+    return Padding(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: _kPurple.withOpacity(0.18),
+            ),
+            child: const Icon(Icons.description_rounded,
+                color: Color(0xFFAB5CF2), size: 22),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  media.fileName ?? 'Document',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text('Tap to open',
+                    style: TextStyle(
+                        color: _kPurple.withOpacity(0.65), fontSize: 10.5)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mediaPlaceholder(MediaAttachment media) {
+    return Container(
+      height: 80,
+      color: _kDeep.withOpacity(0.40),
+      child: Center(
+        child: Icon(Icons.broken_image_rounded,
+            color: Colors.white.withOpacity(0.30), size: 32),
       ),
     );
   }
@@ -1104,56 +1426,72 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
 
   Widget _aiBubble(ChatMessage msg) {
     return AnimatedBuilder(
-      animation: _glowAnim,
-      builder: (_, __) => ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(5),
-          topRight: Radius.circular(22),
-          bottomLeft: Radius.circular(22),
-          bottomRight: Radius.circular(22),
-        ),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-            decoration: BoxDecoration(
+      animation: Listenable.merge([_glowAnim, _auraCtrl]),
+      builder: (_, __) {
+        final glowIntensity = _glowAnim.value;
+        final rotation = _auraCtrl.value;
+        return Stack(
+          children: [
+            // Rotating gradient glow border layer
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _AiGlowBorderPainter(
+                  rotation: rotation,
+                  intensity: glowIntensity,
+                ),
+              ),
+            ),
+            // Bubble content
+            ClipRRect(
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(5),
                 topRight: Radius.circular(22),
                 bottomLeft: Radius.circular(22),
                 bottomRight: Radius.circular(22),
               ),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  _kPink.withOpacity(0.10),
-                  Colors.white.withOpacity(0.05),
-                  _kPurple.withOpacity(0.08),
-                ],
-              ),
-              border: Border.all(
-                color: _kPink.withOpacity(0.30 * _glowAnim.value),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: _kPink.withOpacity(0.12 * _glowAnim.value),
-                  blurRadius: 18,
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 18, vertical: 15),
+                  decoration: BoxDecoration(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(5),
+                      topRight: Radius.circular(22),
+                      bottomLeft: Radius.circular(22),
+                      bottomRight: Radius.circular(22),
+                    ),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        _kPink.withOpacity(0.10),
+                        Colors.white.withOpacity(0.05),
+                        _kPurple.withOpacity(0.08),
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _kPurple.withOpacity(0.14 * glowIntensity),
+                        blurRadius: 22,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    msg.text,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.90),
+                      fontSize: 15,
+                      height: 1.65,
+                    ),
+                  ),
                 ),
-              ],
-            ),
-            child: Text(
-              msg.text,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.88),
-                fontSize: 15,
-                height: 1.65,
               ),
             ),
-          ),
-        ),
-      ),
+          ],
+        );
+      },
     );
   }
 
@@ -1420,173 +1758,457 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   }
 
   // ===========================================================
-  //  INPUT BAR
+  //  INPUT BAR  (premium upgrade)
   // ===========================================================
   Widget _inputBar(ChatProvider chat) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: AnimatedBuilder(
-        animation: _glowAnim,
-        builder: (_, __) => ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-              decoration: BoxDecoration(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Pending media preview strip
+        if (_pendingMedia != null) _pendingMediaStrip(),
+
+        // Media options expansion row
+        AnimatedSize(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          child: _showMediaOptions
+              ? _mediaOptionsRow()
+              : const SizedBox.shrink(),
+        ),
+
+        // Voice transcript hint
+        if (_isRecording)
+          Padding(
+            padding: const EdgeInsets.only(left: 20, bottom: 4),
+            child: AnimatedBuilder(
+              animation: _shimmerAnim,
+              builder: (_, __) {
+                final pulse = (0.4 +
+                        0.5 *
+                            math.sin(_shimmerAnim.value * math.pi * 2))
+                    .clamp(0.0, 1.0);
+                return Text(
+                  _voiceText.isNotEmpty
+                      ? '"$_voiceText"'
+                      : 'Listening... 🎙️',
+                  style: TextStyle(
+                    color: _kPink.withOpacity(pulse),
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                );
+              },
+            ),
+          ),
+
+        // Input row
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_glowAnim, _focusAnim]),
+            builder: (_, __) {
+              final baseOpacity = 0.30 * _glowAnim.value;
+              final focusExtra = 0.55 * _focusAnim.value;
+              final borderColor =
+                  _kPurple.withOpacity((baseOpacity + focusExtra).clamp(0.0, 1.0));
+              final blurRadius = 12.0 + 14.0 * _focusAnim.value;
+              return ClipRRect(
                 borderRadius: BorderRadius.circular(30),
-                color: Colors.white.withOpacity(0.06),
-                border: Border.all(
-                  color: _kPurple.withOpacity(0.30 * _glowAnim.value),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: _kPurple.withOpacity(0.12 * _glowAnim.value),
-                    blurRadius: 22,
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _textCtrl,
-                      focusNode: _focusNode,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.90),
-                        fontSize: 15,
-                      ),
-                      cursorColor: _kPurple,
-                      maxLines: 1,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: _send,
-                      enabled: !chat.isTyping,
-                      decoration: InputDecoration(
-                        hintText: chat.isTyping
-                            ? 'Lunar is thinking... \u{1F319}'
-                            : 'Share your heart with me... \u{1F319}',
-                        hintStyle: TextStyle(
-                          color: Colors.white.withOpacity(0.26),
-                          fontSize: 14.5,
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(30),
+                      color: Colors.white.withOpacity(0.06),
+                      border: Border.all(color: borderColor, width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _kPurple.withOpacity(
+                              0.10 * _glowAnim.value +
+                                  0.22 * _focusAnim.value),
+                          blurRadius: blurRadius,
+                          spreadRadius: _isFocused ? 1 : 0,
                         ),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                            vertical: 10, horizontal: 4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  GestureDetector(
-                    onLongPressStart: (_) {
-                      HapticFeedback.mediumImpact();
-                      setState(() => _isRecording = true);
-                    },
-                    onLongPressEnd: (_) {
-                      HapticFeedback.lightImpact();
-                      setState(() => _isRecording = false);
-                      _send('Talk to me \u{1F319}');
-                    },
-                    child: AnimatedBuilder(
-                      animation: Listenable.merge([_waveCtrl, _glowAnim]),
-                      builder: (_, __) => SizedBox(
-                        width: 50,
-                        height: 50,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            if (_isRecording)
-                              ...List.generate(3, (i) {
-                                final t = (_waveCtrl.value - i * 0.28)
-                                    .clamp(0.0, 1.0);
-                                return Transform.scale(
-                                  scale: 1.0 + t * 1.5,
-                                  child: Container(
-                                    width: 46,
-                                    height: 46,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: _kPink.withOpacity((1 - t) * 0.28),
-                                    ),
-                                  ),
-                                );
-                              }),
-                            Container(
-                              width: 46,
-                              height: 46,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: _isRecording
-                                      ? [_kPink, _kPurple]
-                                      : [_kDeep, _kPurple],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: (_isRecording ? _kPink : _kPurple)
-                                        .withOpacity(_isRecording
-                                            ? 0.70
-                                            : 0.38 * _glowAnim.value),
-                                    blurRadius: _isRecording ? 22 : 12,
-                                    spreadRadius: _isRecording ? 2 : 0,
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                _isRecording
-                                    ? Icons.mic_rounded
-                                    : Icons.mic_none_rounded,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  GestureDetector(
-                    onTap: () => _send(_textCtrl.text),
-                    child: AnimatedBuilder(
-                      animation: _glowAnim,
-                      builder: (_, __) => Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [
-                              _kPurple.withOpacity(0.85 + 0.15 * _glowAnim.value),
-                              _kPink.withOpacity(0.85 + 0.15 * _glowAnim.value),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                        if (_isFocused)
+                          BoxShadow(
+                            color: _kPink.withOpacity(0.10 * _focusAnim.value),
+                            blurRadius: 20,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _kPurple.withOpacity(0.42 * _glowAnim.value),
-                              blurRadius: 14,
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        // ── + Media FAB ───────────────────────
+                        _mediaFabButton(),
+                        const SizedBox(width: 4),
+                        // ── Text field ───────────────────────
+                        Expanded(
+                          child: TextField(
+                            controller: _textCtrl,
+                            focusNode: _focusNode,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.90),
+                              fontSize: 15,
                             ),
-                          ],
+                            cursorColor: _kPurple,
+                            maxLines: 4,
+                            minLines: 1,
+                            textInputAction: TextInputAction.newline,
+                            onSubmitted: _send,
+                            enabled: !chat.isTyping,
+                            decoration: InputDecoration(
+                              hintText: chat.isTyping
+                                  ? 'Lunar is thinking... 🌙'
+                                  : _isRecording
+                                      ? 'Listening... 🎙️'
+                                      : 'Share your heart... 🌙',
+                              hintStyle: TextStyle(
+                                color: Colors.white.withOpacity(0.26),
+                                fontSize: 14.5,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 10, horizontal: 4),
+                            ),
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.arrow_upward_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
+                        const SizedBox(width: 4),
+                        // ── Voice mic ────────────────────────
+                        _voiceMicButton(),
+                        const SizedBox(width: 4),
+                        // ── Send button ──────────────────────
+                        _sendButton(),
+                        const SizedBox(width: 2),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 2),
-                ],
-              ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _mediaFabButton() {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _showMediaOptions = !_showMediaOptions);
+        if (_showMediaOptions) {
+          _mediaFabCtrl.forward();
+        } else {
+          _mediaFabCtrl.reverse();
+        }
+        // Dismiss focus so keyboard doesn't clash
+        _focusNode.unfocus();
+      },
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_glowAnim, _mediaFabAnim]),
+        builder: (_, __) => Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _showMediaOptions
+                ? _kPurple.withOpacity(0.35)
+                : Colors.white.withOpacity(0.08),
+            border: Border.all(
+              color: _kPurple.withOpacity(
+                  _showMediaOptions ? 0.75 : 0.30 * _glowAnim.value),
+              width: 1.2,
+            ),
+            boxShadow: _showMediaOptions
+                ? [
+                    BoxShadow(
+                      color: _kPurple.withOpacity(0.38),
+                      blurRadius: 14,
+                    )
+                  ]
+                : null,
+          ),
+          child: AnimatedRotation(
+            turns: _showMediaOptions ? 0.125 : 0,
+            duration: const Duration(milliseconds: 280),
+            child: Icon(
+              Icons.add_rounded,
+              color: _showMediaOptions
+                  ? Colors.white
+                  : Colors.white.withOpacity(0.60),
+              size: 22,
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _voiceMicButton() {
+    return GestureDetector(
+      onLongPressStart: (_) => _startListening(),
+      onLongPressEnd: (_) => _stopListening(),
+      onTap: () {
+        // Tap: toggle recording for STT-available devices
+        if (_isRecording) {
+          _stopListening();
+        } else {
+          _startListening();
+        }
+      },
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_waveCtrl, _glowAnim]),
+        builder: (_, __) => SizedBox(
+          width: 46,
+          height: 46,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (_isRecording)
+                ...List.generate(3, (i) {
+                  final t = (_waveCtrl.value - i * 0.28).clamp(0.0, 1.0);
+                  return Transform.scale(
+                    scale: 1.0 + t * 1.5,
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _kPink.withOpacity((1 - t) * 0.28),
+                      ),
+                    ),
+                  );
+                }),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: _isRecording
+                        ? [_kPink, _kPurple]
+                        : [_kDeep, _kPurple],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (_isRecording ? _kPink : _kPurple).withOpacity(
+                          _isRecording ? 0.70 : 0.38 * _glowAnim.value),
+                      blurRadius: _isRecording ? 20 : 10,
+                      spreadRadius: _isRecording ? 2 : 0,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _isRecording ? Icons.mic_rounded : Icons.mic_none_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sendButton() {
+    return GestureDetector(
+      onTap: () {
+        if (_pendingMedia != null) {
+          _sendWithPendingMedia();
+        } else {
+          _send(_textCtrl.text);
+        }
+      },
+      child: AnimatedBuilder(
+        animation: _glowAnim,
+        builder: (_, __) => Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [
+                _kPurple.withOpacity(0.85 + 0.15 * _glowAnim.value),
+                _kPink.withOpacity(0.85 + 0.15 * _glowAnim.value),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _kPurple.withOpacity(0.42 * _glowAnim.value),
+                blurRadius: 14,
+              ),
+            ],
+          ),
+          child: Icon(
+            _pendingMedia != null
+                ? Icons.send_rounded
+                : Icons.arrow_upward_rounded,
+            color: Colors.white,
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // -- Media options expansion row ----------------------------
+  Widget _mediaOptionsRow() {
+    final options = [
+      (Icons.photo_library_rounded, 'Gallery', _kPurple, () => _pickImage(ImageSource.gallery)),
+      (Icons.camera_alt_rounded, 'Camera', _kPink, () => _pickImage(ImageSource.camera)),
+      (Icons.videocam_rounded, 'Video', const Color(0xFF7986CB), _pickVideo),
+      (Icons.description_rounded, 'File', const Color(0xFF4FC3F7), () async {
+        // Document picker — show a soft message (full doc picker needs another package)
+        setState(() => _showMediaOptions = false);
+        _mediaFabCtrl.reverse();
+      }),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: options.map((o) {
+          final (icon, label, color, onTap) = o;
+          return Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: GestureDetector(
+              onTap: onTap,
+              child: AnimatedBuilder(
+                animation: _mediaFabAnim,
+                builder: (_, __) => Transform.scale(
+                  scale: 0.6 + 0.4 * _mediaFabAnim.value,
+                  child: Opacity(
+                    opacity: _mediaFabAnim.value.clamp(0.0, 1.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [
+                                color.withOpacity(0.28),
+                                color.withOpacity(0.12),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            border: Border.all(
+                                color: color.withOpacity(0.55), width: 1.2),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: color.withOpacity(0.20),
+                                  blurRadius: 12),
+                            ],
+                          ),
+                          child: Icon(icon, color: color, size: 22),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.65),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // -- Pending media preview strip ----------------------------
+  Widget _pendingMediaStrip() {
+    final media = _pendingMedia!;
+    final type = _pendingMediaType!;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: _kDeep.withOpacity(0.55),
+        border: Border.all(color: _kPurple.withOpacity(0.45), width: 1),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: type == MediaType.image
+                ? Image.file(
+                    File(media.path),
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        _pendingMediaIcon(type),
+                  )
+                : _pendingMediaIcon(type),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  type == MediaType.image
+                      ? '📷 Image ready to send'
+                      : type == MediaType.video
+                          ? '🎬 Video ready to send'
+                          : '📎 File ready to send',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  media.name,
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.50), fontSize: 11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: _clearPendingMedia,
+            child: Icon(Icons.close_rounded,
+                color: Colors.white.withOpacity(0.45), size: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pendingMediaIcon(MediaType type) {
+    return Container(
+      width: 48,
+      height: 48,
+      color: _kPurple.withOpacity(0.25),
+      child: Icon(
+        type == MediaType.video
+            ? Icons.videocam_rounded
+            : Icons.description_rounded,
+        color: _kPurple,
+        size: 22,
       ),
     );
   }
@@ -1676,9 +2298,9 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                 ),
               ),
               Text(
-                'Your emotional sanctuary',
+                _sanctuarySubtitle(),
                 style: TextStyle(
-                    color: Colors.white.withOpacity(0.42), fontSize: 12),
+                    color: Colors.white.withOpacity(0.48), fontSize: 12),
               ),
             ],
           ),
@@ -1736,11 +2358,29 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   // ===========================================================
   //  HERO ORB
   // ===========================================================
+
+  /// Returns an emotion-aware accent color for the orb.
+  Color _getEmotionOrbAccent(EmotionTag? tag) => switch (tag) {
+        EmotionTag.anxious => const Color(0xFF4FC3F7), // calming blue-teal
+        EmotionTag.sad => const Color(0xFF7986CB),     // deep indigo
+        EmotionTag.stressed => const Color(0xFF9575CD), // muted violet
+        EmotionTag.lonely => const Color(0xFFB39DDB),  // soft lavender
+        EmotionTag.tired => const Color(0xFF78909C),   // grey-blue
+        EmotionTag.happy => const Color(0xFFFFD700),   // warm gold
+        EmotionTag.energetic => _kPink,               // vibrant pink
+        EmotionTag.period => const Color(0xFFB05C8A), // warm rose
+        EmotionTag.emotional => const Color(0xFFCE93D8), // soft lilac
+        _ => _kPurple,
+      };
+
   Widget _heroOrb(
       ChatProvider chat, LunarDataProvider lunarData, Size size) {
     final phase = lunarData.currentPhase;
     final cfg = _kPhaseConfig[phase];
-    final orbColor = cfg != null ? cfg['color'] as Color : _kPurple;
+    // Blend phase colour with emotional accent for living, reactive orb
+    final phaseColor = cfg != null ? cfg['color'] as Color : _kPurple;
+    final emotionAccent = _getEmotionOrbAccent(chat.dominantEmotion);
+    final orbColor = Color.lerp(phaseColor, emotionAccent, 0.30)!;
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation:
@@ -1803,8 +2443,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                           BoxShadow(
                             color: orbColor.withOpacity(
                                 chat.isTyping ? 0.82 * glow : 0.58 * glow),
-                            blurRadius: chat.isTyping ? 52 : 36,
-                            spreadRadius: chat.isTyping ? 8 : 5,
+                            blurRadius: chat.isTyping ? 38 : 26,
+                            spreadRadius: chat.isTyping ? 6 : 4,
                           ),
                           BoxShadow(
                               color: _kPink.withOpacity(0.26 * glow),
@@ -1853,7 +2493,27 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   // ===========================================================
   Widget _emotionalStatusDisplay(
       ChatProvider chat, LunarDataProvider lunarData) {
-    final insight = _kInsights[_insightIdx % _kInsights.length];
+    final app = context.read<AppProvider>();
+    // On first view (_insightIdx==0), show personalised greeting if emotional history exists.
+    // After that, rotate through standard insights.
+    final profile = chat.emotionalProfile;
+    final hasMemory = profile.dominantEmotion != null ||
+        profile.daysSinceLastVisit >= 2 ||
+        profile.anxietyMentions >= 2 ||
+        profile.stressMentions >= 2;
+    String displayText;
+    if (chat.isTyping) {
+      displayText = 'Feeling your energy... \u2728';
+    } else if (_insightIdx == 0 && hasMemory) {
+      // First rotation: show personalised greeting (single line from full greeting)
+      displayText = chat.generateGreeting(app.userName)
+          .split('\n\n')
+          .last
+          .trim();
+    } else {
+      displayText = _kInsights[_insightIdx % _kInsights.length];
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: AnimatedSwitcher(
@@ -1871,8 +2531,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
           ),
         ),
         child: Text(
-          chat.isTyping ? 'Feeling your energy... \u2728' : insight,
-          key: ValueKey(chat.isTyping ? 'typing' : insight),
+          displayText,
+          key: ValueKey(chat.isTyping ? 'typing' : displayText),
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white.withOpacity(0.76),
@@ -1967,26 +2627,72 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     );
   }
 
+  /// Short personalized subtitle for the sanctuary header.
+  String _sanctuarySubtitle() {
+    final chat = context.read<ChatProvider>();
+    final days = chat.emotionalProfile.daysSinceLastVisit;
+    if (days >= 3) return 'Welcome back \u2014 I\'ve been here \ud83c\udf19';
+    return switch (chat.dominantEmotion) {
+      EmotionTag.anxious => 'You\'re safe here \ud83c\udf19',
+      EmotionTag.sad => 'Holding space for you \ud83c\udf38',
+      EmotionTag.stressed => 'No rush, no pressure here \ud83c\udf19',
+      EmotionTag.lonely => 'You\'re never alone here \ud83d\udc9c',
+      EmotionTag.tired => 'Rest deeply here \ud83c\udf19',
+      EmotionTag.happy || EmotionTag.energetic => 'Your light is beautiful \u2728',
+      EmotionTag.period => 'Be gentle with yourself today \ud83c\udf38',
+      _ => 'Your emotional sanctuary',
+    };
+  }
+
   String _getMemoryInsight(
       ChatProvider chat, LunarDataProvider lunarData) {
-    final msgs = chat.sessionMessageCount;
+    final profile = chat.emotionalProfile;
+    final days = profile.daysSinceLastVisit;
     final phase = lunarData.currentPhase;
     final day = lunarData.currentCycleDay;
+
+    // Cross-session persistent memory — most emotionally impactful
+    if (days >= 5) {
+      return "I\'ve been holding space for you \u2014 it\'s been $days days \ud83c\udf19";
+    }
+    if (days >= 2) {
+      return "I\'ve been thinking of you these past few days \ud83c\udf38";
+    }
+    if (profile.anxietyMentions >= 2) {
+      return "You\'ve been carrying some anxiety lately \u2014 that takes courage \ud83d\udc9c";
+    }
+    if (profile.stressMentions >= 2) {
+      return "You\'ve been carrying a lot lately. Your nervous system needs care \u2728";
+    }
+    if (profile.sleepMentions >= 2) {
+      return "You\'ve mentioned tiredness a few times \u2014 rest is sacred medicine \ud83c\udf19";
+    }
+    if (profile.periodMentions >= 1) {
+      return "Your cycle deserves the most gentle care right now \ud83e\ude78";
+    }
+    if (profile.hasPositiveStreak) {
+      return "Your emotional light has been so beautiful lately \u2728";
+    }
+
+    // Session-based memory
+    final msgs = chat.sessionMessageCount;
     if (msgs > 5) {
       return switch (chat.dominantEmotion) {
         EmotionTag.anxious =>
-          "You've shared anxiety today \u2014 that takes courage \ud83d\udc9c",
+          "You\'ve shared anxiety today \u2014 that takes courage \ud83d\udc9c",
         EmotionTag.sad =>
-          "You've been carrying heaviness. I see you \ud83c\udf19",
+          "You\'ve been carrying heaviness. I see you \ud83c\udf19",
         EmotionTag.stressed =>
-          "You've been under stress. Your nervous system needs care \u2728",
+          "You\'ve been under a lot. Your nervous system needs care \u2728",
         EmotionTag.lonely =>
-          "You haven't been alone in this \u2014 I've been listening \ud83c\udf38",
+          "You haven\'t been alone in this \u2014 I\'ve been listening \ud83c\udf38",
         EmotionTag.tired =>
-          "You've been exhausted. Rest is medicine \ud83d\udca4",
-        _ => "You've been beautifully open with me today \ud83c\udf38",
+          "You\'ve been exhausted. Rest is medicine \ud83d\udca4",
+        _ => "You\'ve been beautifully open with me today \ud83c\udf38",
       };
     }
+
+    // Phase & pregnancy based
     if (lunarData.isPregnant) {
       return 'Your body is creating life. Every emotion is sacred \ud83e\udd30';
     }
@@ -1994,12 +2700,12 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
       return 'Day $day of your cycle \u2014 rest is sacred right now \ud83e\ude78';
     }
     if (phase == LunarCyclePhase.luteal) {
-      return "Your luteal phase amplifies emotions. That's your body's wisdom \ud83c\udf19";
+      return "Your luteal phase amplifies emotions. That\'s your body\'s wisdom \ud83c\udf19";
     }
     if (phase == LunarCyclePhase.ovulation) {
       return 'You\'re in your peak phase \u2014 you radiate energy right now \u2728';
     }
-    return 'Your emotional journey is being honored here \ud83d\udc9c';
+    return 'Your emotional journey is being honoured here \ud83d\udc9c';
   }
 
   // ===========================================================
@@ -2350,6 +3056,75 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
 }
 
 // ===========================================================
+//  AI GLOW BORDER PAINTER  — rotating gradient border
+// ===========================================================
+
+class _AiGlowBorderPainter extends CustomPainter {
+  final double rotation;   // 0.0 → 1.0, drives sweep startAngle
+  final double intensity;  // 0.0 → 1.0, drives opacity
+
+  static const _br = 22.0; // border-radius value (matches bubble)
+
+  const _AiGlowBorderPainter({
+    required this.rotation,
+    required this.intensity,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndCorners(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      topLeft: const Radius.circular(5),
+      topRight: const Radius.circular(_br),
+      bottomLeft: const Radius.circular(_br),
+      bottomRight: const Radius.circular(_br),
+    );
+
+    // ── Rotating sweep gradient border ──────────────────────
+    // The SweepGradient startAngle rotates, creating a glowing
+    // spot that travels elegantly around the bubble edge.
+    final angle = rotation * math.pi * 2;
+    final sweepGrad = SweepGradient(
+      startAngle: angle,
+      endAngle: angle + math.pi * 2,
+      colors: const [
+        Colors.transparent,
+        Color(0xFF5C1A99),          // deep purple lead-in
+        Color(0xFFAB5CF2),          // bright purple
+        Color(0xFFFF69B4),          // pink
+        Color(0xFF7EC8E3),          // moon blue
+        Color(0xFFD4AAFF),          // soft lavender
+        Colors.transparent,
+        Colors.transparent,
+      ],
+      stops: const [0.0, 0.05, 0.18, 0.38, 0.55, 0.68, 0.76, 1.0],
+    );
+
+    final glowPaint = Paint()
+      ..shader = sweepGrad.createShader(
+          Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..maskFilter =
+          MaskFilter.blur(BlurStyle.normal, (3.5 * intensity).clamp(0.5, 4.0));
+
+    canvas.drawRRect(rrect, glowPaint);
+
+    // ── Ambient outer halo (always-on, very subtle) ─────────
+    final haloPaint = Paint()
+      ..color = const Color(0xFFAB5CF2).withOpacity(0.10 * intensity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawRRect(rrect, haloPaint);
+  }
+
+  @override
+  bool shouldRepaint(_AiGlowBorderPainter old) =>
+      old.rotation != rotation || old.intensity != intensity;
+}
+
+// ===========================================================
 //  MESSAGE ENTRANCE ANIMATION
 // ===========================================================
 
@@ -2457,6 +3232,18 @@ class _AIBg extends StatelessWidget {
           Positioned(
             top: size.height * 0.60, left: size.width * 0.30,
             child: _blob(180, const Color(0xFFFF69B4), 0.07),
+          ),
+          // Moon haze — upper center atmospheric glow
+          Positioned(
+            top: size.height * 0.05,
+            left: size.width * 0.20,
+            child: _blob(280, const Color(0xFFB39DDB), 0.07),
+          ),
+          // Horizon mist — lower screen warmth
+          Positioned(
+            bottom: size.height * 0.10,
+            right: size.width * 0.05,
+            child: _blob(220, const Color(0xFF7986CB), 0.06),
           ),
         ],
       ),

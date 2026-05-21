@@ -11,6 +11,9 @@ import 'core/providers/app_provider.dart';
 import 'core/providers/lunar_data_provider.dart';
 import 'core/providers/chat_provider.dart';
 import 'core/providers/community_provider.dart';
+import 'core/providers/avatar_provider.dart';
+import 'models/avatar_model.dart';
+import 'widgets/lunar_avatar_widget.dart';
 import 'core/data/local_cache.dart';
 import 'screen/home_dashboard.dart';
 import 'screen/calendar_screen.dart';
@@ -38,6 +41,9 @@ const Color kLunarSurface = Color(0xFF160330);
 const Color kLunarIndigo = Color(0xFF7986CB);
 const Color kLunarTeal = Color(0xFF4FC3F7);
 const Color kLunarGreen = Color(0xFF66BB6A);
+
+// ── Navigator observer for avatar visibility ──────────────
+final _avatarObserver = _LunarAvatarObserver();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -88,8 +94,18 @@ void main() async {
         ChangeNotifierProvider<LunarDataProvider>.value(
             value: lunarData),
         ChangeNotifierProvider<AppProvider>.value(value: appProvider),
-        ChangeNotifierProvider<ChatProvider>.value(value: chatProvider),
+        // ChatProvider syncs Firestore uid whenever auth state changes
+        ChangeNotifierProxyProvider<LunarAuthProvider, ChatProvider>(
+          create: (_) => chatProvider,
+          update: (_, auth, chat) {
+            if (auth.isAuthenticated && !auth.isGuest) {
+              chat!.setUser(auth.firebaseUser?.uid);
+            }
+            return chat!;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => CommunityProvider()),
+        ChangeNotifierProvider(create: (_) => AvatarProvider()),
       ],
       child: const LunarApp(),
     ),
@@ -103,6 +119,7 @@ class LunarApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Lunar',
+      navigatorObservers: [_avatarObserver],
       theme: ThemeData(
         scaffoldBackgroundColor: kLunarBg,
         colorScheme: const ColorScheme.dark(
@@ -128,7 +145,7 @@ class LunarApp extends StatelessWidget {
             child = const LunarSplashScreen(key: ValueKey('splash'));
           } else if (!auth.isAuthenticated) {
             child = const WelcomeScreen(key: ValueKey('welcome'));
-          } else if (!app.onboardingComplete) {
+          } else if (!app.onboardingComplete && !auth.isGuest) {
             child = const OnboardingFlow(key: ValueKey('onboarding'));
           } else {
             child = const MainNavigation(key: ValueKey('main'));
@@ -210,14 +227,26 @@ class _MainNavigationState extends State<MainNavigation> {
                 ),
               ),
             ),
-          // ── Floating profile avatar — always top-right ────
+          // ── Floating profile avatar — main tabs only ────
           Positioned(
             top: 0,
             right: 0,
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.only(top: 10, right: 16),
-                child: _FloatingProfileAvatar(),
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _avatarObserver.showAvatar,
+                  builder: (_, visible, child) => AnimatedOpacity(
+                    opacity: visible ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    child: IgnorePointer(
+                      ignoring: !visible,
+                      child: child,
+                    ),
+                  ),
+                  child: const _FloatingProfileAvatar(),
+                ),
               ),
             ),
           ),
@@ -292,6 +321,15 @@ class _FloatingProfileAvatarState extends State<_FloatingProfileAvatar>
     )..repeat(reverse: true);
     _ring = Tween<double>(begin: 0.55, end: 1.0)
         .animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
+    // Trigger avatar load on first build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final auth = context.read<LunarAuthProvider>();
+      final ap = context.read<AvatarProvider>();
+      if (auth.isAuthenticated && !ap.hasAvatar && !ap.loading) {
+        ap.load(auth);
+      }
+    });
   }
 
   @override
@@ -312,6 +350,7 @@ class _FloatingProfileAvatarState extends State<_FloatingProfileAvatar>
 
   @override
   Widget build(BuildContext context) {
+    final av = context.watch<AvatarProvider>().avatar;
     return GestureDetector(
       onTap: () => _showMenu(context),
       child: AnimatedBuilder(
@@ -321,11 +360,14 @@ class _FloatingProfileAvatarState extends State<_FloatingProfileAvatar>
           height: 44,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              colors: [kLunarPurple, kLunarPink],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            gradient: av == null
+                ? const LinearGradient(
+                    colors: [kLunarPurple, kLunarPink],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: av != null ? const Color(0xFF160330) : null,
             boxShadow: [
               BoxShadow(
                 color: kLunarPurple.withOpacity(0.60 * _ring.value),
@@ -340,8 +382,16 @@ class _FloatingProfileAvatarState extends State<_FloatingProfileAvatar>
           ),
           child: child,
         ),
-        child: const Icon(
-            Icons.person_rounded, color: Colors.white, size: 22),
+        child: ClipOval(
+          child: av != null
+              ? LunarAvatarWidget(
+                  avatar: av,
+                  size: 44,
+                  animate: false,
+                  showAura: false,
+                )
+              : const Icon(Icons.person_rounded, color: Colors.white, size: 22),
+        ),
       ),
     );
   }
@@ -529,22 +579,22 @@ class _LunarPremiumNavBarState extends State<_LunarPremiumNavBar>
             borderRadius: BorderRadius.circular(36),
             boxShadow: [
               BoxShadow(
-                color: kLunarPurple.withOpacity(0.26),
-                blurRadius: 38,
-                spreadRadius: 2,
-                offset: const Offset(0, 4),
+                color: kLunarPurple.withOpacity(0.16),
+                blurRadius: 24,
+                spreadRadius: 1,
+                offset: const Offset(0, 3),
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.48),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
+                color: Colors.black.withOpacity(0.38),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(36),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(36),
@@ -832,3 +882,38 @@ Route<T> _lunarFadeRoute<T>(Widget page) => PageRouteBuilder<T>(
         child: child,
       ),
     );
+
+// ─────────────────────────────────────────────────────────
+//  AVATAR VISIBILITY OBSERVER
+// ─────────────────────────────────────────────────────────
+/// Tracks Navigator route depth to show/hide the floating
+/// profile avatar — visible only on the 5 main tab screens.
+class _LunarAvatarObserver extends NavigatorObserver {
+  final showAvatar = ValueNotifier<bool>(true);
+  int _depth = 0;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    // Ignore the very first push (home route has no previousRoute)
+    if (previousRoute != null) {
+      _depth++;
+      if (showAvatar.value) showAvatar.value = false;
+    }
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (_depth > 0) {
+      _depth--;
+      if (_depth == 0) showAvatar.value = true;
+    }
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (_depth > 0) {
+      _depth--;
+      if (_depth == 0) showAvatar.value = true;
+    }
+  }
+}

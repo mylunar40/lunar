@@ -11,19 +11,24 @@ import '../core/providers/auth_provider.dart';
 import '../core/providers/lunar_data_provider.dart';
 import '../core/providers/app_provider.dart';
 import '../core/services/firestore_service.dart';
+import '../widgets/guest_gate.dart';
+import '../models/avatar_model.dart';
+import '../core/providers/avatar_provider.dart';
+import '../widgets/lunar_avatar_widget.dart';
+import 'avatar/avatar_builder_screen.dart';
 
 // ═══════════════════════════════════════════════════════════
 //  LUNAR PROFILE — Premium Wellness Identity
 // ═══════════════════════════════════════════════════════════
 
-const Color _prBg     = Color(0xFF0A0118);
+const Color _prBg = Color(0xFF0A0118);
 const Color _prPurple = Color(0xFFAB5CF2);
-const Color _prPink   = Color(0xFFFF69B4);
-const Color _prGold   = Color(0xFFFFD700);
-const Color _prTeal   = Color(0xFF4FC3F7);
-const Color _prGreen  = Color(0xFF66BB6A);
+const Color _prPink = Color(0xFFFF69B4);
+const Color _prGold = Color(0xFFFFD700);
+const Color _prTeal = Color(0xFF4FC3F7);
+const Color _prGreen = Color(0xFF66BB6A);
 const Color _prIndigo = Color(0xFF7986CB);
-const Color _prWarm   = Color(0xFFFFB74D);
+const Color _prWarm = Color(0xFFFFB74D);
 
 // ─── Theme palettes ────────────────────────────────────────
 const _kThemes = [
@@ -32,7 +37,12 @@ const _kThemes = [
   [Color(0xFF3A0828), Color(0xFF200516), Color(0xFF0D0208)], // Soft Pink
   [Color(0xFF0D1545), Color(0xFF070D2A), Color(0xFF020510)], // Moonlight
 ];
-const _kThemeNames = ['Cosmic Night', 'Dreamy Purple', 'Soft Pink', 'Moonlight'];
+const _kThemeNames = [
+  'Cosmic Night',
+  'Dreamy Purple',
+  'Soft Pink',
+  'Moonlight'
+];
 const _kThemeEmojis = ['🌌', '💜', '🌸', '🌙'];
 
 class ProfileScreen extends StatefulWidget {
@@ -127,8 +137,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   int _moodStreak(LunarDataProvider d) {
     if (d.moodEntries.isEmpty) return 0;
-    final sorted = [...d.moodEntries]
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final sorted = [...d.moodEntries]..sort((a, b) => b.date.compareTo(a.date));
     int streak = 0;
     DateTime check = DateTime.now();
     for (final e in sorted) {
@@ -171,10 +180,14 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   // ─── Profile photo pick + upload ──────────────────────────
   Future<void> _pickAndUploadImage(LunarAuthProvider auth) async {
+    if (auth.isGuest) {
+      GuestGate.show(context, feature: 'set a profile photo');
+      return;
+    }
     HapticFeedback.lightImpact();
     final picker = ImagePicker();
-    final xFile = await picker.pickImage(
-        source: ImageSource.gallery, imageQuality: 75);
+    final xFile =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 75);
     if (xFile == null) return;
     final file = File(xFile.path);
     setState(() {
@@ -184,9 +197,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     try {
       final uid = auth.firebaseUser?.uid;
       if (uid != null) {
-        final ref = FirebaseStorage.instance
-            .ref()
-            .child('profile_images/$uid.jpg');
+        final ref =
+            FirebaseStorage.instance.ref().child('profile_images/$uid.jpg');
         await ref.putFile(file);
         final url = await ref.getDownloadURL();
         await FirestoreService.updateUser(uid, {'photoUrl': url});
@@ -201,8 +213,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   void _editName(LunarAuthProvider auth, AppProvider appProvider) {
     HapticFeedback.lightImpact();
     final controller = TextEditingController(
-        text: auth.displayName == 'Lunar User' ||
-                auth.displayName == 'Guest'
+        text: auth.displayName == 'Lunar User' || auth.displayName == 'Guest'
             ? ''
             : auth.displayName);
     showDialog(
@@ -217,8 +228,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             side: BorderSide(color: _prPurple.withOpacity(0.4), width: 1),
           ),
           title: const Text('Edit Name',
-              style: TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w700)),
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
           content: TextField(
             controller: controller,
             autofocus: true,
@@ -226,17 +237,15 @@ class _ProfileScreenState extends State<ProfileScreen>
             cursorColor: _prPurple,
             decoration: InputDecoration(
               hintText: 'Your name',
-              hintStyle:
-                  TextStyle(color: Colors.white.withOpacity(0.35)),
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.35)),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(
-                    color: _prPurple.withOpacity(0.35), width: 1),
+                borderSide:
+                    BorderSide(color: _prPurple.withOpacity(0.35), width: 1),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide:
-                    const BorderSide(color: _prPurple, width: 1.5),
+                borderSide: const BorderSide(color: _prPurple, width: 1.5),
               ),
               filled: true,
               fillColor: Colors.white.withOpacity(0.05),
@@ -246,8 +255,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text('Cancel',
-                  style:
-                      TextStyle(color: Colors.white.withOpacity(0.5))),
+                  style: TextStyle(color: Colors.white.withOpacity(0.5))),
             ),
             GestureDetector(
               onTap: () async {
@@ -256,15 +264,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                   await appProvider.setUserName(newName);
                   final uid = auth.firebaseUser?.uid;
                   if (uid != null) {
-                    await FirestoreService.updateUser(
-                        uid, {'name': newName});
+                    await FirestoreService.updateUser(uid, {'name': newName});
                   }
                 }
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 18, vertical: 9),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   gradient: LinearGradient(colors: [
@@ -274,8 +281,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
                 child: const Text('Save',
                     style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700)),
+                        color: Colors.white, fontWeight: FontWeight.w700)),
               ),
             ),
           ],
@@ -286,6 +292,8 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   // ─── Logout ────────────────────────────────────────────────
   Future<void> _handleLogout() async {
+    final auth = context.read<LunarAuthProvider>();
+    final isGuest = auth.isGuest;
     final confirmed = await showDialog<bool>(
       context: context,
       barrierColor: Colors.black.withOpacity(0.7),
@@ -297,10 +305,13 @@ class _ProfileScreenState extends State<ProfileScreen>
             borderRadius: BorderRadius.circular(24),
             side: BorderSide(color: _prPurple.withOpacity(0.4), width: 1),
           ),
-          title: const Text('Log Out',
-              style: TextStyle(
+          title: Text(isGuest ? 'Leave Guest Mode?' : 'Log Out',
+              style: const TextStyle(
                   color: Colors.white, fontWeight: FontWeight.w700)),
-          content: Text('Are you sure you want to log out?',
+          content: Text(
+              isGuest
+                  ? 'Your guest session will end. Any unsaved local data will be lost. Create an account first to save your journey 🌙'
+                  : 'Are you sure you want to log out?',
               style: TextStyle(
                   color: Colors.white.withOpacity(0.7), fontSize: 14)),
           actions: [
@@ -313,10 +324,9 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Log Out',
-                  style: TextStyle(
-                      color: Color(0xFFAB5CF2),
-                      fontWeight: FontWeight.w700)),
+              child: Text(isGuest ? 'Leave' : 'Log Out',
+                  style: const TextStyle(
+                      color: Color(0xFFAB5CF2), fontWeight: FontWeight.w700)),
             ),
           ],
         ),
@@ -378,6 +388,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                         _profileCard(auth, appProvider, lunarData),
                         const SizedBox(height: 14),
                         _syncStatusBar(auth),
+                        const SizedBox(height: 16),
+                        _lunarAvatarCard(context, auth),
                         const SizedBox(height: 28),
                         _sectionLabel('Wellness Stats', '✨'),
                         const SizedBox(height: 14),
@@ -393,7 +405,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                         const SizedBox(height: 28),
                         _sectionLabel('Healing Journey', '🌿'),
                         const SizedBox(height: 14),
-                        _healingJourneyCard(lunarData, moodStreak, journalStreak),
+                        _healingJourneyCard(
+                            lunarData, moodStreak, journalStreak),
                         const SizedBox(height: 28),
                         _sectionLabel('Appearance', '🎨'),
                         const SizedBox(height: 14),
@@ -461,8 +474,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                     spreadRadius: 2)
               ],
             ),
-            child: const Center(
-                child: Text('🌙', style: TextStyle(fontSize: 22))),
+            child:
+                const Center(child: Text('🌙', style: TextStyle(fontSize: 22))),
           ),
         ),
       ),
@@ -477,7 +490,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     final displayName = appProvider.userName.isNotEmpty
         ? appProvider.userName
         : auth.displayName;
-    final email = auth.firebaseUser?.email ?? auth.firebaseUser?.providerData.firstOrNull?.email ?? '';
+    final email = auth.firebaseUser?.email ??
+        auth.firebaseUser?.providerData.firstOrNull?.email ??
+        '';
     final networkPhotoUrl = auth.photoUrl;
     final isPremium = auth.userModel?.isPremium ?? false;
 
@@ -522,29 +537,29 @@ class _ProfileScreenState extends State<ProfileScreen>
                       height: 82,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: _pickedImage == null && networkPhotoUrl == null
-                            ? LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  _prPurple.withOpacity(0.6),
-                                  _prPink.withOpacity(0.4),
-                                ])
-                            : null,
+                        gradient:
+                            _pickedImage == null && networkPhotoUrl == null
+                                ? LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                        _prPurple.withOpacity(0.6),
+                                        _prPink.withOpacity(0.4),
+                                      ])
+                                : null,
                         border: Border.all(
                             color: _prPurple.withOpacity(
-                                _glowAnim.value * 0.8 +
-                                    0.1 * _pulseAnim.value),
+                                _glowAnim.value * 0.8 + 0.1 * _pulseAnim.value),
                             width: 2.5),
                         boxShadow: [
                           BoxShadow(
-                              color: _prPurple
-                                  .withOpacity(_glowAnim.value * 0.45),
+                              color:
+                                  _prPurple.withOpacity(_glowAnim.value * 0.45),
                               blurRadius: 22,
                               spreadRadius: 3),
                           BoxShadow(
-                              color: _prPink
-                                  .withOpacity(_glowAnim.value * 0.20),
+                              color:
+                                  _prPink.withOpacity(_glowAnim.value * 0.20),
                               blurRadius: 30,
                               spreadRadius: 5),
                         ],
@@ -561,8 +576,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                       child: (_pickedImage == null && networkPhotoUrl == null)
                           ? const Center(
-                              child: Text('🌸',
-                                  style: TextStyle(fontSize: 34)))
+                              child: Text('🌸', style: TextStyle(fontSize: 34)))
                           : null,
                     ),
                   ),
@@ -635,23 +649,40 @@ class _ProfileScreenState extends State<ProfileScreen>
                           horizontal: 12, vertical: 5),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
-                        color: isPremium
-                            ? _prGold.withOpacity(0.14)
-                            : Colors.white.withOpacity(0.07),
+                        color: auth.isGuest
+                            ? const Color(0xFF4FC3F7).withOpacity(0.10)
+                            : isPremium
+                                ? _prGold.withOpacity(0.14)
+                                : Colors.white.withOpacity(0.07),
                         border: Border.all(
-                            color: isPremium
-                                ? _prGold.withOpacity(0.45)
-                                : Colors.white.withOpacity(0.15),
+                            color: auth.isGuest
+                                ? const Color(0xFF4FC3F7).withOpacity(0.35)
+                                : isPremium
+                                    ? _prGold.withOpacity(0.45)
+                                    : Colors.white.withOpacity(0.15),
                             width: 1),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Text(isPremium ? '⭐' : '🌙',
+                        Text(
+                            auth.isGuest
+                                ? '🌙'
+                                : isPremium
+                                    ? '⭐'
+                                    : '🌙',
                             style: const TextStyle(fontSize: 12)),
                         const SizedBox(width: 5),
                         Text(
-                          isPremium ? 'Premium Member' : 'Lunar Member',
+                          auth.isGuest
+                              ? 'Guest Mode'
+                              : isPremium
+                                  ? 'Premium Member'
+                                  : 'Lunar Member',
                           style: TextStyle(
-                              color: isPremium ? _prGold : Colors.white.withOpacity(0.6),
+                              color: auth.isGuest
+                                  ? const Color(0xFF4FC3F7)
+                                  : isPremium
+                                      ? _prGold
+                                      : Colors.white.withOpacity(0.6),
                               fontSize: 11,
                               fontWeight: FontWeight.w600),
                         ),
@@ -668,13 +699,144 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ──────────────────────────────────────────────────────────
+  //  LUNAR AVATAR CARD
+  // ──────────────────────────────────────────────────────────
+  Widget _lunarAvatarCard(BuildContext context, LunarAuthProvider auth) {
+    final avatarProvider = context.watch<AvatarProvider>();
+    final av = avatarProvider.avatar;
+
+    // Ensure default avatar exists
+    if (av == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final uid = auth.firebaseUser?.uid;
+        if (uid != null) {
+          context.read<AvatarProvider>()..ensureDefault(uid);
+          if (!auth.isGuest) {
+            context.read<AvatarProvider>().load(auth);
+          }
+        }
+      });
+    }
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const AvatarBuilderScreen(),
+          transitionDuration: const Duration(milliseconds: 380),
+          transitionsBuilder: (_, anim, __, child) => FadeTransition(
+            opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+            child: child,
+          ),
+        ),
+      ),
+      child: AnimatedBuilder(
+        animation: _glowAnim,
+        builder: (_, __) => ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    _prPurple.withOpacity(0.18),
+                    _prPink.withOpacity(0.08),
+                    Colors.white.withOpacity(0.03),
+                  ],
+                ),
+                border: Border.all(
+                    color: _prPurple.withOpacity(_glowAnim.value * 0.5 + 0.1),
+                    width: 1.2),
+              ),
+              child: Row(children: [
+                // Avatar preview
+                ClipOval(
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    color: const Color(0xFF160330),
+                    child: av != null
+                        ? LunarAvatarWidget(
+                            avatar: av,
+                            size: 64,
+                            animate: false,
+                            showAura: false,
+                          )
+                        : const Center(
+                            child: Text('🌙', style: TextStyle(fontSize: 28))),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Lunar Avatar',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        av != null
+                            ? '${av.emotionalState.emoji} ${av.emotionalState.label} · ${av.auraStyle.label}'
+                            : 'Personalise your emotional identity',
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.5), fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: LinearGradient(colors: [
+                      _prPurple.withOpacity(0.8),
+                      _prPink.withOpacity(0.6)
+                    ]),
+                  ),
+                  child: const Text('Edit',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600)),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────
   //  SYNC STATUS BAR
   // ──────────────────────────────────────────────────────────
   Widget _syncStatusBar(LunarAuthProvider auth) {
-    final isOnline = auth.firebaseUser != null;
-    final syncColor = isOnline ? _prGreen : _prWarm;
-    final syncMsg = isOnline ? 'Synced to cloud' : 'Offline — local data only';
-    final syncIcon = isOnline ? '☁️' : '📴';
+    final Color syncColor;
+    final String syncMsg;
+    final String syncIcon;
+    final bool isOnline;
+    if (auth.isGuest) {
+      isOnline = false;
+      syncColor = const Color(0xFF4FC3F7);
+      syncMsg = 'Guest mode — create an account to save your journey';
+      syncIcon = '🌙';
+    } else {
+      isOnline = auth.firebaseUser != null;
+      syncColor = isOnline ? _prGreen : _prWarm;
+      syncMsg = isOnline ? 'Synced to cloud' : 'Offline — local data only';
+      syncIcon = isOnline ? '☁️' : '📴';
+    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
@@ -683,8 +845,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: AnimatedBuilder(
           animation: _glowAnim,
           builder: (_, __) => Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
               color: syncColor.withOpacity(0.06),
@@ -711,8 +872,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     color: _prGreen,
                     boxShadow: [
                       BoxShadow(
-                          color: _prGreen
-                              .withOpacity(0.6 * _glowAnim.value),
+                          color: _prGreen.withOpacity(0.6 * _glowAnim.value),
                           blurRadius: 8,
                           spreadRadius: 1)
                     ],
@@ -739,10 +899,14 @@ class _ProfileScreenState extends State<ProfileScreen>
     final stats = [
       _StatItem('🌟', 'Wellness\nScore', '$wellnessScore%', _prPurple,
           wellnessScore / 100),
-      _StatItem('💧', 'Hydration', '${(waterPct * 100).round()}%', _prTeal, waterPct),
-      _StatItem('🌙', 'Sleep\nQuality', '${(sleepPct * 100).round()}%', _prIndigo, sleepPct),
-      _StatItem('😊', 'Mood\nBalance', '${(moodPct * 100).round()}%', _prPink, moodPct),
-      _StatItem('🔄', 'Cycle\nTracking', '${(cyclePct * 100).round()}%', _prGold, cyclePct),
+      _StatItem(
+          '💧', 'Hydration', '${(waterPct * 100).round()}%', _prTeal, waterPct),
+      _StatItem('🌙', 'Sleep\nQuality', '${(sleepPct * 100).round()}%',
+          _prIndigo, sleepPct),
+      _StatItem('😊', 'Mood\nBalance', '${(moodPct * 100).round()}%', _prPink,
+          moodPct),
+      _StatItem('🔄', 'Cycle\nTracking', '${(cyclePct * 100).round()}%',
+          _prGold, cyclePct),
     ];
 
     return SingleChildScrollView(
@@ -772,8 +936,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ],
                             ),
                             border: Border.all(
-                                color: s.color
-                                    .withOpacity(_glowAnim.value * 0.50),
+                                color:
+                                    s.color.withOpacity(_glowAnim.value * 0.50),
                                 width: 1),
                             boxShadow: [
                               BoxShadow(
@@ -811,8 +975,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     child: Container(
                                       height: 3,
                                       decoration: BoxDecoration(
-                                        borderRadius:
-                                            BorderRadius.circular(3),
+                                        borderRadius: BorderRadius.circular(3),
                                         color: s.color,
                                         boxShadow: [
                                           BoxShadow(
@@ -840,11 +1003,11 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ──────────────────────────────────────────────────────────
   //  STATS ROW (3 cards)
   // ──────────────────────────────────────────────────────────
-  Widget _statsRow(LunarDataProvider d, int wellnessScore) =>
-      Row(children: [
+  Widget _statsRow(LunarDataProvider d, int wellnessScore) => Row(children: [
         _statCard('😊', 'Mood\nEntries', '${d.moodEntries.length}', _prPink),
         const SizedBox(width: 12),
-        _statCard('📓', 'Journal\nEntries', '${d.journalEntries.length}', _prIndigo),
+        _statCard(
+            '📓', 'Journal\nEntries', '${d.journalEntries.length}', _prIndigo),
         const SizedBox(width: 12),
         _statCard('💚', 'Wellness\nScore', '$wellnessScore%', _prGreen),
       ]);
@@ -858,14 +1021,12 @@ class _ProfileScreenState extends State<ProfileScreen>
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 color: color.withOpacity(0.07),
                 border: Border.all(
-                    color: color.withOpacity(_glowAnim.value * 0.45),
-                    width: 1),
+                    color: color.withOpacity(_glowAnim.value * 0.45), width: 1),
               ),
               child: Column(children: [
                 Text(emoji, style: const TextStyle(fontSize: 22)),
@@ -895,16 +1056,23 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ──────────────────────────────────────────────────────────
   Widget _streakCards(LunarDataProvider d, int moodStreak, int journalStreak) =>
       Column(children: [
-        _streakTile('🔥', 'Journal Streak',
+        _streakTile(
+            '🔥',
+            'Journal Streak',
             '$journalStreak ${journalStreak == 1 ? "day" : "days"} in a row',
-            journalStreak, _prWarm),
+            journalStreak,
+            _prWarm),
         const SizedBox(height: 10),
-        _streakTile('💜', 'Mood Check Streak',
+        _streakTile(
+            '💜',
+            'Mood Check Streak',
             '$moodStreak ${moodStreak == 1 ? "day" : "days"} in a row',
-            moodStreak, _prPurple),
+            moodStreak,
+            _prPurple),
       ]);
 
-  Widget _streakTile(String emoji, String title, String sub, int count, Color color) {
+  Widget _streakTile(
+      String emoji, String title, String sub, int count, Color color) {
     return AnimatedBuilder(
       animation: _glowAnim,
       builder: (_, __) => ClipRRect(
@@ -912,8 +1080,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
               color: color.withOpacity(0.07),
@@ -927,39 +1094,36 @@ class _ProfileScreenState extends State<ProfileScreen>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: color.withOpacity(0.15),
-                  border:
-                      Border.all(color: color.withOpacity(0.35), width: 1),
+                  border: Border.all(color: color.withOpacity(0.35), width: 1),
                 ),
                 child: Center(
-                    child:
-                        Text(emoji, style: const TextStyle(fontSize: 18))),
+                    child: Text(emoji, style: const TextStyle(fontSize: 18))),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 3),
-                  Text(sub,
-                      style: TextStyle(
-                          color: color,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600)),
-                ]),
+                      Text(title,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 3),
+                      Text(sub,
+                          style: TextStyle(
+                              color: color,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600)),
+                    ]),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   color: color.withOpacity(0.18),
-                  border:
-                      Border.all(color: color.withOpacity(0.4), width: 1),
+                  border: Border.all(color: color.withOpacity(0.4), width: 1),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Text('🔥', style: const TextStyle(fontSize: 12)),
@@ -1037,8 +1201,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     color: Colors.white.withOpacity(0.7),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600)),
-                            Text(
-                                '${(moodPct * 100).round()}%',
+                            Text('${(moodPct * 100).round()}%',
                                 style: TextStyle(
                                     color: _prPurple,
                                     fontSize: 12,
@@ -1050,8 +1213,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           borderRadius: BorderRadius.circular(4),
                           child: Stack(children: [
                             Container(
-                                height: 5,
-                                color: _prPurple.withOpacity(0.10)),
+                                height: 5, color: _prPurple.withOpacity(0.10)),
                             AnimatedBuilder(
                               animation: _shimmerAnim,
                               builder: (_, __) => FractionallySizedBox(
@@ -1064,8 +1226,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                                       _prPurple.withOpacity(0.7),
                                       _prPink,
                                       Colors.white.withOpacity(0.25 *
-                                          math.sin(_shimmerAnim.value *
-                                              math.pi)),
+                                          math.sin(
+                                              _shimmerAnim.value * math.pi)),
                                     ]),
                                     boxShadow: [
                                       BoxShadow(
@@ -1123,12 +1285,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                             : null,
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Text(
-                            achieved ? mEmoji : '○',
+                        Text(achieved ? mEmoji : '○',
                             style: TextStyle(
                                 fontSize: achieved ? 13 : 10,
-                                color:
-                                    Colors.white.withOpacity(0.30))),
+                                color: Colors.white.withOpacity(0.30))),
                         const SizedBox(width: 6),
                         Text(label,
                             style: TextStyle(
@@ -1136,9 +1296,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   ? Colors.white
                                   : Colors.white.withOpacity(0.40),
                               fontSize: 11,
-                              fontWeight: achieved
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
+                              fontWeight:
+                                  achieved ? FontWeight.w600 : FontWeight.w400,
                             )),
                       ]),
                     );
@@ -1165,8 +1324,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             color: Colors.white.withOpacity(0.04),
-            border:
-                Border.all(color: Colors.white.withOpacity(0.10), width: 1),
+            border: Border.all(color: Colors.white.withOpacity(0.10), width: 1),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1258,8 +1416,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
             color: Colors.white.withOpacity(0.04),
-            border:
-                Border.all(color: Colors.white.withOpacity(0.10), width: 1),
+            border: Border.all(color: Colors.white.withOpacity(0.10), width: 1),
           ),
           child: Column(
             children: [
@@ -1298,8 +1455,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 borderRadius: BorderRadius.circular(10),
                                 color: _prTeal.withOpacity(0.18),
                                 border: Border.all(
-                                    color: _prTeal.withOpacity(0.45),
-                                    width: 1),
+                                    color: _prTeal.withOpacity(0.45), width: 1),
                               ),
                               child: Text('Save',
                                   style: TextStyle(
@@ -1352,8 +1508,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                              'Goal: ${_localSleepGoal.toStringAsFixed(1)}h',
+                          Text('Goal: ${_localSleepGoal.toStringAsFixed(1)}h',
                               style: TextStyle(
                                   color: _prIndigo,
                                   fontSize: 12,
@@ -1396,8 +1551,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           min: 4,
                           max: 12,
                           divisions: 16,
-                          onChanged: (v) =>
-                              setState(() => _localSleepGoal = v),
+                          onChanged: (v) => setState(() => _localSleepGoal = v),
                         ),
                       ),
                     ],
@@ -1446,14 +1600,16 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(label,
                   style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w600)),
               Text(value,
-                  style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+                  style: TextStyle(
+                      color: color, fontSize: 12, fontWeight: FontWeight.w600)),
             ]),
           ),
           AnimatedRotation(
@@ -1532,15 +1688,13 @@ class _ProfileScreenState extends State<ProfileScreen>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             color: Colors.white.withOpacity(0.04),
-            border:
-                Border.all(color: Colors.white.withOpacity(0.09), width: 1),
+            border: Border.all(color: Colors.white.withOpacity(0.09), width: 1),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding:
-                    const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
                 child: Row(children: [
                   Text(icon, style: const TextStyle(fontSize: 14)),
                   const SizedBox(width: 7),
@@ -1553,7 +1707,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ]),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: child,
               ),
               const SizedBox(height: 8),
@@ -1582,7 +1737,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
         const SizedBox(width: 14),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label,
                 style: const TextStyle(
                     color: Colors.white,
@@ -1631,9 +1787,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 child: AnimatedAlign(
                   duration: const Duration(milliseconds: 250),
                   curve: Curves.easeInOut,
-                  alignment: value
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
+                  alignment:
+                      value ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
                     width: 18,
                     height: 18,
@@ -1837,8 +1992,7 @@ class _PrBackground extends StatelessWidget {
             left: size.width * 0.5 - 120,
             child: _blob(240, _prIndigo, 0.10)),
         Positioned(bottom: 80, left: -50, child: _blob(260, _prIndigo, 0.12)),
-        Positioned(
-            bottom: 0, right: -40, child: _blob(200, _prPink, 0.09)),
+        Positioned(bottom: 0, right: -40, child: _blob(200, _prPink, 0.09)),
       ]),
     );
   }

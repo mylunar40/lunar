@@ -6,6 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/providers/auth_provider.dart';
 import '../core/providers/community_provider.dart';
+import '../widgets/guest_gate.dart';
+import '../core/providers/avatar_provider.dart';
+import '../widgets/lunar_avatar_widget.dart';
 
 // ═══════════════════════════════════════════════════════════
 //  LUNAR COMMUNITY — Safe Space Screen
@@ -1234,27 +1237,50 @@ class _CommunityState extends State<CommunityScreen>
       Color avatarColor,
       bool isBookmarked,
       CommunityProvider community,
-      LunarAuthProvider auth) =>
-      Row(children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(colors: [
-                avatarColor.withOpacity(0.85),
-                avatarColor.withOpacity(0.3)
-              ]),
-              border:
-                  Border.all(color: avatarColor.withOpacity(0.5), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                    color: avatarColor.withOpacity(0.28), blurRadius: 10)
-              ]),
-          child: Center(
-              child: Text(post.avatarEmoji,
-                  style: const TextStyle(fontSize: 22))),
-        ),
+      LunarAuthProvider auth) {
+    // Show the Lunar avatar for the current user's own (non-anonymous) posts.
+    final avatarProvider = context.read<AvatarProvider>();
+    final myUid = auth.firebaseUser?.uid;
+    final isOwnPost = !post.isAnonymous &&
+        myUid != null &&
+        avatarProvider.avatar != null &&
+        (post.pseudonym.startsWith('You'));
+
+    return Row(children: [
+      // ── Avatar circle ────────────────────────────────────
+      isOwnPost
+          ? ClipOval(
+              child: Container(
+                width: 44,
+                height: 44,
+                color: const Color(0xFF160330),
+                child: LunarAvatarWidget(
+                  avatar: avatarProvider.avatar!,
+                  size: 44,
+                  animate: false,
+                  showAura: false,
+                ),
+              ),
+            )
+          : Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [
+                    avatarColor.withOpacity(0.85),
+                    avatarColor.withOpacity(0.3)
+                  ]),
+                  border: Border.all(
+                      color: avatarColor.withOpacity(0.5), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                        color: avatarColor.withOpacity(0.28), blurRadius: 10)
+                  ]),
+              child: Center(
+                  child: Text(post.avatarEmoji,
+                      style: const TextStyle(fontSize: 22))),
+            ),
         const SizedBox(width: 12),
         Expanded(
             child: Column(
@@ -1338,6 +1364,7 @@ class _CommunityState extends State<CommunityScreen>
           ),
         ),
       ]);
+  }
 
   Widget _livePostContent(CommunityPost post, CommunityProvider community) {
     if (post.isSensitive && post.isBlurred) {
@@ -1827,7 +1854,15 @@ class _CommunityState extends State<CommunityScreen>
   Widget _composeFAB() => AnimatedBuilder(
     animation: _glowAnim,
     builder: (_, __) => GestureDetector(
-      onTap: () { HapticFeedback.lightImpact(); setState(() => _showCompose = true); },
+      onTap: () {
+        final auth = Provider.of<LunarAuthProvider>(context, listen: false);
+        if (auth.isGuest) {
+          GuestGate.show(context, feature: 'share posts in the community');
+          return;
+        }
+        HapticFeedback.lightImpact();
+        setState(() => _showCompose = true);
+      },
       child: Container(
         width: 62, height: 62,
         decoration: BoxDecoration(
