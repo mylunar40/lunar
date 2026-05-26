@@ -12,6 +12,7 @@ import '../core/providers/chat_provider.dart';
 import '../core/providers/app_provider.dart';
 import '../core/providers/lunar_data_provider.dart';
 import '../core/models/cycle_model.dart';
+import '../services/relationship_service.dart';
 
 // ===========================================================
 //  LUNAR AI CHAT SCREEN
@@ -19,13 +20,11 @@ import '../core/models/cycle_model.dart';
 // ===========================================================
 
 // -- Design tokens -------------------------------------------
-const Color _kBg     = Color(0xFF0A0118);
+const Color _kBg = Color(0xFF0A0118);
 const Color _kPurple = Color(0xFFAB5CF2);
-const Color _kPink   = Color(0xFFFF69B4);
-const Color _kDeep   = Color(0xFF5C2DB8);
-const Color _kGold   = Color(0xFFFFD700);
-
-
+const Color _kPink = Color(0xFFFF69B4);
+const Color _kDeep = Color(0xFF5C2DB8);
+const Color _kGold = Color(0xFFFFD700);
 
 // ===========================================================
 //  HEALING CARD DATA  (UI-scoped display data)
@@ -39,32 +38,38 @@ class _HealData {
 
 const Map<HealingKind, _HealData> _kCards = {
   HealingKind.breathe: _HealData(
-    '\u{1F32C}\u{FE0F}', 'Breathing Exercise',
+    '\u{1F32C}\u{FE0F}',
+    'Breathing Exercise',
     'Inhale 4 \u00B7 Hold 4 \u00B7 Exhale 6 \u00B7 Hold 2\nRepeat 4 times to activate your natural calm response. \u2728',
     Color(0xFF4FC3F7),
   ),
   HealingKind.affirmation: _HealData(
-    '\u{1F49C}', 'You Are Enough',
+    '\u{1F49C}',
+    'You Are Enough',
     'You are worthy of love exactly as you are \u2014 in this moment, without changing a single thing. You are enough. \u{1F338}',
     Color(0xFFAB5CF2),
   ),
   HealingKind.sleep: _HealData(
-    '\u{1F319}', 'Sleep Ritual',
+    '\u{1F319}',
+    'Sleep Ritual',
     'Dim lights 1 hour before bed \u00B7 Step away from screens \u00B7 Warm chamomile tea \u00B7 Gentle body scan. Your rest is sacred. \u2728',
     Color(0xFF7986CB),
   ),
   HealingKind.hydrate: _HealData(
-    '\u{1F4A7}', 'Hydration Reminder',
+    '\u{1F4A7}',
+    'Hydration Reminder',
     'Your hormones need water to stay balanced. One tall glass right now can shift your mood within minutes. \u{1F33F}',
     Color(0xFF4FC3F7),
   ),
   HealingKind.cycle: _HealData(
-    '\u{1FA78}', 'Cycle Wisdom',
+    '\u{1FA78}',
+    'Cycle Wisdom',
     'Your emotions are deeply tied to your cycle phases. What you\'re feeling is valid \u2014 it\'s your body\'s ancient wisdom speaking. \u{1F49C}',
     Color(0xFFB05C8A),
   ),
   HealingKind.gentle: _HealData(
-    '\u{1F338}', 'Gentle Reminder',
+    '\u{1F338}',
+    'Gentle Reminder',
     'Treat yourself with the same tenderness you\'d offer someone you love deeply. You deserve that same softness. \u2728',
     Color(0xFFFF69B4),
   ),
@@ -112,12 +117,27 @@ const List<String> _kInsights = [
 
 // -- Sanctuary: quick healing actions -----------------------
 const List<(String, String, Color, String)> _kSanctuaryActions = [
-  ('🌬️', 'Calm\nAnxiety',     Color(0xFF4FC3F7), 'Help me calm my anxiety right now'),
-  ('💤', 'Sleep\nSupport',    Color(0xFF7986CB), 'I need help falling asleep tonight'),
-  ('💜', 'Emotional\nReset',  Color(0xFFAB5CF2), 'I need an emotional reset'),
-  ('🌸', 'Affirmation',       Color(0xFFFF69B4), 'Give me a powerful affirmation'),
+  (
+    '🌬️',
+    'Calm\nAnxiety',
+    Color(0xFF4FC3F7),
+    'Help me calm my anxiety right now'
+  ),
+  (
+    '💤',
+    'Sleep\nSupport',
+    Color(0xFF7986CB),
+    'I need help falling asleep tonight'
+  ),
+  ('💜', 'Emotional\nReset', Color(0xFFAB5CF2), 'I need an emotional reset'),
+  ('🌸', 'Affirmation', Color(0xFFFF69B4), 'Give me a powerful affirmation'),
   ('📝', 'Journal\nFeelings', Color(0xFF66BB6A), 'Help me journal my feelings'),
-  ('🌙', 'Breathing\nSession',Color(0xFFFFB74D), 'Guide me through a breathing session'),
+  (
+    '🌙',
+    'Breathing\nSession',
+    Color(0xFFFFB74D),
+    'Guide me through a breathing session'
+  ),
 ];
 
 // ===========================================================
@@ -181,6 +201,19 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   int _insightIdx = 0;
   Timer? _insightTimer;
 
+  // -- Emotional presence state ─────────────────────────────
+  bool _milestoneShown = false;
+  bool _showMilestone = false;
+  String _milestoneText = '';
+  late AnimationController _milestoneCtrl;
+  late Animation<double> _milestoneAnim;
+
+  // -- WOW moment pulse ─────────────────────────────────────
+  late AnimationController _wowCtrl;
+  bool _wowVisible = false;
+  int _prevMsgCount = 0;
+  ChatProvider? _chatListenerRef; // for safe listener add/remove
+
   // -- Particles ----------------------------------------------
   final List<_AIStar> _stars = [];
   final math.Random _rng = math.Random();
@@ -242,8 +275,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 2800),
     )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 0.93, end: 1.07).animate(
-        CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+    _pulseAnim = Tween<double>(begin: 0.93, end: 1.07)
+        .animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
 
     _entryCtrl = AnimationController(
       vsync: this,
@@ -254,13 +287,33 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 350),
     );
-    _focusAnim = CurvedAnimation(parent: _focusCtrl, curve: Curves.easeOutCubic);
+    _focusAnim =
+        CurvedAnimation(parent: _focusCtrl, curve: Curves.easeOutCubic);
 
     _mediaFabCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 280),
     );
-    _mediaFabAnim = CurvedAnimation(parent: _mediaFabCtrl, curve: Curves.easeOutBack);
+    _mediaFabAnim =
+        CurvedAnimation(parent: _mediaFabCtrl, curve: Curves.easeOutBack);
+
+    _milestoneCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 480),
+    );
+    _milestoneAnim =
+        CurvedAnimation(parent: _milestoneCtrl, curve: Curves.easeOutCubic);
+
+    _wowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    );
+    _wowCtrl.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _wowCtrl.reset();
+        if (mounted) setState(() => _wowVisible = false);
+      }
+    });
 
     // Focus listener for input bar glow
     _focusNode.addListener(() {
@@ -287,11 +340,57 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       final chat = context.read<ChatProvider>();
       if (chat.messages.length > 1) setState(() => _inSanctuary = false);
+
+      // Auto-send daily check-in seed prompt if queued
+      final seed = chat.checkInSeedPrompt;
+      if (seed != null && seed.isNotEmpty) {
+        chat.clearCheckInSeed();
+        setState(() => _inSanctuary = false);
+        Future.delayed(const Duration(milliseconds: 600), () {
+          if (!mounted) return;
+          chat.send(seed, context);
+        });
+      }
     });
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Safe listener pattern — detach old, attach new
+    final chat = context.read<ChatProvider>();
+    if (_chatListenerRef != chat) {
+      _chatListenerRef?.removeListener(_onChatUpdate);
+      _chatListenerRef = chat;
+      _chatListenerRef?.addListener(_onChatUpdate);
+    }
+  }
+
+  void _onChatUpdate() {
+    if (!mounted) return;
+    final chat = _chatListenerRef;
+    if (chat == null) return;
+    final count = chat.messages.length;
+    if (count > _prevMsgCount && !chat.isTyping) {
+      final last = chat.messages.last;
+      // WOW moment fires on AI healing cards — emotionally significant responses
+      if (!last.isUser && last.type == ChatMsgType.healingCard) {
+        _triggerWow();
+      }
+      _prevMsgCount = count;
+    }
+  }
+
+  void _triggerWow() {
+    if (!mounted || _wowCtrl.isAnimating) return;
+    setState(() => _wowVisible = true);
+    _wowCtrl.forward();
+    HapticFeedback.lightImpact();
+  }
+
+  @override
   void dispose() {
+    _chatListenerRef?.removeListener(_onChatUpdate);
     _glowCtrl.dispose();
     _floatCtrl.dispose();
     _typingCtrl.dispose();
@@ -303,6 +402,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     _entryCtrl.dispose();
     _focusCtrl.dispose();
     _mediaFabCtrl.dispose();
+    _milestoneCtrl.dispose();
+    _wowCtrl.dispose();
     _insightTimer?.cancel();
     _scrollCtrl.dispose();
     _textCtrl.dispose();
@@ -371,7 +472,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Keep', style: TextStyle(color: Colors.white.withOpacity(0.50))),
+            child: Text('Keep',
+                style: TextStyle(color: Colors.white.withOpacity(0.50))),
           ),
           TextButton(
             onPressed: () {
@@ -379,7 +481,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
               Navigator.pop(ctx);
               HapticFeedback.mediumImpact();
             },
-            child: const Text('Clear', style: TextStyle(color: Color(0xFFFF69B4))),
+            child:
+                const Text('Clear', style: TextStyle(color: Color(0xFFFF69B4))),
           ),
         ],
       ),
@@ -511,6 +614,28 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
 
     if (!_inSanctuary && chat.messages.isNotEmpty) _scrollToBottom();
 
+    // Trigger pattern milestone "wow moment" once per session
+    if (!_milestoneShown && !_inSanctuary && chat.messages.length > 4) {
+      final insight = chat.emotionalProfile.patternInsight;
+      if (insight != null && !_showMilestone) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _milestoneShown) return;
+          setState(() {
+            _milestoneShown = true;
+            _showMilestone = true;
+            _milestoneText = insight;
+          });
+          _milestoneCtrl.forward(from: 0);
+          Future.delayed(const Duration(seconds: 4), () {
+            if (!mounted) return;
+            _milestoneCtrl.reverse().then((_) {
+              if (mounted) setState(() => _showMilestone = false);
+            });
+          });
+        });
+      }
+    }
+
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 520),
       transitionBuilder: (child, anim) => FadeTransition(
@@ -575,8 +700,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                         color: _kPurple.withOpacity(0.06),
                         border: Border(
                           bottom: BorderSide(
-                              color: _kPurple
-                                  .withOpacity(0.18 * _glowAnim.value),
+                              color:
+                                  _kPurple.withOpacity(0.18 * _glowAnim.value),
                               width: 1),
                         ),
                       ),
@@ -584,8 +709,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.auto_awesome,
-                              color: _kPurple.withOpacity(0.65),
-                              size: 12),
+                              color: _kPurple.withOpacity(0.65), size: 12),
                           const SizedBox(width: 5),
                           Text(
                             '← Back to Sanctuary',
@@ -602,9 +726,17 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                 ),
                 _headerBar(chat),
                 _phaseBanner(context),
-                if (!chat.apiKeyConfigured && !_apiNudgeDismissed)
-                  _apiNudge(),
-                Expanded(child: _chatArea(chat, size)),
+                if (!chat.apiKeyConfigured && !_apiNudgeDismissed) _apiNudge(),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      _chatArea(chat, size),
+                      _emotionalAuraOverlay(chat),
+                      if (_showMilestone) _milestoneOverlay(),
+                      if (_wowVisible) _wowPulseOverlay(),
+                    ],
+                  ),
+                ),
                 _quickActions(chat),
                 _inputBar(chat),
               ],
@@ -672,7 +804,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                         ),
                       ),
                       child: const Center(
-                        child: Text('\u{1F319}', style: TextStyle(fontSize: 26)),
+                        child:
+                            Text('\u{1F319}', style: TextStyle(fontSize: 26)),
                       ),
                     ),
                     // Orbital dots
@@ -702,10 +835,10 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                               boxShadow: [
                                 BoxShadow(
                                   color: (i == 0
-                                      ? _kPink
-                                      : i == 1
-                                          ? _kPurple
-                                          : _kGold)
+                                          ? _kPink
+                                          : i == 1
+                                              ? _kPurple
+                                              : _kGold)
                                       .withOpacity(0.55),
                                   blurRadius: 6,
                                 ),
@@ -758,14 +891,13 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                         height: 7,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: chat.isTyping
-                              ? _kPink
-                              : const Color(0xFF66BB6A),
+                          color:
+                              chat.isTyping ? _kPink : const Color(0xFF66BB6A),
                           boxShadow: [
                             BoxShadow(
                               color: (chat.isTyping
-                                  ? _kPink
-                                  : const Color(0xFF66BB6A))
+                                      ? _kPink
+                                      : const Color(0xFF66BB6A))
                                   .withOpacity(0.78 * _glowAnim.value),
                               blurRadius: 8,
                               spreadRadius: 1,
@@ -798,6 +930,32 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                         ),
                       ),
                     ),
+                    // Relationship level badge
+                    Builder(builder: (_) {
+                      final rel = RelationshipService.current();
+                      return Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            color: rel.level.color.withOpacity(0.14),
+                            border: Border.all(
+                                color: rel.level.color.withOpacity(0.38),
+                                width: 0.8),
+                          ),
+                          child: Text(
+                            '${rel.level.emoji} ${rel.level.title}',
+                            style: TextStyle(
+                              color: rel.level.color.withOpacity(0.82),
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
                   ],
                 ),
               ],
@@ -968,7 +1126,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
           child: GestureDetector(
             onTap: () {},
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(28)),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                 child: Container(
@@ -976,7 +1135,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A0535).withOpacity(0.96),
                     border: Border.all(color: _kPurple.withOpacity(0.25)),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(28)),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -990,7 +1150,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                               borderRadius: BorderRadius.circular(12),
                               color: _kPurple.withOpacity(0.18),
                             ),
-                            child: const Text('\u2728', style: TextStyle(fontSize: 20)),
+                            child: const Text('\u2728',
+                                style: TextStyle(fontSize: 20)),
                           ),
                           const SizedBox(width: 12),
                           const Expanded(
@@ -1033,11 +1194,13 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 18, vertical: 4),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
                               color: Colors.white.withOpacity(0.06),
-                              border: Border.all(color: _kPurple.withOpacity(0.28)),
+                              border:
+                                  Border.all(color: _kPurple.withOpacity(0.28)),
                             ),
                             child: Row(
                               children: [
@@ -1045,7 +1208,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                                   child: TextField(
                                     controller: _apiKeyCtrl,
                                     obscureText: _apiKeyObscured,
-                                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                                    style: const TextStyle(
+                                        color: Colors.white, fontSize: 14),
                                     cursorColor: _kPurple,
                                     decoration: InputDecoration(
                                       hintText: 'sk-...',
@@ -1065,7 +1229,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                                     color: Colors.white.withOpacity(0.40),
                                     size: 20,
                                   ),
-                                  onPressed: () => setState(() => _apiKeyObscured = !_apiKeyObscured),
+                                  onPressed: () => setState(
+                                      () => _apiKeyObscured = !_apiKeyObscured),
                                 ),
                               ],
                             ),
@@ -1084,14 +1249,17 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                               Text(
                                 'OpenAI key connected \u2728',
                                 style: TextStyle(
-                                  color: const Color(0xFF66BB6A).withOpacity(0.85),
+                                  color:
+                                      const Color(0xFF66BB6A).withOpacity(0.85),
                                   fontSize: 13,
                                 ),
                               ),
                               const Spacer(),
                               GestureDetector(
                                 onTap: () async {
-                                  await context.read<ChatProvider>().removeApiKey();
+                                  await context
+                                      .read<ChatProvider>()
+                                      .removeApiKey();
                                 },
                                 child: Text(
                                   'Remove',
@@ -1144,6 +1312,232 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   }
 
   // ===========================================================
+  //  EMOTIONAL AURA OVERLAY
+  //  Subtle ambient glow tinted to dominant emotion
+  // ===========================================================
+  Widget _emotionalAuraOverlay(ChatProvider chat) {
+    final emotion = chat.dominantEmotion;
+    if (emotion == null) return const SizedBox.shrink();
+    final Color aura = switch (emotion) {
+      EmotionTag.anxious => const Color(0xFF4FC3F7),
+      EmotionTag.sad => const Color(0xFF7986CB),
+      EmotionTag.lonely => const Color(0xFFAB5CF2),
+      EmotionTag.stressed => const Color(0xFF7986CB),
+      EmotionTag.happy => const Color(0xFFFFD700),
+      EmotionTag.energetic => const Color(0xFF66BB6A),
+      EmotionTag.tired => const Color(0xFF9C27B0),
+      EmotionTag.emotional => const Color(0xFFFF69B4),
+      EmotionTag.period => const Color(0xFFB05C8A),
+      _ => _kPurple,
+    };
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _glowAnim,
+        builder: (_, __) => Stack(children: [
+          // Top ambient wash — pulses softly with glow animation
+          Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.topCenter,
+                radius: 1.4,
+                colors: [
+                  aura.withOpacity(0.07 * _glowAnim.value),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+          // Bottom secondary warm pulse — different color and radius
+          Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.bottomCenter,
+                radius: 1.2,
+                colors: [
+                  aura.withOpacity(0.035 * _glowAnim.value),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  // ===========================================================
+  //  PATTERN MILESTONE "WOW MOMENT"
+  //  Surfaces when Lunar notices emotional growth
+  // ===========================================================
+  Widget _milestoneOverlay() {
+    return Positioned(
+      top: 12,
+      left: 24,
+      right: 24,
+      child: FadeTransition(
+        opacity: _milestoneAnim,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -0.3),
+            end: Offset.zero,
+          ).animate(_milestoneAnim),
+          child: GestureDetector(
+            onTap: () {
+              _milestoneCtrl.reverse().then((_) {
+                if (mounted) setState(() => _showMilestone = false);
+              });
+            },
+            child: AnimatedBuilder(
+              animation: _glowAnim,
+              builder: (_, __) => ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFFAB5CF2).withOpacity(0.32),
+                          const Color(0xFFFF69B4).withOpacity(0.18),
+                          Colors.white.withOpacity(0.06),
+                        ],
+                      ),
+                      border: Border.all(
+                        color: const Color(0xFFAB5CF2)
+                            .withOpacity(0.55 * _glowAnim.value),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFAB5CF2)
+                              .withOpacity(0.28 * _glowAnim.value),
+                          blurRadius: 24,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        AnimatedBuilder(
+                          animation: _pulseCtrl,
+                          builder: (_, __) => Transform.scale(
+                            scale: _pulseAnim.value,
+                            child: const Text('🌙',
+                                style: TextStyle(fontSize: 22)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Lunar Noticed Something 🌸',
+                                style: TextStyle(
+                                  color: const Color(0xFFD8A8FF),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _milestoneText,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.82),
+                                  fontSize: 12.5,
+                                  height: 1.45,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================
+  //  WOW MOMENT PULSE — Expanding ring waves on healing responses
+  // ===========================================================
+  Widget _wowPulseOverlay() {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _wowCtrl,
+        builder: (_, __) {
+          final t = Curves.easeOut.transform(_wowCtrl.value);
+          return Stack(
+            children: [
+              // Center label — briefly reveals then fades
+              if (t > 0.05 && t < 0.55)
+                Center(
+                  child: Opacity(
+                    opacity: (1.0 - t * 2).clamp(0.0, 0.7),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        color: const Color(0xFFAB5CF2).withOpacity(0.18),
+                        border: Border.all(
+                            color: const Color(0xFFAB5CF2).withOpacity(0.35),
+                            width: 1),
+                      ),
+                      child: Text(
+                        'Lunar felt that 🌙',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.80),
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // 4 expanding ring waves — staggered delays
+              ...List.generate(4, (i) {
+                final delay = i * 0.16;
+                final progress = (t - delay).clamp(0.0, 1.0);
+                final opacity =
+                    (progress < 0.05) ? 0.0 : (1.0 - progress) * 0.30;
+                final radius = 40.0 +
+                    Curves.easeOut.transform(progress) * (160.0 + i * 36.0);
+                return Center(
+                  child: Container(
+                    width: radius * 2,
+                    height: radius * 2,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFFAB5CF2).withOpacity(opacity),
+                        width: (1.8 - i * 0.3).clamp(0.3, 1.8),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ===========================================================
   //  CHAT AREA
   // ===========================================================
   Widget _chatArea(ChatProvider chat, Size size) {
@@ -1164,19 +1558,22 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
           return _typingBubble();
         }
         final msg = msgs[i];
+        // Last AI message gets a live breathing border
+        final isLastAiMsg =
+            !msg.isUser && !chat.isTyping && i == msgs.length - 1;
         return _AnimatedMsg(
           key: ValueKey(msg.id),
           isUser: msg.isUser,
           child: msg.type == ChatMsgType.healingCard
               ? _buildHealingCard(msg, size)
-              : _buildBubble(msg, size),
+              : _buildBubble(msg, size, isLatestAi: isLastAiMsg),
         );
       },
     );
   }
 
   // -- Chat bubble ---------------------------------------------
-  Widget _buildBubble(ChatMessage msg, Size size) {
+  Widget _buildBubble(ChatMessage msg, Size size, {bool isLatestAi = false}) {
     return Padding(
       padding: EdgeInsets.only(
         bottom: 14,
@@ -1198,7 +1595,9 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                 if (msg.mediaAttachment != null)
                   _mediaPreviewCard(msg.mediaAttachment!),
                 if (msg.text.isNotEmpty)
-                  msg.isUser ? _userBubble(msg) : _aiBubble(msg),
+                  msg.isUser
+                      ? _userBubble(msg)
+                      : _aiBubble(msg, isLatest: isLatestAi),
               ],
             ),
           ),
@@ -1260,7 +1659,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
               children: [
                 Icon(Icons.image_rounded, color: Colors.white, size: 12),
                 SizedBox(width: 4),
-                Text('Image', style: TextStyle(color: Colors.white, fontSize: 10)),
+                Text('Image',
+                    style: TextStyle(color: Colors.white, fontSize: 10)),
               ],
             ),
           ),
@@ -1424,74 +1824,172 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _aiBubble(ChatMessage msg) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([_glowAnim, _auraCtrl]),
-      builder: (_, __) {
-        final glowIntensity = _glowAnim.value;
-        final rotation = _auraCtrl.value;
-        return Stack(
-          children: [
-            // Rotating gradient glow border layer
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _AiGlowBorderPainter(
-                  rotation: rotation,
-                  intensity: glowIntensity,
-                ),
-              ),
-            ),
-            // Bubble content
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(5),
-                topRight: Radius.circular(22),
-                bottomLeft: Radius.circular(22),
-                bottomRight: Radius.circular(22),
-              ),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 18, vertical: 15),
-                  decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(5),
-                      topRight: Radius.circular(22),
-                      bottomLeft: Radius.circular(22),
-                      bottomRight: Radius.circular(22),
-                    ),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        _kPink.withOpacity(0.10),
-                        Colors.white.withOpacity(0.05),
-                        _kPurple.withOpacity(0.08),
+  Widget _aiBubble(ChatMessage msg, {bool isLatest = false}) {
+    // Emotion-reactive accent color — each emotion feels different
+    final Color emotionAccent = switch (msg.emotionTag) {
+      EmotionTag.anxious => const Color(0xFF4FC3F7), // calming teal
+      EmotionTag.sad => const Color(0xFF7986CB), // soft indigo
+      EmotionTag.lonely => const Color(0xFFAB5CF2), // gentle violet
+      EmotionTag.stressed => const Color(0xFF7986CB), // grounding indigo
+      EmotionTag.happy => const Color(0xFFFFD700), // warm gold
+      EmotionTag.energetic => const Color(0xFF66BB6A), // fresh green
+      EmotionTag.tired => const Color(0xFF9C27B0), // deep lavender
+      EmotionTag.emotional => const Color(0xFFFF69B4), // warm pink
+      EmotionTag.period => const Color(0xFFB05C8A), // soft rose
+      _ => _kPurple, // default lunar
+    };
+
+    return GestureDetector(
+      onLongPress: () {
+        HapticFeedback.mediumImpact();
+        _showShareCard(context, msg, emotionAccent);
+      },
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_glowAnim, _auraCtrl]),
+        builder: (_, __) {
+          final glowIntensity = _glowAnim.value;
+          final rotation = _auraCtrl.value;
+          // Latest AI message gets extra breathing presence glow
+          final presenceGlow = isLatest ? glowIntensity * 0.18 : 0.0;
+          return Stack(
+            children: [
+              // Breathing presence aura beneath the latest message
+              if (isLatest)
+                Positioned(
+                  left: -6,
+                  right: -6,
+                  top: -6,
+                  bottom: -6,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(11),
+                        topRight: Radius.circular(28),
+                        bottomLeft: Radius.circular(28),
+                        bottomRight: Radius.circular(28),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: emotionAccent.withOpacity(presenceGlow),
+                          blurRadius: 28,
+                          spreadRadius: 4,
+                        ),
+                        BoxShadow(
+                          color: _kPurple.withOpacity(presenceGlow * 0.5),
+                          blurRadius: 18,
+                          spreadRadius: 2,
+                        ),
                       ],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _kPurple.withOpacity(0.14 * glowIntensity),
-                        blurRadius: 22,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
                   ),
-                  child: Text(
-                    msg.text,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.90),
-                      fontSize: 15,
-                      height: 1.65,
+                ),
+              // Rotating gradient glow border layer — tinted to emotion
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _AiGlowBorderPainter(
+                    rotation: rotation,
+                    intensity: glowIntensity,
+                    accentColor: emotionAccent,
+                  ),
+                ),
+              ),
+              // Bubble content
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(5),
+                  topRight: Radius.circular(22),
+                  bottomLeft: Radius.circular(22),
+                  bottomRight: Radius.circular(22),
+                ),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 15),
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(5),
+                        topRight: Radius.circular(22),
+                        bottomLeft: Radius.circular(22),
+                        bottomRight: Radius.circular(22),
+                      ),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          emotionAccent.withOpacity(isLatest ? 0.16 : 0.12),
+                          Colors.white.withOpacity(0.05),
+                          _kPurple.withOpacity(0.08),
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              emotionAccent.withOpacity(0.16 * glowIntensity),
+                          blurRadius: 22,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      msg.text,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.90),
+                        fontSize: 15,
+                        height: 1.65,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
-        );
-      },
+              // Single-fire shimmer reveal sweep
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 1500),
+                builder: (_, t, __) {
+                  if (t >= 0.98) return const SizedBox.shrink();
+                  final pos = Curves.easeInOut.transform(t);
+                  return Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(5),
+                        topRight: Radius.circular(22),
+                        bottomLeft: Radius.circular(22),
+                        bottomRight: Radius.circular(22),
+                      ),
+                      child: Opacity(
+                        opacity: (1.0 - t) * 0.70,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment(pos * 3.0 - 2.0, -0.5),
+                              end: Alignment(pos * 3.0 - 0.8, 0.5),
+                              colors: [
+                                Colors.transparent,
+                                Colors.white.withOpacity(0.22),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Shareable emotional card modal ─────────────────────────
+  void _showShareCard(BuildContext ctx, ChatMessage msg, Color accent) {
+    showDialog(
+      context: ctx,
+      barrierColor: Colors.black.withOpacity(0.75),
+      builder: (_) => _ShareCardDialog(message: msg, accentColor: accent),
     );
   }
 
@@ -1563,8 +2061,58 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     );
   }
 
-  // -- Typing indicator ----------------------------------------
+  // -- Typing indicator — Lunar presence feel ----------------
   Widget _typingBubble() {
+    final chat = context.read<ChatProvider>();
+    final dominantEmotion = chat.emotionalProfile.dominantEmotion;
+    // Emotionally contextual presence text — feels like Lunar is genuinely thinking
+    final thinkingPhrases = switch (dominantEmotion) {
+      EmotionTag.anxious => [
+          'Sending calming energy your way... 🌬️',
+          'I\'m here. Breathing with you... 💜',
+          'Holding you gently right now... 🌙',
+        ],
+      EmotionTag.sad => [
+          'Holding space for you... 🌙',
+          'I feel this with you... 💜',
+          'Taking a moment to be fully present... 🌸',
+        ],
+      EmotionTag.stressed => [
+          'Finding the gentlest words... 💜',
+          'Taking a breath before I respond... 🌿',
+          'I want to get this right for you... 🌙',
+        ],
+      EmotionTag.tired => [
+          'Speaking softly, just for you... 😴',
+          'Keeping this quiet and gentle... 🌙',
+          'I know you\'re tired. I\'m here... 💜',
+        ],
+      EmotionTag.happy => [
+          'Celebrating with you... ✨',
+          'Your joy is contagious... 🌟',
+          'This made me smile too... 🌸',
+        ],
+      EmotionTag.period => [
+          'Sending warmth and care... 🌸',
+          'I feel you. I\'m right here... 💜',
+          'Holding you extra gently tonight... 🌙',
+        ],
+      EmotionTag.lonely => [
+          'I\'m here with you... 🌙',
+          'You are not alone right now... 💜',
+          'Reaching for you across the quiet... 🌸',
+        ],
+      _ => [
+          'Lunar is with you... 🌙',
+          'I\'m here, fully present... 💜',
+          'Taking this in before I respond... ✨',
+        ],
+    };
+
+    // Cycle through phrases based on time for variety
+    final phrase = thinkingPhrases[
+        (DateTime.now().millisecond ~/ 333) % thinkingPhrases.length];
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
@@ -1572,76 +2120,113 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
         children: [
           _miniMoonAvatar(),
           const SizedBox(width: 8),
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(5),
-              topRight: Radius.circular(22),
-              bottomLeft: Radius.circular(22),
-              bottomRight: Radius.circular(22),
-            ),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
-                  border: Border.all(color: _kPink.withOpacity(0.22), width: 1),
+          AnimatedBuilder(
+            animation: Listenable.merge([_glowAnim, _typingCtrl]),
+            builder: (_, __) {
+              final glow = _glowAnim.value;
+              return ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(5),
+                  topRight: Radius.circular(22),
+                  bottomLeft: Radius.circular(22),
+                  bottomRight: Radius.circular(22),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 22, vertical: 14),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          _kPurple.withOpacity(0.14),
+                          _kPink.withOpacity(0.06),
+                          Colors.white.withOpacity(0.04),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      border: Border.all(
+                          color: _kPink.withOpacity(0.28 * glow), width: 1.1),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _kPurple.withOpacity(0.18 * glow),
+                          blurRadius: 18,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
-                      children: List.generate(3, (i) {
-                        return AnimatedBuilder(
-                          animation: _typingCtrl,
-                          builder: (_, __) {
-                            final t = (_typingCtrl.value + i * 0.22) % 1.0;
-                            final bounce = math.sin(t * math.pi) * -8.0;
-                            return Transform.translate(
-                              offset: Offset(0, bounce),
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 3),
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: _kPink.withOpacity(0.80),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: _kPink.withOpacity(0.55),
-                                      blurRadius: 6,
+                      children: [
+                        // Breathing dot trio
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: List.generate(3, (i) {
+                            return AnimatedBuilder(
+                              animation: _typingCtrl,
+                              builder: (_, __) {
+                                final t = (_typingCtrl.value + i * 0.25) % 1.0;
+                                final bounce = math.sin(t * math.pi) * -9.0;
+                                final opacity =
+                                    (0.45 + 0.55 * math.sin(t * math.pi))
+                                        .clamp(0.0, 1.0);
+                                return Opacity(
+                                  opacity: opacity,
+                                  child: Transform.translate(
+                                    offset: Offset(0, bounce),
+                                    child: Container(
+                                      margin: const EdgeInsets.symmetric(
+                                          horizontal: 3),
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: RadialGradient(colors: [
+                                          _kPink,
+                                          _kPurple.withOpacity(0.60),
+                                        ]),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: _kPink.withOpacity(0.65),
+                                            blurRadius: 7,
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                );
+                              },
+                            );
+                          }),
+                        ),
+                        const SizedBox(height: 7),
+                        // Shimmering presence text
+                        AnimatedBuilder(
+                          animation: _shimmerAnim,
+                          builder: (_, __) {
+                            final shimmer = (0.40 +
+                                    0.50 *
+                                        math.sin(
+                                            _shimmerAnim.value * math.pi * 2))
+                                .clamp(0.0, 1.0);
+                            return Text(
+                              phrase,
+                              style: TextStyle(
+                                color: _kPurple.withOpacity(shimmer),
+                                fontSize: 11,
+                                fontStyle: FontStyle.italic,
                               ),
                             );
                           },
-                        );
-                      }),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 6),
-                    AnimatedBuilder(
-                      animation: _shimmerAnim,
-                      builder: (_, __) {
-                        final shimmer = (0.35 +
-                                0.45 * math.sin(_shimmerAnim.value * math.pi * 2))
-                            .clamp(0.0, 1.0);
-                        return Text(
-                          'Lunar is with you... \u{1F319}',
-                          style: TextStyle(
-                            color: _kPurple.withOpacity(shimmer),
-                            fontSize: 10.5,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -1659,7 +2244,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
       if (phase == LunarCyclePhase.period) ('\u{1FA78}', 'Period support'),
       if (phase == LunarCyclePhase.luteal) ('\u{1F319}', 'I feel emotional'),
       if (phase == LunarCyclePhase.ovulation) ('\u2728', 'I feel amazing'),
-      if (phase == LunarCyclePhase.follicular) ('\u{1F331}', 'I feel energetic'),
+      if (phase == LunarCyclePhase.follicular)
+        ('\u{1F331}', 'I feel energetic'),
       if (lunarData.isPregnant) ('\u{1F930}', 'Pregnancy support'),
       ('\u{1F630}', 'I feel anxious'),
       ('\u{1F49C}', 'I need support'),
@@ -1679,19 +2265,19 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
         itemCount: actions.length,
         itemBuilder: (_, i) {
           final (emoji, label) = actions[i];
-          final isHighlighted = i == 0 && (
-            phase == LunarCyclePhase.period ||
-            phase == LunarCyclePhase.luteal ||
-            phase == LunarCyclePhase.ovulation ||
-            phase == LunarCyclePhase.follicular ||
-            lunarData.isPregnant
-          );
+          final isHighlighted = i == 0 &&
+              (phase == LunarCyclePhase.period ||
+                  phase == LunarCyclePhase.luteal ||
+                  phase == LunarCyclePhase.ovulation ||
+                  phase == LunarCyclePhase.follicular ||
+                  lunarData.isPregnant);
           return GestureDetector(
             onTapDown: (_) => setState(() => _tappedChipIdx = i),
             onTapUp: (_) {
               chat.sendQuickAction('$emoji $label', context);
-              Future.delayed(const Duration(milliseconds: 320),
-                  () { if (mounted) setState(() => _tappedChipIdx = -1); });
+              Future.delayed(const Duration(milliseconds: 320), () {
+                if (mounted) setState(() => _tappedChipIdx = -1);
+              });
             },
             onTapCancel: () => setState(() => _tappedChipIdx = -1),
             child: AnimatedBuilder(
@@ -1705,7 +2291,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                     duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOut,
                     margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(23),
                       color: isHighlighted || isTapped
@@ -1771,35 +2358,78 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
         AnimatedSize(
           duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
-          child: _showMediaOptions
-              ? _mediaOptionsRow()
-              : const SizedBox.shrink(),
+          child:
+              _showMediaOptions ? _mediaOptionsRow() : const SizedBox.shrink(),
         ),
 
-        // Voice transcript hint
+        // Voice transcript / waveform
         if (_isRecording)
           Padding(
-            padding: const EdgeInsets.only(left: 20, bottom: 4),
-            child: AnimatedBuilder(
-              animation: _shimmerAnim,
-              builder: (_, __) {
-                final pulse = (0.4 +
-                        0.5 *
-                            math.sin(_shimmerAnim.value * math.pi * 2))
-                    .clamp(0.0, 1.0);
-                return Text(
-                  _voiceText.isNotEmpty
-                      ? '"$_voiceText"'
-                      : 'Listening... 🎙️',
-                  style: TextStyle(
-                    color: _kPink.withOpacity(pulse),
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
+            padding: const EdgeInsets.only(left: 20, bottom: 4, right: 20),
+            child: Row(
+              children: [
+                // Animated waveform bars
+                AnimatedBuilder(
+                  animation: _waveCtrl,
+                  builder: (_, __) {
+                    const barCount = 7;
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: List.generate(barCount, (i) {
+                        final phase = i / barCount;
+                        final t = (_waveCtrl.value + phase) % 1.0;
+                        final height = 6.0 + 14.0 * math.sin(t * math.pi).abs();
+                        return Container(
+                          width: 3.5,
+                          height: height,
+                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(2),
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [
+                                _kPink.withOpacity(0.55),
+                                _kPurple,
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _kPink.withOpacity(0.40),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    );
+                  },
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: AnimatedBuilder(
+                    animation: _shimmerAnim,
+                    builder: (_, __) {
+                      final pulse = (0.4 +
+                              0.5 * math.sin(_shimmerAnim.value * math.pi * 2))
+                          .clamp(0.0, 1.0);
+                      return Text(
+                        _voiceText.isNotEmpty
+                            ? '"$_voiceText"'
+                            : 'Listening to you... 🎙️',
+                        style: TextStyle(
+                          color: _kPink.withOpacity(pulse),
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      );
+                    },
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                );
-              },
+                ),
+              ],
             ),
           ),
 
@@ -1811,8 +2441,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
             builder: (_, __) {
               final baseOpacity = 0.30 * _glowAnim.value;
               final focusExtra = 0.55 * _focusAnim.value;
-              final borderColor =
-                  _kPurple.withOpacity((baseOpacity + focusExtra).clamp(0.0, 1.0));
+              final borderColor = _kPurple
+                  .withOpacity((baseOpacity + focusExtra).clamp(0.0, 1.0));
               final blurRadius = 12.0 + 14.0 * _focusAnim.value;
               return ClipRRect(
                 borderRadius: BorderRadius.circular(30),
@@ -1828,8 +2458,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                       boxShadow: [
                         BoxShadow(
                           color: _kPurple.withOpacity(
-                              0.10 * _glowAnim.value +
-                                  0.22 * _focusAnim.value),
+                              0.10 * _glowAnim.value + 0.22 * _focusAnim.value),
                           blurRadius: blurRadius,
                           spreadRadius: _isFocused ? 1 : 0,
                         ),
@@ -1989,9 +2618,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
-                    colors: _isRecording
-                        ? [_kPink, _kPurple]
-                        : [_kDeep, _kPurple],
+                    colors:
+                        _isRecording ? [_kPink, _kPurple] : [_kDeep, _kPurple],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -2063,14 +2691,29 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   // -- Media options expansion row ----------------------------
   Widget _mediaOptionsRow() {
     final options = [
-      (Icons.photo_library_rounded, 'Gallery', _kPurple, () => _pickImage(ImageSource.gallery)),
-      (Icons.camera_alt_rounded, 'Camera', _kPink, () => _pickImage(ImageSource.camera)),
+      (
+        Icons.photo_library_rounded,
+        'Gallery',
+        _kPurple,
+        () => _pickImage(ImageSource.gallery)
+      ),
+      (
+        Icons.camera_alt_rounded,
+        'Camera',
+        _kPink,
+        () => _pickImage(ImageSource.camera)
+      ),
       (Icons.videocam_rounded, 'Video', const Color(0xFF7986CB), _pickVideo),
-      (Icons.description_rounded, 'File', const Color(0xFF4FC3F7), () async {
-        // Document picker — show a soft message (full doc picker needs another package)
-        setState(() => _showMediaOptions = false);
-        _mediaFabCtrl.reverse();
-      }),
+      (
+        Icons.description_rounded,
+        'File',
+        const Color(0xFF4FC3F7),
+        () async {
+          // Document picker — show a soft message (full doc picker needs another package)
+          setState(() => _showMediaOptions = false);
+          _mediaFabCtrl.reverse();
+        }
+      ),
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
@@ -2157,8 +2800,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                     width: 48,
                     height: 48,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        _pendingMediaIcon(type),
+                    errorBuilder: (_, __, ___) => _pendingMediaIcon(type),
                   )
                 : _pendingMediaIcon(type),
           ),
@@ -2307,8 +2949,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
           const Spacer(),
           if (cfg != null) ...[
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 color: (cfg['color'] as Color).withOpacity(0.14),
@@ -2362,19 +3003,18 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   /// Returns an emotion-aware accent color for the orb.
   Color _getEmotionOrbAccent(EmotionTag? tag) => switch (tag) {
         EmotionTag.anxious => const Color(0xFF4FC3F7), // calming blue-teal
-        EmotionTag.sad => const Color(0xFF7986CB),     // deep indigo
+        EmotionTag.sad => const Color(0xFF7986CB), // deep indigo
         EmotionTag.stressed => const Color(0xFF9575CD), // muted violet
-        EmotionTag.lonely => const Color(0xFFB39DDB),  // soft lavender
-        EmotionTag.tired => const Color(0xFF78909C),   // grey-blue
-        EmotionTag.happy => const Color(0xFFFFD700),   // warm gold
-        EmotionTag.energetic => _kPink,               // vibrant pink
+        EmotionTag.lonely => const Color(0xFFB39DDB), // soft lavender
+        EmotionTag.tired => const Color(0xFF78909C), // grey-blue
+        EmotionTag.happy => const Color(0xFFFFD700), // warm gold
+        EmotionTag.energetic => _kPink, // vibrant pink
         EmotionTag.period => const Color(0xFFB05C8A), // warm rose
         EmotionTag.emotional => const Color(0xFFCE93D8), // soft lilac
         _ => _kPurple,
       };
 
-  Widget _heroOrb(
-      ChatProvider chat, LunarDataProvider lunarData, Size size) {
+  Widget _heroOrb(ChatProvider chat, LunarDataProvider lunarData, Size size) {
     final phase = lunarData.currentPhase;
     final cfg = _kPhaseConfig[phase];
     // Blend phase colour with emotional accent for living, reactive orb
@@ -2409,8 +3049,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                           height: 140 + pv * 78,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(
-                                color: orbColor, width: 1.2),
+                            border: Border.all(color: orbColor, width: 1.2),
                           ),
                         ),
                       );
@@ -2506,10 +3145,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
       displayText = 'Feeling your energy... \u2728';
     } else if (_insightIdx == 0 && hasMemory) {
       // First rotation: show personalised greeting (single line from full greeting)
-      displayText = chat.generateGreeting(app.userName)
-          .split('\n\n')
-          .last
-          .trim();
+      displayText =
+          chat.generateGreeting(app.userName).split('\n\n').last.trim();
     } else {
       displayText = _kInsights[_insightIdx % _kInsights.length];
     }
@@ -2519,14 +3156,13 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 650),
         transitionBuilder: (child, anim) => FadeTransition(
-          opacity:
-              CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
           child: SlideTransition(
             position: Tween<Offset>(
               begin: const Offset(0, 0.30),
               end: Offset.zero,
-            ).animate(CurvedAnimation(
-                parent: anim, curve: Curves.easeOutCubic)),
+            ).animate(
+                CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
             child: child,
           ),
         ),
@@ -2549,8 +3185,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   // ===========================================================
   //  AI MEMORY INSIGHT CARD
   // ===========================================================
-  Widget _memoryInsightCard(
-      ChatProvider chat, LunarDataProvider lunarData) {
+  Widget _memoryInsightCard(ChatProvider chat, LunarDataProvider lunarData) {
     final insight = _getMemoryInsight(chat, lunarData);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -2561,8 +3196,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 18, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 gradient: LinearGradient(
@@ -2588,8 +3222,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                       color: _kPurple.withOpacity(0.18),
                     ),
                     child: const Center(
-                      child: Text('\ud83d\udcad',
-                          style: TextStyle(fontSize: 18)),
+                      child:
+                          Text('\ud83d\udcad', style: TextStyle(fontSize: 18)),
                     ),
                   ),
                   const SizedBox(width: 13),
@@ -2638,14 +3272,15 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
       EmotionTag.stressed => 'No rush, no pressure here \ud83c\udf19',
       EmotionTag.lonely => 'You\'re never alone here \ud83d\udc9c',
       EmotionTag.tired => 'Rest deeply here \ud83c\udf19',
-      EmotionTag.happy || EmotionTag.energetic => 'Your light is beautiful \u2728',
+      EmotionTag.happy ||
+      EmotionTag.energetic =>
+        'Your light is beautiful \u2728',
       EmotionTag.period => 'Be gentle with yourself today \ud83c\udf38',
       _ => 'Your emotional sanctuary',
     };
   }
 
-  String _getMemoryInsight(
-      ChatProvider chat, LunarDataProvider lunarData) {
+  String _getMemoryInsight(ChatProvider chat, LunarDataProvider lunarData) {
     final profile = chat.emotionalProfile;
     final days = profile.daysSinceLastVisit;
     final phase = lunarData.currentPhase;
@@ -2775,8 +3410,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                         boxShadow: isActive
                             ? [
                                 BoxShadow(
-                                  color: color
-                                      .withOpacity(0.40 * _glowAnim.value),
+                                  color:
+                                      color.withOpacity(0.40 * _glowAnim.value),
                                   blurRadius: 16,
                                   spreadRadius: 2,
                                 ),
@@ -2785,21 +3420,18 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                       ),
                       child: Center(
                         child: Text(emoji,
-                            style: TextStyle(
-                                fontSize: isActive ? 22 : 17)),
+                            style: TextStyle(fontSize: isActive ? 22 : 17)),
                       ),
                     ),
                     const SizedBox(height: 5),
                     AnimatedDefaultTextStyle(
                       duration: const Duration(milliseconds: 280),
                       style: TextStyle(
-                        color: isActive
-                            ? color
-                            : Colors.white.withOpacity(0.28),
+                        color:
+                            isActive ? color : Colors.white.withOpacity(0.28),
                         fontSize: 9.5,
-                        fontWeight: isActive
-                            ? FontWeight.w700
-                            : FontWeight.w400,
+                        fontWeight:
+                            isActive ? FontWeight.w700 : FontWeight.w400,
                         height: 1.3,
                       ),
                       child: Text(label, textAlign: TextAlign.center),
@@ -2841,8 +3473,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: _kSanctuaryActions.length,
             itemBuilder: (_, i) {
-              final (emoji, label, color, prompt) =
-                  _kSanctuaryActions[i];
+              final (emoji, label, color, prompt) = _kSanctuaryActions[i];
               return GestureDetector(
                 onTap: () {
                   HapticFeedback.selectionClick();
@@ -2867,21 +3498,18 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                         end: Alignment.bottomRight,
                       ),
                       border: Border.all(
-                        color:
-                            color.withOpacity(0.36 * _glowAnim.value),
+                        color: color.withOpacity(0.36 * _glowAnim.value),
                         width: 1,
                       ),
                       boxShadow: [
                         BoxShadow(
-                            color: color.withOpacity(0.12),
-                            blurRadius: 12),
+                            color: color.withOpacity(0.12), blurRadius: 12),
                       ],
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(emoji,
-                            style: const TextStyle(fontSize: 26)),
+                        Text(emoji, style: const TextStyle(fontSize: 26)),
                         const SizedBox(height: 8),
                         Text(
                           label,
@@ -3015,8 +3643,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: _kPurple.withOpacity(
-                          0.52 + 0.26 * _glowAnim.value),
+                      color:
+                          _kPurple.withOpacity(0.52 + 0.26 * _glowAnim.value),
                       blurRadius: 28,
                       spreadRadius: 2,
                       offset: const Offset(0, 4),
@@ -3031,8 +3659,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.auto_awesome,
-                          color: Colors.white, size: 20),
+                      Icon(Icons.auto_awesome, color: Colors.white, size: 20),
                       SizedBox(width: 10),
                       Text(
                         'Talk to Lunar',
@@ -3060,14 +3687,16 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
 // ===========================================================
 
 class _AiGlowBorderPainter extends CustomPainter {
-  final double rotation;   // 0.0 → 1.0, drives sweep startAngle
-  final double intensity;  // 0.0 → 1.0, drives opacity
+  final double rotation; // 0.0 → 1.0, drives sweep startAngle
+  final double intensity; // 0.0 → 1.0, drives opacity
+  final Color accentColor; // emotion-reactive accent
 
   static const _br = 22.0; // border-radius value (matches bubble)
 
   const _AiGlowBorderPainter({
     required this.rotation,
     required this.intensity,
+    this.accentColor = const Color(0xFFAB5CF2),
   });
 
   @override
@@ -3080,29 +3709,26 @@ class _AiGlowBorderPainter extends CustomPainter {
       bottomRight: const Radius.circular(_br),
     );
 
-    // ── Rotating sweep gradient border ──────────────────────
-    // The SweepGradient startAngle rotates, creating a glowing
-    // spot that travels elegantly around the bubble edge.
+    // ── Rotating sweep gradient border — emotion-aware ──────
     final angle = rotation * math.pi * 2;
     final sweepGrad = SweepGradient(
       startAngle: angle,
       endAngle: angle + math.pi * 2,
-      colors: const [
+      colors: [
         Colors.transparent,
-        Color(0xFF5C1A99),          // deep purple lead-in
-        Color(0xFFAB5CF2),          // bright purple
-        Color(0xFFFF69B4),          // pink
-        Color(0xFF7EC8E3),          // moon blue
-        Color(0xFFD4AAFF),          // soft lavender
+        accentColor.withOpacity(0.45),
+        const Color(0xFFFF69B4),
+        accentColor,
+        const Color(0xFFD4AAFF),
         Colors.transparent,
         Colors.transparent,
       ],
-      stops: const [0.0, 0.05, 0.18, 0.38, 0.55, 0.68, 0.76, 1.0],
+      stops: const [0.0, 0.05, 0.22, 0.42, 0.62, 0.75, 1.0],
     );
 
     final glowPaint = Paint()
-      ..shader = sweepGrad.createShader(
-          Rect.fromLTWH(0, 0, size.width, size.height))
+      ..shader =
+          sweepGrad.createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.8
       ..maskFilter =
@@ -3110,9 +3736,9 @@ class _AiGlowBorderPainter extends CustomPainter {
 
     canvas.drawRRect(rrect, glowPaint);
 
-    // ── Ambient outer halo (always-on, very subtle) ─────────
+    // ── Ambient outer halo — emotion-tinted ─────────────────
     final haloPaint = Paint()
-      ..color = const Color(0xFFAB5CF2).withOpacity(0.10 * intensity)
+      ..color = accentColor.withOpacity(0.12 * intensity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
@@ -3121,7 +3747,9 @@ class _AiGlowBorderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_AiGlowBorderPainter old) =>
-      old.rotation != rotation || old.intensity != intensity;
+      old.rotation != rotation ||
+      old.intensity != intensity ||
+      old.accentColor != accentColor;
 }
 
 // ===========================================================
@@ -3205,32 +3833,39 @@ class _AIBg extends StatelessWidget {
       child: Stack(
         children: [
           Positioned(
-            top: -65, left: -50,
+            top: -65,
+            left: -50,
             child: _blob(300, const Color(0xFF9B59B6), 0.28),
           ),
           Positioned(
-            top: 75, right: -65,
+            top: 75,
+            right: -65,
             child: _blob(255, const Color(0xFFE91E8C), 0.14),
           ),
           Positioned(
-            top: size.height * 0.42, left: size.width * 0.45,
+            top: size.height * 0.42,
+            left: size.width * 0.45,
             child: _blob(265, const Color(0xFF7B2FF7), 0.12),
           ),
           Positioned(
-            bottom: 55, left: -60,
+            bottom: 55,
+            left: -60,
             child: _blob(295, const Color(0xFF6C3FC8), 0.18),
           ),
           Positioned(
-            bottom: 0, right: -40,
+            bottom: 0,
+            right: -40,
             child: _blob(245, const Color(0xFFFF69B4), 0.10),
           ),
           // Soft central nebula glow for depth
           Positioned(
-            top: size.height * 0.25, left: size.width * 0.15,
+            top: size.height * 0.25,
+            left: size.width * 0.15,
             child: _blob(200, const Color(0xFFAB5CF2), 0.09),
           ),
           Positioned(
-            top: size.height * 0.60, left: size.width * 0.30,
+            top: size.height * 0.60,
+            left: size.width * 0.30,
             child: _blob(180, const Color(0xFFFF69B4), 0.07),
           ),
           // Moon haze — upper center atmospheric glow
@@ -3340,15 +3975,14 @@ class _OrbAuraPainter extends CustomPainter {
     final cx = size.width / 2;
     final cy = size.height / 2;
     final boost = isActive ? 1.4 : 1.0;
-    _drawSegmentedRing(canvas, cx, cy, 82,
-        progress * math.pi * 2, color, 0.38 * glowIntensity * boost, 6);
-    _drawSegmentedRing(canvas, cx, cy, 98,
-        -progress * math.pi * 1.4, _kPink, 0.22 * glowIntensity * boost, 4);
+    _drawSegmentedRing(canvas, cx, cy, 82, progress * math.pi * 2, color,
+        0.38 * glowIntensity * boost, 6);
+    _drawSegmentedRing(canvas, cx, cy, 98, -progress * math.pi * 1.4, _kPink,
+        0.22 * glowIntensity * boost, 4);
   }
 
-  void _drawSegmentedRing(Canvas canvas, double cx, double cy,
-      double radius, double startAngle, Color col, double opacity,
-      int segments) {
+  void _drawSegmentedRing(Canvas canvas, double cx, double cy, double radius,
+      double startAngle, Color col, double opacity, int segments) {
     final paint = Paint()
       ..color = col.withOpacity(opacity.clamp(0.0, 1.0))
       ..style = PaintingStyle.stroke
@@ -3371,4 +4005,229 @@ class _OrbAuraPainter extends CustomPainter {
       old.progress != progress ||
       old.glowIntensity != glowIntensity ||
       old.isActive != isActive;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SHAREABLE EMOTIONAL CARD — "Lunar understood me today"
+//  Long-press any AI message to unlock this beautiful card.
+// ═══════════════════════════════════════════════════════════
+class _ShareCardDialog extends StatefulWidget {
+  final ChatMessage message;
+  final Color accentColor;
+  const _ShareCardDialog({required this.message, required this.accentColor});
+
+  @override
+  State<_ShareCardDialog> createState() => _ShareCardDialogState();
+}
+
+class _ShareCardDialogState extends State<_ShareCardDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _fadeAnim;
+  late Animation<double> _scaleAnim;
+  bool _copied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 480));
+    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _scaleAnim = Tween<double>(begin: 0.88, end: 1.0)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  String get _shareText =>
+      '"${widget.message.text}"\n\n— Lunar AI 🌙\nYour emotional wellness companion';
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.accentColor;
+
+    return BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+      child: FadeTransition(
+        opacity: _fadeAnim,
+        child: ScaleTransition(
+          scale: _scaleAnim,
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 22, vertical: 40),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Card ──────────────────────────────────────
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(28),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFF0A0118),
+                          accent.withOpacity(0.18),
+                          const Color(0xFF1A0535),
+                        ],
+                      ),
+                      border: Border.all(
+                          color: accent.withOpacity(0.45), width: 1.5),
+                    ),
+                    padding: const EdgeInsets.all(28),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Row(children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(colors: [
+                                accent.withOpacity(0.7),
+                                Colors.transparent,
+                              ]),
+                            ),
+                            child: const Center(
+                                child:
+                                    Text('🌙', style: TextStyle(fontSize: 18))),
+                          ),
+                          const SizedBox(width: 10),
+                          Text('Lunar',
+                              style: TextStyle(
+                                  color: accent,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700)),
+                          const Spacer(),
+                          Text(
+                            _todayLabel(),
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.35),
+                                fontSize: 11),
+                          ),
+                        ]),
+                        const SizedBox(height: 20),
+                        // Quote
+                        Text(
+                          '"${widget.message.text}"',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.88),
+                            fontSize: 15,
+                            height: 1.65,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        Divider(color: accent.withOpacity(0.20)),
+                        const SizedBox(height: 12),
+                        Row(children: [
+                          Text('Lunar AI  🌙',
+                              style: TextStyle(
+                                  color: Colors.white.withOpacity(0.40),
+                                  fontSize: 11.5)),
+                          const Spacer(),
+                          Text('Your emotional wellness companion',
+                              style: TextStyle(
+                                  color: accent.withOpacity(0.55),
+                                  fontSize: 10.5,
+                                  fontStyle: FontStyle.italic)),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // ── Action row ────────────────────────────────
+                Row(children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        Clipboard.setData(ClipboardData(text: _shareText));
+                        setState(() => _copied = true);
+                        Future.delayed(const Duration(seconds: 2), () {
+                          if (mounted) setState(() => _copied = false);
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          gradient: LinearGradient(colors: [
+                            _copied
+                                ? const Color(0xFF66BB6A).withOpacity(0.6)
+                                : accent.withOpacity(0.55),
+                            accent.withOpacity(0.30),
+                          ]),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _copied ? '✓ Copied' : '📋 Copy Card',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        color: Colors.white.withOpacity(0.07),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.12)),
+                      ),
+                      child: Text('Close',
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.6),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13)),
+                    ),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _todayLabel() {
+    final now = DateTime.now();
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return '${months[now.month - 1]} ${now.day}, ${now.year}';
+  }
 }

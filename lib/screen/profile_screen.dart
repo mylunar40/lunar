@@ -10,11 +10,15 @@ import 'package:provider/provider.dart';
 import '../core/providers/auth_provider.dart';
 import '../core/providers/lunar_data_provider.dart';
 import '../core/providers/app_provider.dart';
+import '../core/providers/chat_provider.dart';
+import '../core/models/chat_message.dart' show EmotionTag;
 import '../core/services/firestore_service.dart';
 import '../widgets/guest_gate.dart';
 import '../models/avatar_model.dart';
 import '../core/providers/avatar_provider.dart';
 import '../widgets/lunar_avatar_widget.dart';
+import '../services/streak_service.dart';
+import '../services/relationship_service.dart';
 import 'avatar/avatar_builder_screen.dart';
 
 // ═══════════════════════════════════════════════════════════
@@ -352,6 +356,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     final auth = Provider.of<LunarAuthProvider>(context);
     final lunarData = Provider.of<LunarDataProvider>(context);
     final appProvider = Provider.of<AppProvider>(context);
+    final chat = Provider.of<ChatProvider>(context, listen: false);
     final size = MediaQuery.of(context).size;
     final theme = _kThemes[_selectedTheme];
     final moodStreak = _moodStreak(lunarData);
@@ -395,6 +400,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                         const SizedBox(height: 14),
                         _wellnessStatsRow(lunarData, wellnessScore),
                         const SizedBox(height: 28),
+                        _sectionLabel('Your Lunar Bond', '🌙'),
+                        const SizedBox(height: 14),
+                        _relationshipCard(),
+                        const SizedBox(height: 28),
+                        _sectionLabel('Emotional Journey', '💜'),
+                        const SizedBox(height: 14),
+                        _emotionalJourneyTimeline(chat),
+                        const SizedBox(height: 28),
                         _sectionLabel('Your Journey', '🌸'),
                         const SizedBox(height: 14),
                         _statsRow(lunarData, wellnessScore),
@@ -402,6 +415,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                         _sectionLabel('Streaks', '🔥'),
                         const SizedBox(height: 14),
                         _streakCards(lunarData, moodStreak, journalStreak),
+                        const SizedBox(height: 28),
+                        _sectionLabel('Healing Milestones', '🌙'),
+                        const SizedBox(height: 14),
+                        _healingMilestonesSection(),
                         const SizedBox(height: 28),
                         _sectionLabel('Healing Journey', '🌿'),
                         const SizedBox(height: 14),
@@ -1135,6 +1152,538 @@ class _ProfileScreenState extends State<ProfileScreen>
                           fontWeight: FontWeight.w700)),
                 ]),
               ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────
+  //  LUNAR BOND CARD — Relationship depth visualization
+  // ──────────────────────────────────────────────────────────
+  Widget _relationshipCard() {
+    final rel = RelationshipService.current();
+    final level = rel.level;
+    final accent = level.color;
+
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  accent.withOpacity(0.20),
+                  accent.withOpacity(0.10),
+                  Colors.white.withOpacity(0.03),
+                ],
+              ),
+              border: Border.all(
+                  color: accent.withOpacity(0.40 * _glowAnim.value),
+                  width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                    color: accent.withOpacity(0.15 * _glowAnim.value),
+                    blurRadius: 24,
+                    spreadRadius: 2)
+              ],
+            ),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                // Level orb
+                AnimatedBuilder(
+                  animation: _pulseAnim,
+                  builder: (_, __) => Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(colors: [
+                        accent.withOpacity(0.65 * _pulseAnim.value),
+                        accent.withOpacity(0.20),
+                        Colors.transparent,
+                      ]),
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withOpacity(0.35 * _pulseAnim.value),
+                          blurRadius: 16,
+                          spreadRadius: 3,
+                        )
+                      ],
+                    ),
+                    child: Center(
+                        child: Text(level.emoji,
+                            style: const TextStyle(fontSize: 24))),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(level.title,
+                          style: TextStyle(
+                              color: accent,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 4),
+                      Text('${rel.totalMessages} conversations with Lunar',
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.42),
+                              fontSize: 11.5)),
+                    ])),
+              ]),
+              const SizedBox(height: 16),
+              Text(level.description,
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.68),
+                      fontSize: 13,
+                      fontStyle: FontStyle.italic,
+                      height: 1.5)),
+              const SizedBox(height: 14),
+              // Progress to next level
+              if (level != RelationshipLevel.deepBond) ...[
+                Row(children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: rel.levelProgress,
+                        minHeight: 5,
+                        backgroundColor: Colors.white.withOpacity(0.08),
+                        valueColor: AlwaysStoppedAnimation<Color>(accent),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${(rel.levelProgress * 100).toInt()}%',
+                    style: TextStyle(
+                        color: accent.withOpacity(0.72),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ]),
+                const SizedBox(height: 6),
+                Text(
+                  'Growing toward: ${_nextLevelName(level)}',
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.30), fontSize: 10.5),
+                ),
+              ] else ...[
+                Text('You have reached the deepest bond 🌕',
+                    style: TextStyle(
+                        color: _prGold.withOpacity(0.72),
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic)),
+              ],
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _nextLevelName(RelationshipLevel current) => const {
+        RelationshipLevel.newConnection: 'Growing Together',
+        RelationshipLevel.growingTogether: 'Trusted Companion',
+        RelationshipLevel.trustedCompanion: 'Soul Bond',
+        RelationshipLevel.soulBond: 'Deep Bond',
+        RelationshipLevel.deepBond: '',
+      }[current]!;
+
+  // ──────────────────────────────────────────────────────────
+  //  EMOTIONAL JOURNEY TIMELINE — 7-day emotion visualization
+  // ──────────────────────────────────────────────────────────
+  Widget _emotionalJourneyTimeline(ChatProvider chat) {
+    final emotions = chat.emotionalProfile.recentEmotions;
+    final display = emotions.length > 10
+        ? emotions.sublist(emotions.length - 10)
+        : emotions;
+
+    // Color per emotion tag
+    Color _emotionColor(EmotionTag? t) => switch (t) {
+          EmotionTag.happy => const Color(0xFFFFD700),
+          EmotionTag.energetic => const Color(0xFF66BB6A),
+          EmotionTag.anxious => const Color(0xFF4FC3F7),
+          EmotionTag.sad => const Color(0xFF7986CB),
+          EmotionTag.stressed => const Color(0xFF9C27B0),
+          EmotionTag.lonely => const Color(0xFFAB5CF2),
+          EmotionTag.tired => const Color(0xFF5C6BC0),
+          EmotionTag.emotional => const Color(0xFFFF69B4),
+          EmotionTag.period => const Color(0xFFB05C8A),
+          _ => const Color(0xFFAB5CF2),
+        };
+
+    String _emotionEmoji(EmotionTag? t) => switch (t) {
+          EmotionTag.happy => '😊',
+          EmotionTag.energetic => '✨',
+          EmotionTag.anxious => '🌬️',
+          EmotionTag.sad => '🌧️',
+          EmotionTag.stressed => '🌩️',
+          EmotionTag.lonely => '🌙',
+          EmotionTag.tired => '😴',
+          EmotionTag.emotional => '💜',
+          EmotionTag.period => '🌸',
+          _ => '🌙',
+        };
+
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  _prPurple.withOpacity(0.14),
+                  _prPink.withOpacity(0.08),
+                  Colors.white.withOpacity(0.03),
+                ],
+              ),
+              border: Border.all(
+                  color: _prPurple.withOpacity(0.25 * _glowAnim.value),
+                  width: 1.0),
+            ),
+            child: display.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'Your emotional journey will appear here as you talk with Lunar 🌙',
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.40),
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                          height: 1.5),
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                        Text('Recent Emotional Moments',
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.50),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.3)),
+                        const SizedBox(height: 14),
+                        // Emotion orb row
+                        Wrap(spacing: 10, runSpacing: 10, children: [
+                          ...display.map((emotion) {
+                            final col = _emotionColor(emotion);
+                            final emoji = _emotionEmoji(emotion);
+                            return AnimatedBuilder(
+                              animation: _pulseAnim,
+                              builder: (_, __) => Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: RadialGradient(colors: [
+                                    col.withOpacity(0.60 * _pulseAnim.value),
+                                    col.withOpacity(0.18),
+                                    Colors.transparent,
+                                  ]),
+                                  border: Border.all(
+                                      color: col.withOpacity(0.45), width: 1.2),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: col
+                                          .withOpacity(0.22 * _pulseAnim.value),
+                                      blurRadius: 10,
+                                      spreadRadius: 1,
+                                    )
+                                  ],
+                                ),
+                                child: Center(
+                                    child: Text(emoji,
+                                        style: const TextStyle(fontSize: 18))),
+                              ),
+                            );
+                          }),
+                        ]),
+                        const SizedBox(height: 14),
+                        // Trajectory summary
+                        _buildTrajectoryPill(
+                            chat.emotionalProfile.emotionalTrajectory),
+                        const SizedBox(height: 16),
+                        // Healing arc — soft gradient line showing trend direction
+                        _buildHealingArc(display, _emotionColor),
+                        const SizedBox(height: 14),
+                        // Growth story — 1-2 sentence emotional reflection
+                        _buildGrowthStory(chat),
+                      ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrajectoryPill(String trajectory) {
+    final (label, emoji, color) = switch (trajectory) {
+      'improving' => ('Growing stronger', '↑', const Color(0xFF66BB6A)),
+      'declining' => ('Tender moments', '↓', const Color(0xFF7986CB)),
+      'stable' => ('Steady & grounded', '~', const Color(0xFFAB5CF2)),
+      _ => ('Journey unfolding', '🌙', const Color(0xFFAB5CF2)),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: color.withOpacity(0.12),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(emoji,
+            style: TextStyle(
+                color: color, fontSize: 12, fontWeight: FontWeight.w700)),
+        const SizedBox(width: 6),
+        Text(label,
+            style: TextStyle(
+                color: color, fontSize: 11.5, fontWeight: FontWeight.w600)),
+      ]),
+    );
+  }
+
+  /// Soft curved gradient arc beneath emotion orbs — shows healing direction.
+  Widget _buildHealingArc(
+      List<EmotionTag> emotions, Color Function(EmotionTag?) colorFn) {
+    if (emotions.length < 2) return const SizedBox.shrink();
+
+    // Build gradient stops based on emotion sequence
+    final colors = emotions.map((e) => colorFn(e).withOpacity(0.55)).toList();
+
+    return SizedBox(
+      height: 8,
+      child: AnimatedBuilder(
+        animation: _glowAnim,
+        builder: (_, __) => Container(
+          height: 3,
+          margin: const EdgeInsets.only(top: 2.5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            gradient: LinearGradient(
+              colors:
+                  colors.length >= 2 ? colors : [colors.first, colors.first],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: colors.last.withOpacity(0.50 * _glowAnim.value),
+                blurRadius: 8,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 1–2 sentence emotional reflection based on recent trajectory.
+  Widget _buildGrowthStory(ChatProvider chat) {
+    final profile = chat.emotionalProfile;
+    final trajectory = profile.emotionalTrajectory;
+    final dominant = profile.dominantEmotion;
+
+    final String story;
+    if (trajectory == 'improving') {
+      story =
+          'Something is shifting in you. The way you carry yourself lately... it\'s softer. More at peace. That growth is real.';
+    } else if (trajectory == 'declining') {
+      story =
+          'You\'re moving through something tender right now. That takes courage you might not even realise you have. Lunar sees it.';
+    } else if (dominant == EmotionTag.anxious ||
+        dominant == EmotionTag.stressed) {
+      story =
+          'There\'s a lot on your heart these days. You don\'t have to carry all of it at once. One breath. One moment. That\'s enough.';
+    } else if (dominant == EmotionTag.happy ||
+        dominant == EmotionTag.energetic) {
+      story =
+          'There\'s a light in you lately that feels earned. Like joy you grew into rather than stumbled upon. Hold onto it.';
+    } else if (dominant == EmotionTag.sad || dominant == EmotionTag.lonely) {
+      story =
+          'Even in the quiet, heavy moments — you kept coming back. That\'s not nothing. That\'s everything.';
+    } else {
+      story =
+          'Your emotional journey is unfolding in its own time. Every feeling you\'ve brought here has been held with care.';
+    }
+
+    return Text(
+      story,
+      style: TextStyle(
+        color: Colors.white.withOpacity(0.55),
+        fontSize: 12.5,
+        fontStyle: FontStyle.italic,
+        height: 1.55,
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────
+  //  HEALING MILESTONES — Emotional streak achievements
+  // ──────────────────────────────────────────────────────────
+  Widget _healingMilestonesSection() {
+    final streakData = StreakService.current();
+    final allMilestones = StreakService.allMilestones;
+    final earnedIds = streakData.earned.map((m) => m.id).toSet();
+
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  _prGold.withOpacity(0.12),
+                  _prPurple.withOpacity(0.12),
+                  Colors.white.withOpacity(0.03),
+                ],
+              ),
+              border: Border.all(
+                  color: _prGold.withOpacity(0.28 * _glowAnim.value),
+                  width: 1.2),
+            ),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Streak summary row
+              Row(children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(colors: [
+                      _prGold.withOpacity(0.55 * _glowAnim.value),
+                      _prPurple.withOpacity(0.3),
+                      Colors.transparent,
+                    ]),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _prGold.withOpacity(0.3 * _glowAnim.value),
+                        blurRadius: 14,
+                        spreadRadius: 2,
+                      )
+                    ],
+                  ),
+                  child: Center(
+                      child: Text(
+                    streakData.current >= 30
+                        ? '🌕'
+                        : streakData.current >= 14
+                            ? '💜'
+                            : streakData.current >= 7
+                                ? '🌙'
+                                : streakData.current >= 3
+                                    ? '✨'
+                                    : '🌱',
+                    style: const TextStyle(fontSize: 22),
+                  )),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(
+                          streakData.current == 0
+                              ? 'Begin your healing journey'
+                              : streakData.current == 1
+                                  ? 'Night 1 — the journey begins'
+                                  : '${streakData.current} nights of healing',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 3),
+                      Text(
+                          'Longest: ${streakData.longest} nights · Total: ${streakData.totalDays} days',
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.45),
+                              fontSize: 11.5)),
+                    ])),
+              ]),
+              const SizedBox(height: 18),
+              // Milestone badges
+              Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: allMilestones.map((m) {
+                    final earned = earnedIds.contains(m.id);
+                    return AnimatedOpacity(
+                      opacity: earned ? 1.0 : 0.35,
+                      duration: const Duration(milliseconds: 300),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: earned
+                              ? LinearGradient(colors: [
+                                  _prGold.withOpacity(0.28),
+                                  _prPurple.withOpacity(0.18),
+                                ])
+                              : null,
+                          color: earned ? null : Colors.white.withOpacity(0.04),
+                          border: Border.all(
+                              color: earned
+                                  ? _prGold.withOpacity(0.55)
+                                  : Colors.white.withOpacity(0.10),
+                              width: 1.0),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text(
+                              m.emoji.length <= 2
+                                  ? m.emoji
+                                  : m.emoji.substring(0, 2),
+                              style: const TextStyle(fontSize: 16)),
+                          const SizedBox(width: 7),
+                          Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(m.title,
+                                    style: TextStyle(
+                                        color: earned
+                                            ? Colors.white
+                                            : Colors.white.withOpacity(0.42),
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600)),
+                                Text('${m.requiredStreak} nights',
+                                    style: TextStyle(
+                                        color: Colors.white.withOpacity(0.30),
+                                        fontSize: 10)),
+                              ]),
+                          if (!earned) ...[
+                            const SizedBox(width: 6),
+                            Icon(Icons.lock_outline_rounded,
+                                size: 13,
+                                color: Colors.white.withOpacity(0.22)),
+                          ],
+                        ]),
+                      ),
+                    );
+                  }).toList()),
             ]),
           ),
         ),

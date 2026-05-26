@@ -244,6 +244,22 @@ class _CalendarScreenState extends State<CalendarScreen>
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
+  /// Returns moon phase emoji for the given date.
+  String _moonPhaseEmoji(DateTime date) {
+    const ref = Duration(days: 0); // anchor below
+    final reference = DateTime(2000, 1, 6); // known new moon
+    final daysSinceRef = date.difference(reference).inDays % 30;
+    final phase = (daysSinceRef < 0 ? daysSinceRef + 30 : daysSinceRef) / 29.53;
+    if (phase < 0.0625 || phase >= 0.9375) return '🌑';
+    if (phase < 0.1875) return '🌒';
+    if (phase < 0.3125) return '🌓';
+    if (phase < 0.4375) return '🌔';
+    if (phase < 0.5625) return '🌕';
+    if (phase < 0.6875) return '🌖';
+    if (phase < 0.8125) return '🌗';
+    return '🌘';
+  }
+
   bool _isPeriodDay(DateTime day, UserProvider user) {
     if (user.lastPeriodDate == null) return false;
     final diff = day.difference(user.lastPeriodDate!).inDays;
@@ -799,6 +815,7 @@ class _CalendarScreenState extends State<CalendarScreen>
               final key = _dateKey(date);
               final hasMood = _loggedMoods.containsKey(key);
               final hasSym = _loggedSymptoms.containsKey(key);
+              final moonEmoji = _moonPhaseEmoji(date);
 
               return Expanded(
                 child: GestureDetector(
@@ -919,6 +936,15 @@ class _CalendarScreenState extends State<CalendarScreen>
                                         ? _kGold.withOpacity(0.85)
                                         : _kPink.withOpacity(0.85),
                                   ),
+                                ),
+                              ),
+                            if (!isSel)
+                              Positioned(
+                                top: 2,
+                                right: 2,
+                                child: Text(
+                                  moonEmoji,
+                                  style: const TextStyle(fontSize: 7),
                                 ),
                               ),
                           ],
@@ -1365,7 +1391,8 @@ class _CalendarScreenState extends State<CalendarScreen>
   // ─────────────────────────────────────────────────────────
   Widget _dynamicInsightCards(UserProvider user, LunarDataProvider lunarData) {
     final phase = _phaseLabel(user);
-    final hasLogged = _loggedMoods.isNotEmpty || lunarData.moodEntries.isNotEmpty;
+    final hasLogged =
+        _loggedMoods.isNotEmpty || lunarData.moodEntries.isNotEmpty;
     final hasCramps = _loggedSymptoms.values.any((s) => s.contains('Cramps'));
     final hasTired = _loggedMoods.values.contains('😴') ||
         lunarData.moodEntries.any((e) => e.emoji == '😴');
@@ -1513,13 +1540,20 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   MoodLevel _emojiToLevel(String emoji) {
     switch (emoji) {
-      case '😊': return MoodLevel.great;
-      case '⚡': return MoodLevel.great;
-      case '😌': return MoodLevel.good;
-      case '😴': return MoodLevel.low;
-      case '😢': return MoodLevel.low;
-      case '😰': return MoodLevel.veryLow;
-      default:   return MoodLevel.neutral;
+      case '😊':
+        return MoodLevel.great;
+      case '⚡':
+        return MoodLevel.great;
+      case '😌':
+        return MoodLevel.good;
+      case '😴':
+        return MoodLevel.low;
+      case '😢':
+        return MoodLevel.low;
+      case '😰':
+        return MoodLevel.veryLow;
+      default:
+        return MoodLevel.neutral;
     }
   }
 
@@ -1769,7 +1803,8 @@ class _CalendarScreenState extends State<CalendarScreen>
     final stats = [
       _CStatItem('🗓️', 'Cycle', '28 days', _kPurple),
       _CStatItem('😊', 'Mood', recentMood, _kGold),
-      _CStatItem('😴', 'Sleep', '${sleepHours.toStringAsFixed(1)}h', const Color(0xFF7986CB)),
+      _CStatItem('😴', 'Sleep', '${sleepHours.toStringAsFixed(1)}h',
+          const Color(0xFF7986CB)),
       _CStatItem('💧', 'Water', '$water/8', const Color(0xFF4FC3F7)),
       _CStatItem('⚡', 'Energy', energyDisplay, _phaseColor(user)),
     ];
@@ -2191,8 +2226,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                 gradient: RadialGradient(
                                   colors: [
                                     color.withOpacity(0),
-                                    color.withOpacity(
-                                        0.14 * _glowAnim.value),
+                                    color.withOpacity(0.14 * _glowAnim.value),
                                     Colors.transparent,
                                   ],
                                   stops: const [0.5, 0.82, 1.0],
@@ -2222,18 +2256,17 @@ class _CalendarScreenState extends State<CalendarScreen>
                                   shape: BoxShape.circle,
                                   gradient: RadialGradient(colors: [
                                     color.withOpacity(0.55),
-                                    const Color(0xFF2D0B5C)
-                                        .withOpacity(0.85),
+                                    const Color(0xFF2D0B5C).withOpacity(0.85),
                                   ]),
                                   border: Border.all(
-                                    color: color.withOpacity(
-                                        _glowAnim.value * 0.65),
+                                    color: color
+                                        .withOpacity(_glowAnim.value * 0.65),
                                     width: 1.5,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: color.withOpacity(
-                                          _glowAnim.value * 0.52),
+                                      color: color
+                                          .withOpacity(_glowAnim.value * 0.52),
                                       blurRadius: 22,
                                       spreadRadius: 3,
                                     ),
@@ -2297,8 +2330,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                               begin: const Offset(0, 0.15),
                               end: Offset.zero,
                             ).animate(CurvedAnimation(
-                                parent: anim,
-                                curve: Curves.easeOutCubic)),
+                                parent: anim, curve: Curves.easeOutCubic)),
                             child: child,
                           ),
                         ),
@@ -2370,8 +2402,7 @@ class _CalendarScreenState extends State<CalendarScreen>
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
               gradient: LinearGradient(colors: [
@@ -2391,14 +2422,12 @@ class _CalendarScreenState extends State<CalendarScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(colors: [
-                      _kPurple
-                          .withOpacity(0.70 + 0.30 * _glowAnim.value),
+                      _kPurple.withOpacity(0.70 + 0.30 * _glowAnim.value),
                       _kPurple.withOpacity(0.30),
                     ]),
                     boxShadow: [
                       BoxShadow(
-                        color: _kPurple
-                            .withOpacity(_glowAnim.value * 0.50),
+                        color: _kPurple.withOpacity(_glowAnim.value * 0.50),
                         blurRadius: 12,
                       ),
                     ],
@@ -2439,8 +2468,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                       const SizedBox(height: 4),
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 750),
-                        transitionBuilder: (child, anim) =>
-                            FadeTransition(
+                        transitionBuilder: (child, anim) => FadeTransition(
                           opacity: CurvedAnimation(
                               parent: anim, curve: Curves.easeOut),
                           child: child,
@@ -2695,9 +2723,8 @@ class _CalendarScreenState extends State<CalendarScreen>
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: symptoms
-                          .map((s) => _sheetChip(s, _kPink))
-                          .toList(),
+                      children:
+                          symptoms.map((s) => _sheetChip(s, _kPink)).toList(),
                     ),
                   ],
                   if (isToday) ...[
@@ -2747,8 +2774,8 @@ class _CalendarScreenState extends State<CalendarScreen>
                               ]),
                             ),
                             child: const Center(
-                                child: Text('🔮',
-                                    style: TextStyle(fontSize: 16))),
+                                child:
+                                    Text('🔮', style: TextStyle(fontSize: 16))),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -2821,8 +2848,7 @@ class _CalendarScreenState extends State<CalendarScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           color: color.withOpacity(0.14),
-          border:
-              Border.all(color: color.withOpacity(0.50), width: 1),
+          border: Border.all(color: color.withOpacity(0.50), width: 1),
         ),
         child: Text(
           label,
@@ -2836,8 +2862,7 @@ class _CalendarScreenState extends State<CalendarScreen>
         ),
       );
 
-  Widget _sheetInfoTile(
-      String icon, String label, String value, Color color) =>
+  Widget _sheetInfoTile(String icon, String label, String value, Color color) =>
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(

@@ -7,6 +7,34 @@
 import 'package:flutter/foundation.dart';
 import 'chat_message.dart';
 
+// ═══════════════════════════════════════════════════════════
+//  DAILY EMOTIONAL READING
+//  A rich, AI-generated emotional reading shown on home screen.
+// ═══════════════════════════════════════════════════════════
+
+/// A beautifully crafted daily emotional reading derived from the user's
+/// emotional profile. Used by the home screen daily reading card.
+@immutable
+class DailyEmotionalReading {
+  final String weatherEmoji;
+  final String weatherLabel;
+  final String energyEmoji;
+  final String insight;
+  final String healingMessage;
+
+  /// One of: 'happy','anxious','stressed','sad','lonely','tired','period','emotional','neutral'
+  final String emotionKey;
+
+  const DailyEmotionalReading({
+    required this.weatherEmoji,
+    required this.weatherLabel,
+    required this.energyEmoji,
+    required this.insight,
+    required this.healingMessage,
+    required this.emotionKey,
+  });
+}
+
 /// Aggregated emotional profile derived from conversation history.
 /// Used to personalise AI system prompts and sanctuary greetings.
 @immutable
@@ -19,6 +47,10 @@ class EmotionalProfile {
   final int sleepMentions;
   final int periodMentions;
   final bool hasPositiveStreak;
+  final int relationshipMentions;
+
+  /// Last N emotions in chronological order — used for trajectory detection.
+  final List<EmotionTag> recentEmotions;
 
   const EmotionalProfile({
     this.dominantEmotion,
@@ -29,7 +61,174 @@ class EmotionalProfile {
     this.sleepMentions = 0,
     this.periodMentions = 0,
     this.hasPositiveStreak = false,
+    this.relationshipMentions = 0,
+    this.recentEmotions = const [],
   });
+
+  // ── Emotional trajectory ──────────────────────────────────
+
+  /// Returns 'improving', 'declining', 'stable', or 'unknown' based on
+  /// the directional trend of the last several emotions.
+  String get emotionalTrajectory {
+    if (recentEmotions.length < 3) return 'unknown';
+    const pos = {EmotionTag.happy, EmotionTag.energetic};
+    const neg = {
+      EmotionTag.anxious,
+      EmotionTag.stressed,
+      EmotionTag.sad,
+      EmotionTag.lonely,
+      EmotionTag.emotional
+    };
+    final p = recentEmotions.where((e) => pos.contains(e)).length;
+    final n = recentEmotions.where((e) => neg.contains(e)).length;
+    if (p > n) return 'improving';
+    if (n > p) return 'declining';
+    return 'stable';
+  }
+
+  /// A soft, natural pattern insight string the UI can surface. Null if nothing notable.
+  String? get patternInsight {
+    final traj = emotionalTrajectory;
+    if (anxietyMentions >= 3) {
+      return "Anxiety has been visiting often lately 🌬️ You're so brave for showing up anyway.";
+    }
+    if (stressMentions >= 3) {
+      return "You've been carrying so much lately 🌙 You deserve a gentler week ahead.";
+    }
+    if (sleepMentions >= 3) {
+      return "Sleep has been a theme this week 😴 Your rest matters more than any to-do list.";
+    }
+    if (traj == 'improving' && hasPositiveStreak) {
+      return "You've been growing so beautifully 🌸 I've noticed your strength quietly rising.";
+    }
+    if (relationshipMentions >= 2) {
+      return "Your heart has been carrying something tender lately 💜 I hold all of it with you.";
+    }
+    if (traj == 'improving') {
+      return "Something has shifted in you recently 🌙 Your emotional strength is showing.";
+    }
+    return null;
+  }
+
+  /// Generates a premium daily emotional reading personalised to this profile.
+  DailyEmotionalReading generateDailyReading(String name) {
+    final n = name.isNotEmpty ? name : 'beautiful soul';
+    final traj = emotionalTrajectory;
+    if (hasPositiveStreak || traj == 'improving') {
+      return DailyEmotionalReading(
+        weatherEmoji: '☀️',
+        weatherLabel: 'Radiant Energy',
+        energyEmoji: '✨',
+        insight:
+            "Your light has been rising, $n. Something beautiful is quietly shifting within you.",
+        healingMessage:
+            "Let yourself fully receive this brightness — you've earned every bit of it.",
+        emotionKey: 'happy',
+      );
+    }
+    if (dominantEmotion == EmotionTag.anxious || anxietyMentions >= 2) {
+      return DailyEmotionalReading(
+        weatherEmoji: '🌬️',
+        weatherLabel: 'Gentle Winds',
+        energyEmoji: '💙',
+        insight:
+            "Anxiety has been your companion lately, $n. That just means your heart cares deeply.",
+        healingMessage:
+            "Today's intention: breathe slowly. You are safe in this moment.",
+        emotionKey: 'anxious',
+      );
+    }
+    if (dominantEmotion == EmotionTag.stressed || stressMentions >= 2) {
+      return DailyEmotionalReading(
+        weatherEmoji: '🌧️',
+        weatherLabel: 'Release Weather',
+        energyEmoji: '💜',
+        insight:
+            "You've been holding so much lately, $n. Your nervous system is doing its very best.",
+        healingMessage: "Give yourself permission to put one thing down today.",
+        emotionKey: 'stressed',
+      );
+    }
+    if (dominantEmotion == EmotionTag.sad) {
+      return DailyEmotionalReading(
+        weatherEmoji: '🌧️',
+        weatherLabel: 'Tender Heart Day',
+        energyEmoji: '🌙',
+        insight:
+            "Sadness is love with nowhere to go, $n. Let it move through you gently.",
+        healingMessage:
+            "You don't have to be okay. But you don't have to be alone here.",
+        emotionKey: 'sad',
+      );
+    }
+    if (dominantEmotion == EmotionTag.lonely) {
+      return DailyEmotionalReading(
+        weatherEmoji: '🌙',
+        weatherLabel: 'Quiet Space',
+        energyEmoji: '💙',
+        insight:
+            "Loneliness is your heart reminding you how much you want to connect, $n.",
+        healingMessage: "I'm here with you. You are not unseen — not here.",
+        emotionKey: 'lonely',
+      );
+    }
+    if (dominantEmotion == EmotionTag.tired || sleepMentions >= 2) {
+      return DailyEmotionalReading(
+        weatherEmoji: '😴',
+        weatherLabel: 'Soft Recovery',
+        energyEmoji: '🌸',
+        insight:
+            "Your body is whispering for rest, $n. That is wisdom, not weakness.",
+        healingMessage:
+            "Today: do the minimum. Rest is productive when healing is the work.",
+        emotionKey: 'tired',
+      );
+    }
+    if (dominantEmotion == EmotionTag.period || periodMentions >= 1) {
+      return DailyEmotionalReading(
+        weatherEmoji: '🌸',
+        weatherLabel: 'Sacred Body Time',
+        energyEmoji: '💗',
+        insight: "Your body is doing something powerful right now, $n.",
+        healingMessage:
+            "Warmth, gentleness, and zero guilt — that's your prescription today.",
+        emotionKey: 'period',
+      );
+    }
+    if (dominantEmotion == EmotionTag.emotional) {
+      return DailyEmotionalReading(
+        weatherEmoji: '🌈',
+        weatherLabel: 'Deep Feeling Day',
+        energyEmoji: '🌸',
+        insight:
+            "Feeling deeply is a rare kind of courage, $n. Your sensitivity is not a flaw.",
+        healingMessage:
+            "You are not too much. You are exactly enough — always.",
+        emotionKey: 'emotional',
+      );
+    }
+    if (relationshipMentions >= 2) {
+      return DailyEmotionalReading(
+        weatherEmoji: '💜',
+        weatherLabel: 'Heart Healing',
+        energyEmoji: '🌙',
+        insight:
+            "Your heart has been carrying something tender lately, $n. That takes courage.",
+        healingMessage:
+            "Healing is not linear. Be as gentle with yourself as you'd be with someone you love.",
+        emotionKey: 'emotional',
+      );
+    }
+    return DailyEmotionalReading(
+      weatherEmoji: '🌙',
+      weatherLabel: 'Calm Energy',
+      energyEmoji: '✨',
+      insight: "You carry a quiet strength, $n — even in ordinary moments.",
+      healingMessage:
+          "I'm here, as always. Whatever today holds, you don't face it alone.",
+      emotionKey: 'neutral',
+    );
+  }
 
   // ── Memory context for AI system prompt ──────────────────
 
@@ -52,6 +251,18 @@ class EmotionalProfile {
     if (periodMentions >= 1) {
       parts.add(
           'She has mentioned her period or menstrual symptoms recently — be extra warm and physical-comfort-aware.');
+    }
+    if (relationshipMentions >= 2) {
+      parts.add(
+          'She has mentioned relationship pain or heartache $relationshipMentions times — hold space especially tenderly. Do not give unsolicited advice.');
+    }
+    final traj = emotionalTrajectory;
+    if (traj == 'improving') {
+      parts.add(
+          'Her emotional state appears to be improving recently — gently celebrate her growth without making it feel performative.');
+    } else if (traj == 'declining') {
+      parts.add(
+          'Her emotional state has been declining recently — lead with extra warmth, validation, and gentleness. No pressure.');
     }
     if (daysSinceLastVisit >= 3) {
       parts.add(
@@ -99,7 +310,8 @@ class EmotionalProfile {
         "$timeGreet, $n 🌙\n\nYou're never alone when you're here with me. I've been thinking of you.",
       EmotionTag.tired =>
         "$timeGreet, $n 🌙\n\nI hope you've been resting, sweet soul. How is your energy today?",
-      EmotionTag.happy || EmotionTag.energetic =>
+      EmotionTag.happy ||
+      EmotionTag.energetic =>
         "$timeGreet, $n ✨\n\nYour light has been beautiful lately! How are you feeling today?",
       EmotionTag.period =>
         "$timeGreet, $n 🌙\n\nBe gentle with yourself today. I'm here for you through your cycle.",
@@ -138,25 +350,24 @@ class EmotionalProfile {
   Map<String, dynamic> toJson() => {
         'dominantEmotion': dominantEmotion?.name,
         'daysSinceLastVisit': daysSinceLastVisit,
-        'emotionCounts':
-            emotionCounts.map((k, v) => MapEntry(k.name, v)),
+        'emotionCounts': emotionCounts.map((k, v) => MapEntry(k.name, v)),
         'anxietyMentions': anxietyMentions,
         'stressMentions': stressMentions,
         'sleepMentions': sleepMentions,
         'periodMentions': periodMentions,
         'hasPositiveStreak': hasPositiveStreak,
+        'relationshipMentions': relationshipMentions,
+        'recentEmotions': recentEmotions.map((e) => e.name).toList(),
       };
 
-  factory EmotionalProfile.fromJson(Map<String, dynamic> j) =>
-      EmotionalProfile(
+  factory EmotionalProfile.fromJson(Map<String, dynamic> j) => EmotionalProfile(
         dominantEmotion: j['dominantEmotion'] != null
             ? EmotionTag.values.firstWhere(
                 (e) => e.name == j['dominantEmotion'],
                 orElse: () => EmotionTag.neutral)
             : null,
         daysSinceLastVisit: (j['daysSinceLastVisit'] as num?)?.toInt() ?? 0,
-        emotionCounts:
-            (j['emotionCounts'] as Map<String, dynamic>? ?? {}).map(
+        emotionCounts: (j['emotionCounts'] as Map<String, dynamic>? ?? {}).map(
           (k, v) => MapEntry(
             EmotionTag.values.firstWhere(
               (e) => e.name == k,
@@ -170,6 +381,12 @@ class EmotionalProfile {
         sleepMentions: (j['sleepMentions'] as num?)?.toInt() ?? 0,
         periodMentions: (j['periodMentions'] as num?)?.toInt() ?? 0,
         hasPositiveStreak: (j['hasPositiveStreak'] as bool?) ?? false,
+        relationshipMentions: (j['relationshipMentions'] as num?)?.toInt() ?? 0,
+        recentEmotions: (j['recentEmotions'] as List<dynamic>? ?? [])
+            .map((e) => EmotionTag.values.firstWhere(
+                  (t) => t.name == e,
+                  orElse: () => EmotionTag.neutral,
+                ))
+            .toList(),
       );
 }
-

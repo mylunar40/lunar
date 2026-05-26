@@ -15,6 +15,7 @@ import '../models/cycle_model.dart';
 import '../models/emotional_memory.dart';
 import '../data/local_cache.dart';
 import '../../services/lunar_ai_service.dart';
+import '../../services/relationship_service.dart';
 import 'app_provider.dart';
 import 'lunar_data_provider.dart';
 
@@ -36,6 +37,7 @@ class ChatProvider extends ChangeNotifier {
   final List<EmotionTag> _emotionHistory = []; // Rolling emotional log
   final Map<EmotionTag, int> _emotionCounts = {}; // Frequency counter
   int _sessionMessageCount = 0;
+  int _relationshipMentions = 0; // Tracks heartbreak/relationship pain
 
   // ── Voice-ready structure (future implementation) ─────────
   bool _voiceMode = false; // Reserved for future voice feature
@@ -74,6 +76,10 @@ class ChatProvider extends ChangeNotifier {
   EmotionalProfile get emotionalProfile {
     final happy = (_emotionCounts[EmotionTag.happy] ?? 0) +
         (_emotionCounts[EmotionTag.energetic] ?? 0);
+    // Last 10 emotions for trajectory detection
+    final recent = _emotionHistory.length > 10
+        ? _emotionHistory.sublist(_emotionHistory.length - 10)
+        : List<EmotionTag>.from(_emotionHistory);
     return EmotionalProfile(
       dominantEmotion: dominantEmotion,
       daysSinceLastVisit: _daysSinceLastSession(),
@@ -83,11 +89,22 @@ class ChatProvider extends ChangeNotifier {
       sleepMentions: _emotionCounts[EmotionTag.tired] ?? 0,
       periodMentions: _emotionCounts[EmotionTag.period] ?? 0,
       hasPositiveStreak: happy >= 3,
+      relationshipMentions: _relationshipMentions,
+      recentEmotions: recent,
     );
   }
 
   /// Generates a warm, personalised greeting based on emotional history.
-  String generateGreeting(String name) => emotionalProfile.generateGreeting(name);
+  String generateGreeting(String name) =>
+      emotionalProfile.generateGreeting(name);
+
+  /// Generates a rich daily emotional reading for the home screen card.
+  DailyEmotionalReading get dailyReading =>
+      emotionalProfile.generateDailyReading(
+        _lastContextName ?? '',
+      );
+
+  String? _lastContextName;
 
   // Contextual phase label for UI display
   String get cyclePhaseDisplay => _lastPhaseLabel ?? '';
@@ -103,14 +120,14 @@ class ChatProvider extends ChangeNotifier {
 
     // Record previous session time BEFORE overwriting with now
     final lastStr = LocalCache.getString(_lastSessionKey);
-    _previousSessionAt =
-        lastStr != null ? DateTime.tryParse(lastStr) : null;
+    _previousSessionAt = lastStr != null ? DateTime.tryParse(lastStr) : null;
     LocalCache.setString(_lastSessionKey, DateTime.now().toIso8601String());
 
     final key = await LunarAIService.getApiKey();
     _apiKeyConfigured = key != null && key.isNotEmpty;
     if (_messages.isEmpty) {
-      _messages.add(ChatMessage.ai(LunarAIService.welcomeMsg));
+      _messages.add(ChatMessage.ai(
+          LunarAIService.getWelcomeMsg(daysSince: _daysSinceLastSession())));
     }
     _isLoaded = true;
     notifyListeners();
@@ -154,6 +171,11 @@ class ChatProvider extends ChangeNotifier {
       _saveEmotionHistory(); // fire-and-forget
     }
 
+    // Track relationship mentions
+    if (_isRelationshipMessage(trimmed)) {
+      _relationshipMentions++;
+    }
+
     // Simulate natural thinking delay
     final delay = 1000 + math.Random().nextInt(1200);
     await Future.delayed(Duration(milliseconds: delay));
@@ -167,6 +189,7 @@ class ChatProvider extends ChangeNotifier {
 
     _status = ChatStatus.idle;
     _messages.add(ChatMessage.ai(response.text, healing: response.healing));
+    RelationshipService.recordMessage(); // deepen Lunar relationship
     notifyListeners();
 
     // Healing card follows after a short delay
@@ -214,9 +237,12 @@ class ChatProvider extends ChangeNotifier {
     await Future.delayed(const Duration(milliseconds: 900));
 
     final mediaPrompt = switch (mediaType) {
-      MediaType.image => 'The user shared an image with me. Please respond warmly and acknowledge it in your Lunar companion persona.',
-      MediaType.video => 'The user shared a video with me. Please respond warmly and acknowledge it.',
-      MediaType.document => 'The user shared a document with me. Please respond warmly and acknowledge it.',
+      MediaType.image =>
+        'The user shared an image with me. Please respond warmly and acknowledge it in your Lunar companion persona.',
+      MediaType.video =>
+        'The user shared a video with me. Please respond warmly and acknowledge it.',
+      MediaType.document =>
+        'The user shared a document with me. Please respond warmly and acknowledge it.',
     };
 
     final response = await LunarAIService.respond(
@@ -246,6 +272,35 @@ class ChatProvider extends ChangeNotifier {
   Future<void> sendQuickAction(String label, BuildContext context) =>
       send(label, context);
 
+  // ── Daily check-in state ──────────────────────────────────
+  static const _checkInKey = 'lunar_checkin_day_v1';
+
+  /// Returns the day-of-month when the user last completed a check-in, or null.
+  int? get lastCheckInDay {
+    final stored = LocalCache.getInt(_checkInKey);
+    return stored;
+  }
+
+  /// Marks today as checked in — persists across app restarts.
+  void markCheckInToday() {
+    LocalCache.setInt(_checkInKey, DateTime.now().day);
+    notifyListeners();
+  }
+
+  // ── Check-in seed prompt ──────────────────────────────────
+  String? _checkInSeedPrompt;
+  String? get checkInSeedPrompt => _checkInSeedPrompt;
+
+  /// Queues a seed prompt to be auto-sent when AI screen opens.
+  void queueCheckInSeed(String prompt) {
+    _checkInSeedPrompt = prompt;
+  }
+
+  /// Clears the queued seed prompt (call after consuming it).
+  void clearCheckInSeed() {
+    _checkInSeedPrompt = null;
+  }
+
   // ═══════════════════════════════════════════════════════════
   //  HISTORY MANAGEMENT
   // ═══════════════════════════════════════════════════════════
@@ -256,6 +311,7 @@ class ChatProvider extends ChangeNotifier {
     _emotionHistory.clear();
     _emotionCounts.clear();
     _sessionMessageCount = 0;
+    _relationshipMentions = 0;
     notifyListeners();
     LocalCache.setString(_persistKey, '[]');
     LocalCache.setString(_emotionKey, '[]');
@@ -305,6 +361,7 @@ class ChatProvider extends ChangeNotifier {
       };
       final phaseLabel = phaseLabels[lunarData.currentPhase];
       _lastPhaseLabel = phaseLabel;
+      _lastContextName = app.userName; // Cache for dailyReading getter
 
       // Last mood emoji
       String? lastMoodEmoji;
@@ -333,6 +390,9 @@ class ChatProvider extends ChangeNotifier {
         'memoryContext': _buildMemoryContextStr(),
         'dominantEmotion': dominantEmotion?.name,
         'daysSinceLastSession': _daysSinceLastSession(),
+        // ── Emotional intelligence ───────────────────────────
+        'emotionalTrajectory': emotionalProfile.emotionalTrajectory,
+        'patternInsight': emotionalProfile.patternInsight,
       };
     } catch (_) {
       return {};
@@ -422,6 +482,23 @@ class ChatProvider extends ChangeNotifier {
   // ═══════════════════════════════════════════════════════════
   //  EMOTION DETECTION  (for memory system)
   // ═══════════════════════════════════════════════════════════
+
+  /// Detects relationship/heartbreak mentions for emotional memory.
+  static bool _isRelationshipMessage(String text) {
+    final l = text.toLowerCase();
+    return l.contains('breakup') ||
+        l.contains('break up') ||
+        l.contains('heartbreak') ||
+        l.contains('heartbroken') ||
+        l.contains('he left') ||
+        l.contains('she left') ||
+        l.contains('they left') ||
+        l.contains('cheated') ||
+        l.contains('betrayed') ||
+        l.contains('rejection') ||
+        l.contains('rejected') ||
+        (l.contains('love') && (l.contains('lost') || l.contains('miss')));
+  }
 
   static EmotionTag? _detectEmotion(String text) {
     final l = text.toLowerCase();
@@ -518,7 +595,8 @@ class ChatProvider extends ChangeNotifier {
           .get();
       if (snap.docs.isEmpty) {
         // First login — push existing local messages to Firestore
-        for (final m in _messages.where((m) => m.type != ChatMsgType.healingCard)) {
+        for (final m
+            in _messages.where((m) => m.type != ChatMsgType.healingCard)) {
           _syncMessageToFirestore(m);
         }
         _firestoreSynced = true;
