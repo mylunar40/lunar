@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/community_models.dart';
 import '../services/firestore_service.dart';
+import '../../services/lunar_ai_service.dart';
 
 // ═══════════════════════════════════════════════════════════
 //  COMMUNITY PROVIDER
@@ -27,6 +29,7 @@ class CommunityPost {
   final bool isSensitive;
   bool isBlurred;
   bool isReported;
+  final CommunityPostType postType;
 
   CommunityPost({
     required this.id,
@@ -44,6 +47,7 @@ class CommunityPost {
     this.isSensitive = false,
     bool? isBlurred,
     this.isReported = false,
+    this.postType = CommunityPostType.regular,
   }) : isBlurred = isBlurred ?? isSensitive;
 
   factory CommunityPost.fromFirestore(
@@ -66,6 +70,8 @@ class CommunityPost {
       createdAt: ts?.toDate(),
       isSensitive: d['isSensitive'] as bool? ?? false,
       isReported: d['isReported'] as bool? ?? false,
+      postType:
+          CommunityPostTypeX.fromId(d['postType'] as String? ?? 'regular'),
     );
   }
 }
@@ -76,7 +82,9 @@ class CommunityProvider extends ChangeNotifier {
   List<CommunityPost> _posts = [];
   Set<String> _myReactions = {}; // 'postId:reaction'
   Set<String> _bookmarks = {};
+  Set<String> _blockedUsers = {};
   String _activeCategory = 'all';
+  int _supportCount = 0;
   String? _uid;
   StreamSubscription<QuerySnapshot>? _feedSub;
   StreamSubscription<QuerySnapshot>? _bookmarkSub;
@@ -92,9 +100,33 @@ class CommunityProvider extends ChangeNotifier {
 
   bool isBookmarked(String postId) => _bookmarks.contains(postId);
 
-  List<CommunityPost> get filteredPosts => _activeCategory == 'all'
-      ? _posts
-      : _posts.where((p) => p.category == _activeCategory).toList();
+  bool isBlocked(String uid) => _blockedUsers.contains(uid);
+
+  int get supportCount => _supportCount;
+
+  CommunityAward get communityAward => CommunityAwardX.forCount(_supportCount);
+
+  CheckInPrompt get todayCheckInPrompt {
+    final dayOfYear = DateTime.now()
+        .difference(
+          DateTime(DateTime.now().year, 1, 1),
+        )
+        .inDays;
+    return kDailyCheckInPrompts[dayOfYear % kDailyCheckInPrompts.length];
+  }
+
+  List<CommunityPost> get filteredPosts {
+    final base = _activeCategory == 'all'
+        ? _posts
+        : _posts.where((p) => p.category == _activeCategory).toList();
+    return base.where((p) => !_blockedUsers.contains(p.uid)).toList();
+  }
+
+  List<CommunityPost> get healingStories => _posts
+      .where((p) =>
+          p.postType == CommunityPostType.healingStory &&
+          !_blockedUsers.contains(p.uid))
+      .toList();
 
   // ── Init / Auth ─────────────────────────────────────────
   void init(String? uid) {
@@ -131,9 +163,7 @@ class CommunityProvider extends ChangeNotifier {
   void _startBookmarkStream(String uid) {
     _bookmarkSub?.cancel();
     _bookmarkSub = FirestoreService.bookmarkStream(uid).listen((snap) {
-      _bookmarks = snap.docs
-          .map((d) => d.data()['postId'] as String)
-          .toSet();
+      _bookmarks = snap.docs.map((d) => d.data()['postId'] as String).toSet();
       notifyListeners();
     });
   }
@@ -145,6 +175,29 @@ class CommunityProvider extends ChangeNotifier {
   }
 
   // ── Post Actions ─────────────────────────────────────────
+  void blockUser(String uid) {
+    if (uid.isEmpty || uid == _uid) return;
+    _blockedUsers.add(uid);
+    notifyListeners();
+  }
+
+  Future<String?> generateAISupportResponse(String postContent) async {
+    const prompt =
+        'Someone in a wellness community shared the following. Write a SHORT, '
+        'warm, supportive reply (2-3 sentences) that validates their feelings '
+        'without giving advice. Start with empathy. Do not use clinical language. '
+        'Reply as a caring friend:\n\n';
+    try {
+      final response = await LunarAIService.respond(
+        prompt + postContent,
+        context: {'isSupport': true},
+      );
+      return response.text.trim().isEmpty ? null : response.text.trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> createPost({
     required String pseudonym,
     required String avatarEmoji,
@@ -153,6 +206,7 @@ class CommunityProvider extends ChangeNotifier {
     required String category,
     required String content,
     required List<String> tags,
+    CommunityPostType postType = CommunityPostType.regular,
   }) async {
     if (_uid == null) return;
     // Moderation: check for toxic keywords
@@ -188,6 +242,7 @@ class CommunityProvider extends ChangeNotifier {
         content: content,
         tags: tags,
         isSensitive: _isSensitiveTopic(content),
+        postType: postType.id,
       );
       // Stream will refresh from Firestore; remove temp
       _posts.removeWhere((p) => p.id == tempId);
@@ -205,6 +260,26 @@ class CommunityProvider extends ChangeNotifier {
     if (_uid == null) return;
     final key = '$postId:$reaction';
     final adding = !_myReactions.contains(key);
+
+    // Track support given to others
+    if (adding && _uid != null) {
+      final post = _posts.firstWhere((p) => p.id == postId,
+          orElse: () => CommunityPost(
+              id: '',
+              uid: _uid!,
+              pseudonym: '',
+              avatarEmoji: '',
+              avatarColorHex: '',
+              isAnonymous: false,
+              category: '',
+              content: '',
+              tags: [],
+              reactions: {},
+              commentsCount: 0));
+      if (post.uid != _uid) {
+        _supportCount++;
+      }
+    }
 
     // Optimistic update
     setState(() {
@@ -295,13 +370,44 @@ class CommunityProvider extends ChangeNotifier {
 
   // ── Moderation ───────────────────────────────────────────
   static const _toxicKeywords = [
-    'hate', 'kill', 'die', 'ugly', 'stupid', 'idiot',
-    'loser', 'worthless', 'shut up',
+    'hate',
+    'kill',
+    'die',
+    'ugly',
+    'stupid',
+    'idiot',
+    'loser',
+    'worthless',
+    'shut up',
+    'you deserve',
+    'nobody cares',
+    'go away',
+    'disgusting',
+    'pathetic',
+    'freak',
+    'toxic',
+    'manipulate',
+    'gaslight',
+    'attention seeking',
   ];
 
   static const _sensitiveTopics = [
-    'miscarriage', 'loss', 'grief', 'trauma', 'abuse',
-    'assault', 'suicide', 'depression', 'self harm',
+    'miscarriage',
+    'loss',
+    'grief',
+    'trauma',
+    'abuse',
+    'assault',
+    'suicide',
+    'depression',
+    'self harm',
+    'eating disorder',
+    'panic attack',
+    'divorce',
+    'domestic',
+    'cutting',
+    'overdose',
+    'crisis',
   ];
 
   bool _containsToxicContent(String text) {

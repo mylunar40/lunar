@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../core/models/community_models.dart';
 import '../core/providers/auth_provider.dart';
 import '../core/providers/community_provider.dart';
 import '../widgets/guest_gate.dart';
@@ -507,11 +508,19 @@ class _CommunityState extends State<CommunityScreen>
   bool _composeAnon = true;
   int _composeAvatarIdx = 0;
   _CCat _composeCat = _CCat.emotionalHealing;
+  CommunityPostType _composePostType = CommunityPostType.regular;
   final Set<String> _composeTags = {};
   final TextEditingController _composeCtrl = TextEditingController();
   bool _providerInitialized = false;
   int _quoteIdx = 0;
   Timer? _quoteTimer;
+
+  // Phase 5: AI support suggestions per post
+  final Map<String, String> _aiSuggestions = {};
+  final Set<String> _loadingAiFor = {};
+
+  // Phase 5: pagination scroll
+  final ScrollController _scrollCtrl = ScrollController();
 
   @override
   void initState() {
@@ -538,6 +547,11 @@ class _CommunityState extends State<CommunityScreen>
       if (mounted)
         setState(() => _quoteIdx = (_quoteIdx + 1) % _kHealingQuotes.length);
     });
+    _scrollCtrl.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    // No-op: pagination hook ready for future backend implementation
   }
 
   @override
@@ -557,6 +571,7 @@ class _CommunityState extends State<CommunityScreen>
     _floatCtrl.dispose();
     _particleCtrl.dispose();
     _composeCtrl.dispose();
+    _scrollCtrl.dispose();
     _quoteTimer?.cancel();
     super.dispose();
   }
@@ -585,6 +600,7 @@ class _CommunityState extends State<CommunityScreen>
           ),
           SafeArea(
             child: CustomScrollView(
+              controller: _scrollCtrl,
               physics: const BouncingScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(
@@ -592,13 +608,21 @@ class _CommunityState extends State<CommunityScreen>
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(children: [
                       const SizedBox(height: 14),
-                      _emotionalHeader(),
+                      _emotionalHeader(community),
                       const SizedBox(height: 18),
                     ]),
                   ),
                 ),
                 SliverToBoxAdapter(child: _storiesRow()),
                 SliverToBoxAdapter(child: const SizedBox(height: 16)),
+                // Phase 5: Daily Check-In Card
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _dailyCheckInCard(community.todayCheckInPrompt),
+                  ),
+                ),
+                SliverToBoxAdapter(child: const SizedBox(height: 14)),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -606,10 +630,11 @@ class _CommunityState extends State<CommunityScreen>
                   ),
                 ),
                 SliverToBoxAdapter(child: const SizedBox(height: 18)),
+                // Phase 5: Functional Healing Circles
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: _healingCirclesRow(),
+                    child: _healingCirclesRow(community),
                   ),
                 ),
                 SliverToBoxAdapter(child: const SizedBox(height: 16)),
@@ -621,6 +646,16 @@ class _CommunityState extends State<CommunityScreen>
                     child: _aiCompanionCard(community.activeCategory),
                   ),
                 ),
+                // Phase 5: Healing Stories Section
+                if (community.healingStories.isNotEmpty) ...[
+                  SliverToBoxAdapter(child: const SizedBox(height: 14)),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _healingStoriesSection(community.healingStories),
+                    ),
+                  ),
+                ],
                 SliverToBoxAdapter(child: const SizedBox(height: 14)),
                 if (community.loadState == CommunityLoadState.loading &&
                     posts.isEmpty)
@@ -657,7 +692,7 @@ class _CommunityState extends State<CommunityScreen>
   }
 
   // ── EMOTIONAL HEADER ──────────────────────────────────────
-  Widget _emotionalHeader() {
+  Widget _emotionalHeader(CommunityProvider community) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -692,10 +727,34 @@ class _CommunityState extends State<CommunityScreen>
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.2)),
-                    Text('A gentle community for every woman',
-                        style: TextStyle(
-                            color: Colors.white.withOpacity(0.4),
-                            fontSize: 12)),
+                    const SizedBox(height: 3),
+                    Row(children: [
+                      Text('A gentle community for every woman',
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.4),
+                              fontSize: 12)),
+                      if (community.supportCount > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              color: community.communityAward.color
+                                  .withOpacity(0.18),
+                              border: Border.all(
+                                  color: community.communityAward.color
+                                      .withOpacity(0.45))),
+                          child: Text(
+                            '${community.communityAward.emoji} ${community.communityAward.label}',
+                            style: TextStyle(
+                                color: community.communityAward.color,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ]),
                   ]),
             ),
             AnimatedBuilder(
@@ -872,112 +931,357 @@ class _CommunityState extends State<CommunityScreen>
     );
   }
 
-  // ── HEALING CIRCLES ROW (Architecture Scaffold) ───────────
-  Widget _healingCirclesRow() {
+  // ── HEALING CIRCLES ROW (Phase 5: Functional) ────────────
+  Widget _healingCirclesRow(CommunityProvider community) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Text(
-              'Healing Circles',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-              decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: _cPurple.withOpacity(0.16),
-                  border: Border.all(color: _cPurple.withOpacity(0.36))),
-              child: Text(
-                'Coming Soon',
-                style: TextStyle(
-                    color: _cPurple, fontSize: 10, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
+        const Text(
+          'Healing Circles',
+          style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Tap a circle to enter your safe space',
+          style: TextStyle(
+              color: Colors.white.withOpacity(0.38),
+              fontSize: 11.5),
         ),
         const SizedBox(height: 12),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
           child: Row(
-            children: _kHealingCircles.map((data) {
-              final (emoji, label, color) = data;
+            children: SafeSpaceCircle.values.map((circle) {
+              final isActive = community.activeCategory == circle.id;
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    community.setCategory(
+                        isActive ? 'all' : circle.id);
+                    _scrollCtrl.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 400),
+                      curve: Curves.easeOutCubic,
+                    );
+                  },
+                  child: AnimatedBuilder(
+                    animation: _glowAnim,
+                    builder: (_, __) => ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                        child: Container(
+                          width: 92,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 14, horizontal: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: isActive
+                                  ? [
+                                      circle.color.withOpacity(0.5),
+                                      circle.color.withOpacity(0.22),
+                                    ]
+                                  : [
+                                      circle.color.withOpacity(0.16),
+                                      circle.color.withOpacity(0.05),
+                                    ],
+                            ),
+                            border: Border.all(
+                                color: circle.color.withOpacity(
+                                    isActive
+                                        ? 0.75
+                                        : _glowAnim.value * 0.42),
+                                width: isActive ? 1.5 : 1),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: circle.color.withOpacity(
+                                      isActive
+                                          ? 0.28
+                                          : _glowAnim.value * 0.12),
+                                  blurRadius: 14,
+                                  spreadRadius: isActive ? 2 : 0),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: RadialGradient(colors: [
+                                    circle.color.withOpacity(
+                                        isActive ? 0.75 : 0.50),
+                                    circle.color.withOpacity(0.12),
+                                  ]),
+                                  boxShadow: [
+                                    BoxShadow(
+                                        color: circle.color.withOpacity(
+                                            _glowAnim.value * 0.40),
+                                        blurRadius: 10,
+                                        spreadRadius: 1),
+                                  ],
+                                ),
+                                child: Center(
+                                    child: Text(circle.emoji,
+                                        style:
+                                            const TextStyle(fontSize: 20))),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                circle.label,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: isActive
+                                      ? circle.color
+                                      : Colors.white.withOpacity(0.70),
+                                  fontSize: 10.5,
+                                  fontWeight: isActive
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── DAILY CHECK-IN CARD (Phase 5) ────────────────────────
+  Widget _dailyCheckInCard(CheckInPrompt prompt) {
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  _cTeal.withOpacity(0.14),
+                  _cPurple.withOpacity(0.08),
+                ],
+              ),
+              border: Border.all(
+                  color: _cTeal.withOpacity(_glowAnim.value * 0.4), width: 1),
+            ),
+            child: Row(children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [
+                    _cTeal.withOpacity(0.45),
+                    _cPurple.withOpacity(0.18),
+                  ]),
+                ),
+                child: Center(
+                    child: Text(prompt.emoji,
+                        style: const TextStyle(fontSize: 24))),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Today\'s Check-In',
+                          style: TextStyle(
+                              color: _cTeal,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5)),
+                      const SizedBox(height: 4),
+                      Text(
+                        prompt.question,
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 13.5,
+                            height: 1.4),
+                      ),
+                    ]),
+              ),
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    _showCompose = true;
+                    _composeCtrl.text = '${prompt.emoji} ${prompt.question}\n\n';
+                    _composePostType = CommunityPostType.checkIn;
+                  });
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: LinearGradient(colors: [
+                      _cTeal.withOpacity(0.55),
+                      _cPurple.withOpacity(0.4),
+                    ]),
+                  ),
+                  child: const Text('Check In',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── HEALING STORIES SECTION (Phase 5) ────────────────────
+  Widget _healingStoriesSection(List<CommunityPost> stories) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          const Text('🌟',
+              style: TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          const Text(
+            'Healing Journeys',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: _cGold.withOpacity(0.16),
+                border: Border.all(color: _cGold.withOpacity(0.4))),
+            child: Text('${stories.length}',
+                style: TextStyle(
+                    color: _cGold,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700)),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+          'Stories of growth, courage & recovery',
+          style: TextStyle(
+              color: Colors.white.withOpacity(0.38), fontSize: 11.5),
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: stories.take(5).map((post) {
+              final totalReactions =
+                  post.reactions.values.fold(0, (a, b) => a + b);
               return Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: AnimatedBuilder(
                   animation: _glowAnim,
                   builder: (_, __) => ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(18),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                       child: Container(
-                        width: 86,
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 14, horizontal: 8),
+                        width: 200,
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(18),
                           gradient: LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              color.withOpacity(0.18),
-                              color.withOpacity(0.06),
+                              _cGold.withOpacity(0.13),
+                              _cPurple.withOpacity(0.08),
                             ],
                           ),
                           border: Border.all(
-                              color: color.withOpacity(_glowAnim.value * 0.45),
+                              color: _cGold.withOpacity(
+                                  _glowAnim.value * 0.45),
                               width: 1),
-                          boxShadow: [
-                            BoxShadow(
-                                color:
-                                    color.withOpacity(_glowAnim.value * 0.14),
-                                blurRadius: 12,
-                                spreadRadius: 1)
-                          ],
                         ),
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: RadialGradient(colors: [
-                                  color.withOpacity(0.55),
-                                  color.withOpacity(0.15)
-                                ]),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: color
-                                          .withOpacity(_glowAnim.value * 0.40),
-                                      blurRadius: 10,
-                                      spreadRadius: 1)
-                                ],
+                            Row(children: [
+                              Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: _cGold.withOpacity(0.22)),
+                                child: Center(
+                                    child: Text(post.avatarEmoji,
+                                        style: const TextStyle(
+                                            fontSize: 14))),
                               ),
-                              child: Center(
-                                  child: Text(emoji,
-                                      style: const TextStyle(fontSize: 20))),
-                            ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  post.pseudonym,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              const Text('🌟',
+                                  style: TextStyle(fontSize: 12)),
+                            ]),
                             const SizedBox(height: 8),
                             Text(
-                              label,
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
+                              post.content,
+                              maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.70),
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w500,
-                                height: 1.3,
-                              ),
+                                  color: Colors.white.withOpacity(0.75),
+                                  fontSize: 12,
+                                  height: 1.45),
                             ),
+                            if (totalReactions > 0) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                '$totalReactions people found healing here',
+                                style: TextStyle(
+                                    color: _cGold.withOpacity(0.7),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -1304,6 +1608,7 @@ class _CommunityState extends State<CommunityScreen>
                           category: _CCat.emotionalHealing.id,
                           content: textCtrl.text.trim(),
                           tags: ['Vulnerable', 'Need Support'],
+                          postType: CommunityPostType.anonymousShare,
                         );
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1754,11 +2059,39 @@ class _CommunityState extends State<CommunityScreen>
               _liveReactionBar(post, community),
               const SizedBox(height: 10),
               _livePostFooter(post),
-              // Healing circle comfort for vulnerable posts
+              // Phase 5: AI support suggestion for vulnerable posts
               if (cat == _CCat.emotionalHealing ||
                   cat == _CCat.relationships ||
                   cat == _CCat.anxietySupport) ...[
                 const SizedBox(height: 10),
+                _aiSupportRow(post),
+              ],
+              // Phase 5: Shareable moment badge for popular posts
+              if (post.reactions.values.fold(0, (a, b) => a + b) >= 20) ...[
+                const SizedBox(height: 8),
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: _cPurple.withOpacity(0.10),
+                      border: Border.all(
+                          color: _cPurple.withOpacity(0.25), width: 1),
+                    ),
+                    child: Text('Someone needed this today 🌙',
+                        style: TextStyle(
+                            color: _cPurple.withOpacity(0.8),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w500)),
+                  ),
+                ]),
+              ],
+              // Healing circle comfort for vulnerable posts
+              if (cat == _CCat.emotionalHealing ||
+                  cat == _CCat.relationships ||
+                  cat == _CCat.anxietySupport) ...[
+                const SizedBox(height: 8),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -1767,7 +2100,7 @@ class _CommunityState extends State<CommunityScreen>
                     color: cat.color.withOpacity(0.08),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text('💜', style: TextStyle(fontSize: 11)),
+                    const Text('💜', style: TextStyle(fontSize: 11)),
                     const SizedBox(width: 6),
                     Text('You are not alone here',
                         style: TextStyle(
@@ -1782,6 +2115,110 @@ class _CommunityState extends State<CommunityScreen>
         ),
       ),
     );
+  }
+
+  // ── AI SUPPORT SUGGESTION ROW (Phase 5) ──────────────────
+  Widget _aiSupportRow(CommunityPost post) {
+    final suggestion = _aiSuggestions[post.id];
+    final isLoading = _loadingAiFor.contains(post.id);
+
+    if (suggestion != null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              _cPurple.withOpacity(0.12),
+              _cPink.withOpacity(0.06),
+            ],
+          ),
+          border:
+              Border.all(color: _cPurple.withOpacity(0.28), width: 1),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Text('✨', style: TextStyle(fontSize: 11)),
+            const SizedBox(width: 5),
+            Text('AI Supportive Reply',
+                style: TextStyle(
+                    color: _cPurple,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600)),
+          ]),
+          const SizedBox(height: 6),
+          Text(suggestion,
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.78),
+                  fontSize: 12.5,
+                  height: 1.5,
+                  fontStyle: FontStyle.italic)),
+        ]),
+      );
+    }
+
+    return GestureDetector(
+      onTap: isLoading ? null : () => _generateAiSuggestion(post),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: Colors.white.withOpacity(0.04),
+          border:
+              Border.all(color: Colors.white.withOpacity(0.10), width: 1),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (isLoading)
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  color: _cPurple.withOpacity(0.7)),
+            )
+          else
+            Text('✨', style: const TextStyle(fontSize: 12)),
+          const SizedBox(width: 6),
+          Text(
+            isLoading ? 'Generating support...' : 'Suggest a supportive reply',
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.45),
+                fontSize: 11,
+                fontWeight: FontWeight.w500),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _generateAiSuggestion(CommunityPost post) async {
+    if (_loadingAiFor.contains(post.id)) return;
+    setState(() => _loadingAiFor.add(post.id));
+    try {
+      final community =
+          context.read<CommunityProvider>();
+      final response =
+          await community.generateAISupportResponse(post.content);
+      if (mounted) {
+        setState(() {
+          _aiSuggestions[post.id] = response ??
+              'You are so brave for sharing this. Sending you gentle love and understanding. 💜';
+          _loadingAiFor.remove(post.id);
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _aiSuggestions[post.id] =
+              'You are so brave for sharing this. Sending you gentle love and understanding. 💜';
+          _loadingAiFor.remove(post.id);
+        });
+      }
+    }
   }
 
   Widget _livePostHeader(CommunityPost post, _CCat cat, Color avatarColor,
@@ -1869,6 +2306,25 @@ class _CommunityState extends State<CommunityScreen>
                     fontSize: 10,
                     fontWeight: FontWeight.w500)),
           ),
+          // Phase 5: Post type badge
+          if (post.postType != CommunityPostType.regular) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: const Color(0xFFFFD700).withOpacity(0.14),
+                  border: Border.all(
+                      color: const Color(0xFFFFD700).withOpacity(0.35))),
+              child: Text(
+                  '${post.postType.emoji} ${post.postType.label}',
+                  style: const TextStyle(
+                      color: Color(0xFFFFD700),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w600)),
+            ),
+          ],
           const SizedBox(width: 8),
           Text(post.createdAt != null ? _timeAgo(post.createdAt!) : 'just now',
               style: TextStyle(
@@ -1950,7 +2406,7 @@ class _CommunityState extends State<CommunityScreen>
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
       child: Row(
-        children: _CRxn.values.map((rxn) {
+        children: HealingReaction.values.map((rxn) {
           final count = (post.reactions[rxn.id] ?? 0) +
               (community.hasReacted(post.id, rxn.id) ? 1 : 0);
           final isMine = community.hasReacted(post.id, rxn.id);
@@ -1969,27 +2425,28 @@ class _CommunityState extends State<CommunityScreen>
                   borderRadius: BorderRadius.circular(20),
                   gradient: isMine
                       ? LinearGradient(colors: [
-                          _cPurple.withOpacity(0.62),
-                          _cPink.withOpacity(0.42)
+                          rxn.color.withOpacity(0.62),
+                          rxn.color.withOpacity(0.32),
                         ])
                       : null,
                   color: isMine ? null : Colors.white.withOpacity(0.06),
                   border: Border.all(
                       color: isMine
-                          ? _cPurple.withOpacity(0.7)
+                          ? rxn.color.withOpacity(0.75)
                           : Colors.white.withOpacity(0.1),
                       width: 1),
                   boxShadow: isMine
                       ? [
                           BoxShadow(
-                              color: _cPurple.withOpacity(0.35), blurRadius: 10)
+                              color: rxn.color.withOpacity(0.35),
+                              blurRadius: 10)
                         ]
                       : null,
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Text(rxn.emoji, style: const TextStyle(fontSize: 13)),
                   const SizedBox(width: 5),
-                  Text(rxn.label,
+                  Text(rxn.shortLabel,
                       style: TextStyle(
                           color: isMine
                               ? Colors.white
@@ -2077,6 +2534,16 @@ class _CommunityState extends State<CommunityScreen>
             community.hidePost(post.id);
             Navigator.pop(context);
           }),
+          // Phase 5: Block user
+          if (!post.isAnonymous && post.uid.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _optionTile(Icons.block_rounded, 'Block User',
+                'Stop seeing posts from this person', Colors.orange.shade300,
+                () {
+              community.blockUser(post.uid);
+              Navigator.pop(context);
+            }),
+          ],
           const SizedBox(height: 10),
           _optionTile(Icons.favorite_border_rounded, 'Send Healing',
               'Share warmth with this person', _cPink, () {
@@ -2666,6 +3133,113 @@ class _CommunityState extends State<CommunityScreen>
                           ),
                           const SizedBox(height: 16),
 
+                          // ─ Post Type (Phase 5)
+                          _label('Share as'),
+                          const SizedBox(height: 10),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            child: Row(children: [
+                              ...([
+                                CommunityPostType.regular,
+                                CommunityPostType.checkIn,
+                                CommunityPostType.healingStory,
+                                CommunityPostType.anonymousShare,
+                              ].map((type) {
+                                final sel = _composePostType == type;
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      HapticFeedback.selectionClick();
+                                      setState(
+                                          () => _composePostType = type);
+                                    },
+                                    child: AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          color: sel
+                                              ? _cPurple.withOpacity(0.42)
+                                              : Colors.white.withOpacity(0.06),
+                                          border: Border.all(
+                                              color: sel
+                                                  ? _cPurple.withOpacity(0.75)
+                                                  : Colors.white
+                                                      .withOpacity(0.11))),
+                                      child: Text(
+                                          '${type.emoji} ${type.label}',
+                                          style: TextStyle(
+                                              color: sel
+                                                  ? Colors.white
+                                                  : Colors.white
+                                                      .withOpacity(0.52),
+                                              fontSize: 12,
+                                              fontWeight: sel
+                                                  ? FontWeight.w600
+                                                  : FontWeight.w400)),
+                                    ),
+                                  ),
+                                );
+                              })),
+                              // Voice Vent: future-ready disabled button
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Opacity(
+                                  opacity: 0.4,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                        borderRadius:
+                                            BorderRadius.circular(20),
+                                        color:
+                                            Colors.white.withOpacity(0.04),
+                                        border: Border.all(
+                                            color: Colors.white
+                                                .withOpacity(0.11))),
+                                    child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Text('🎤',
+                                              style:
+                                                  TextStyle(fontSize: 12)),
+                                          const SizedBox(width: 5),
+                                          Text('Voice Vent',
+                                              style: TextStyle(
+                                                  color: Colors.white
+                                                      .withOpacity(0.52),
+                                                  fontSize: 12)),
+                                          const SizedBox(width: 4),
+                                          Container(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 5,
+                                                    vertical: 1),
+                                            decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                                color: _cGold
+                                                    .withOpacity(0.25)),
+                                            child: Text('Soon',
+                                                style: TextStyle(
+                                                    color: _cGold,
+                                                    fontSize: 8.5,
+                                                    fontWeight:
+                                                        FontWeight.w700)),
+                                          ),
+                                        ]),
+                                  ),
+                                ),
+                              ),
+                            ]),
+                          ),
+                          const SizedBox(height: 16),
+
                           // ─ Emotional tags
                           _label('How are you feeling? (up to 3)'),
                           const SizedBox(height: 10),
@@ -2918,10 +3492,12 @@ class _CommunityState extends State<CommunityScreen>
       category: _composeCat.id,
       content: _composeCtrl.text.trim(),
       tags: _composeTags.toList(),
+      postType: _composePostType,
     );
     setState(() {
       _showCompose = false;
       _composeTags.clear();
+      _composePostType = CommunityPostType.regular;
     });
     _composeCtrl.clear();
     FocusScope.of(context).unfocus();

@@ -10,6 +10,8 @@ import 'core/providers/auth_provider.dart';
 import 'core/providers/app_provider.dart';
 import 'core/providers/lunar_data_provider.dart';
 import 'core/providers/chat_provider.dart';
+import 'core/providers/memory_provider.dart';
+import 'core/providers/weather_provider.dart';
 import 'core/providers/community_provider.dart';
 import 'core/providers/avatar_provider.dart';
 import 'models/avatar_model.dart';
@@ -65,8 +67,7 @@ void main() async {
     // Crashlytics — only in release builds
     await FirebaseCrashlytics.instance
         .setCrashlyticsCollectionEnabled(!kDebugMode);
-    FlutterError.onError =
-        FirebaseCrashlytics.instance.recordFlutterFatalError;
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
     debugPrint('[Lunar] Firebase initialised successfully.');
   } catch (e) {
     // App runs in demo/offline mode when Firebase is not configured.
@@ -86,13 +87,18 @@ void main() async {
   final chatProvider = ChatProvider();
   await chatProvider.init();
 
+  // ── Memory provider (pre-loaded from local cache) ──────────
+  final memoryProvider = MemoryProvider();
+  await memoryProvider.init();
+  // ── Weather provider (pre-loaded from local cache) ─────
+  final weatherProvider = WeatherProvider();
+  await weatherProvider.init();
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => LunarAuthProvider()),
-        ChangeNotifierProvider<LunarDataProvider>.value(
-            value: lunarData),
+        ChangeNotifierProvider<LunarDataProvider>.value(value: lunarData),
         ChangeNotifierProvider<AppProvider>.value(value: appProvider),
         // ChatProvider syncs Firestore uid whenever auth state changes
         ChangeNotifierProxyProvider<LunarAuthProvider, ChatProvider>(
@@ -104,8 +110,19 @@ void main() async {
             return chat!;
           },
         ),
+        // MemoryProvider syncs Firestore uid whenever auth state changes
+        ChangeNotifierProxyProvider<LunarAuthProvider, MemoryProvider>(
+          create: (_) => memoryProvider,
+          update: (_, auth, memory) {
+            if (auth.isAuthenticated && !auth.isGuest) {
+              memory!.setUser(auth.firebaseUser?.uid);
+            }
+            return memory!;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => CommunityProvider()),
         ChangeNotifierProvider(create: (_) => AvatarProvider()),
+        ChangeNotifierProvider<WeatherProvider>.value(value: weatherProvider),
       ],
       child: const LunarApp(),
     ),
@@ -176,11 +193,11 @@ class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 4;
 
   static const List<Widget> _screens = [
-    CommunityScreen(),  // 0 — Community
-    CalendarScreen(),   // 1 — Calendar
-    AIVoiceScreen(),    // 2 — Lunar AI  ★ center identity
-    PregnancyScreen(),  // 3 — Pregnancy
-    HomeDashboard(),    // 4 — Home (default)
+    CommunityScreen(), // 0 — Community
+    CalendarScreen(), // 1 — Calendar
+    AIVoiceScreen(), // 2 — Lunar AI  ★ center identity
+    PregnancyScreen(), // 3 — Pregnancy
+    HomeDashboard(), // 4 — Home (default)
   ];
 
   void _onTap(int i) {
@@ -199,14 +216,13 @@ class _MainNavigationState extends State<MainNavigation> {
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 340),
             transitionBuilder: (child, anim) => FadeTransition(
-              opacity: CurvedAnimation(
-                  parent: anim, curve: Curves.easeOut),
+              opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
               child: SlideTransition(
                 position: Tween<Offset>(
                   begin: const Offset(0, 0.035),
                   end: Offset.zero,
-                ).animate(CurvedAnimation(
-                    parent: anim, curve: Curves.easeOutCubic)),
+                ).animate(
+                    CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
                 child: child,
               ),
             ),
@@ -303,8 +319,7 @@ class _DevModeBadge extends StatelessWidget {
 class _FloatingProfileAvatar extends StatefulWidget {
   const _FloatingProfileAvatar();
   @override
-  State<_FloatingProfileAvatar> createState() =>
-      _FloatingProfileAvatarState();
+  State<_FloatingProfileAvatar> createState() => _FloatingProfileAvatarState();
 }
 
 class _FloatingProfileAvatarState extends State<_FloatingProfileAvatar>
@@ -406,17 +421,14 @@ class _ProfileMenuSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius:
-          const BorderRadius.vertical(top: Radius.circular(32)),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
         child: Container(
           decoration: BoxDecoration(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(32)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             color: const Color(0xFF0D0120).withOpacity(0.94),
-            border: Border.all(
-                color: kLunarPurple.withOpacity(0.30), width: 1),
+            border: Border.all(color: kLunarPurple.withOpacity(0.30), width: 1),
           ),
           padding: EdgeInsets.fromLTRB(
               24, 16, 24, MediaQuery.of(context).padding.bottom + 28),
@@ -490,19 +502,17 @@ class _ProfileMenuSheet extends StatelessWidget {
     );
   }
 
-  Widget _menuTile(BuildContext ctx, IconData icon, String label,
-      Color color, VoidCallback onTap) {
+  Widget _menuTile(BuildContext ctx, IconData icon, String label, Color color,
+      VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           color: color.withOpacity(0.08),
-          border:
-              Border.all(color: color.withOpacity(0.22), width: 1),
+          border: Border.all(color: color.withOpacity(0.22), width: 1),
         ),
         child: Row(
           children: [
@@ -539,8 +549,7 @@ class _LunarPremiumNavBar extends StatefulWidget {
   });
 
   @override
-  State<_LunarPremiumNavBar> createState() =>
-      _LunarPremiumNavBarState();
+  State<_LunarPremiumNavBar> createState() => _LunarPremiumNavBarState();
 }
 
 class _LunarPremiumNavBarState extends State<_LunarPremiumNavBar>
@@ -556,8 +565,7 @@ class _LunarPremiumNavBarState extends State<_LunarPremiumNavBar>
       duration: const Duration(milliseconds: 2600),
     )..repeat(reverse: true);
     _breatheAnim = Tween<double>(begin: 0.88, end: 1.0)
-        .animate(
-            CurvedAnimation(parent: _breathe, curve: Curves.easeInOut));
+        .animate(CurvedAnimation(parent: _breathe, curve: Curves.easeInOut));
   }
 
   @override
@@ -688,8 +696,7 @@ class _NavTile extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        padding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: isActive
             ? BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
@@ -699,8 +706,7 @@ class _NavTile extends StatelessWidget {
                     color.withOpacity(0.10),
                   ],
                 ),
-                border: Border.all(
-                    color: color.withOpacity(0.44), width: 1),
+                border: Border.all(color: color.withOpacity(0.44), width: 1),
                 boxShadow: [
                   BoxShadow(
                     color: color.withOpacity(0.26),
@@ -720,9 +726,7 @@ class _NavTile extends StatelessWidget {
               child: Icon(
                 isActive ? icon : inactiveIcon,
                 key: ValueKey(isActive),
-                color: isActive
-                    ? color
-                    : Colors.white.withOpacity(0.34),
+                color: isActive ? color : Colors.white.withOpacity(0.34),
                 size: isActive ? 25 : 22,
               ),
             ),
@@ -730,13 +734,9 @@ class _NavTile extends StatelessWidget {
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 200),
               style: TextStyle(
-                color: isActive
-                    ? color
-                    : Colors.white.withOpacity(0.34),
+                color: isActive ? color : Colors.white.withOpacity(0.34),
                 fontSize: isActive ? 9.5 : 9.0,
-                fontWeight: isActive
-                    ? FontWeight.w700
-                    : FontWeight.w400,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
                 letterSpacing: 0.2,
               ),
               child: Text(label),
@@ -815,14 +815,12 @@ class _LunarAIOrbButton extends StatelessWidget {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: kLunarPurple.withOpacity(
-                        isActive ? 0.82 : 0.48),
+                    color: kLunarPurple.withOpacity(isActive ? 0.82 : 0.48),
                     blurRadius: isActive ? 34 : 20,
                     spreadRadius: isActive ? 5 : 2,
                   ),
                   BoxShadow(
-                    color: kLunarPink
-                        .withOpacity(isActive ? 0.48 : 0.20),
+                    color: kLunarPink.withOpacity(isActive ? 0.48 : 0.20),
                     blurRadius: 18,
                     spreadRadius: 1,
                   ),
@@ -833,8 +831,7 @@ class _LunarAIOrbButton extends StatelessWidget {
                   ),
                 ],
                 border: Border.all(
-                  color: Colors.white
-                      .withOpacity(isActive ? 0.36 : 0.14),
+                  color: Colors.white.withOpacity(isActive ? 0.36 : 0.14),
                   width: 1.5,
                 ),
               ),
@@ -847,16 +844,14 @@ class _LunarAIOrbButton extends StatelessWidget {
           children: [
             Icon(
               Icons.auto_awesome,
-              color: Colors.white
-                  .withOpacity(isActive ? 1.0 : 0.72),
+              color: Colors.white.withOpacity(isActive ? 1.0 : 0.72),
               size: isActive ? 26 : 22,
             ),
             const SizedBox(height: 1),
             Text(
               'Lunar AI',
               style: TextStyle(
-                color: Colors.white
-                    .withOpacity(isActive ? 1.0 : 0.62),
+                color: Colors.white.withOpacity(isActive ? 1.0 : 0.62),
                 fontSize: 8.0,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
@@ -877,8 +872,7 @@ Route<T> _lunarFadeRoute<T>(Widget page) => PageRouteBuilder<T>(
       transitionDuration: const Duration(milliseconds: 380),
       reverseTransitionDuration: const Duration(milliseconds: 280),
       transitionsBuilder: (_, anim, __, child) => FadeTransition(
-        opacity:
-            CurvedAnimation(parent: anim, curve: Curves.easeOut),
+        opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
         child: child,
       ),
     );

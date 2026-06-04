@@ -21,6 +21,11 @@ import 'ai_insights_screen.dart';
 import 'community_screen.dart';
 import 'sleep_screen.dart';
 import 'pregnancy_screen.dart';
+import '../core/providers/weather_provider.dart';
+import '../core/providers/memory_provider.dart';
+import '../core/models/emotional_weather.dart';
+import '../core/models/emotional_memory.dart' show EmotionalProfile;
+import 'emotional_weather_screen.dart';
 
 // ── Local design tokens ─────────────────────────────────────
 const Color _hBg = Color(0xFF0A0118);
@@ -163,6 +168,21 @@ class _HomeDashboardState extends State<HomeDashboard>
     );
     _milestoneAnim =
         CurvedAnimation(parent: _milestoneCtrl, curve: Curves.easeOutCubic);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final chat = context.read<ChatProvider>();
+        final lunarData = context.read<LunarDataProvider>();
+        final memory = context.read<MemoryProvider>();
+        final app = context.read<AppProvider>();
+        context.read<WeatherProvider>().refresh(
+              profile: chat.emotionalProfile,
+              memory: memory,
+              lunarData: lunarData,
+              userName: app.userName,
+            );
+      }
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final data = StreakService.checkIn();
@@ -443,6 +463,7 @@ class _HomeDashboardState extends State<HomeDashboard>
     final user = Provider.of<UserProvider>(context);
     final lunarData = context.watch<LunarDataProvider>();
     final chat = context.watch<ChatProvider>();
+    final weatherProv = context.watch<WeatherProvider>();
     final size = MediaQuery.of(context).size;
 
     // ── Override static health vars with real live data ───────────────
@@ -502,44 +523,67 @@ class _HomeDashboardState extends State<HomeDashboard>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 18),
-                        _staggeredSection(_heroSection(user, chat), 0),
-                        const SizedBox(height: 14),
-                        if (_streakData != null && _streakData!.current > 0)
-                          _staggeredSection(_streakRibbon(_streakData!), 0),
-                        const SizedBox(height: 16),
-                        _staggeredSection(_lunarNoteCard(), 1),
-                        const SizedBox(height: 16),
-                        _staggeredSection(_dailyCheckInCard(context, chat), 1),
-                        const SizedBox(height: 16),
-                        _staggeredSection(_emotionalMemoryCard(chat), 1),
-                        const SizedBox(height: 16),
-                        _staggeredSection(_dailyReadingCard(chat, user), 1),
-                        const SizedBox(height: 16),
-                        _staggeredSection(_healingJourneyCard(chat), 2),
-                        const SizedBox(height: 16),
-                        _staggeredSection(_dailyRitualCard(context), 2),
-                        const SizedBox(height: 20),
-                        _staggeredSection(_emotionalWeatherStrip(user), 1),
-                        const SizedBox(height: 22),
-                        _staggeredSection(_todayOverview(user, lunarData), 2),
-                        const SizedBox(height: 22),
-                        _staggeredSection(_wellnessRingsRow(lunarData), 2),
-                        const SizedBox(height: 22),
-                        _staggeredSection(_wellnessScore(lunarData), 4),
-                        const SizedBox(height: 26),
-                        _staggeredSection(_quickActions(context), 4),
-                        const SizedBox(height: 26),
-                        _staggeredSection(_orbitalTracker(user), 2),
-                        const SizedBox(height: 20),
-                        _staggeredSection(_moonCompanionRow(user), 3),
-                        const SizedBox(height: 22),
+                        // ── Phase 4: Emotional Command Bar ──────────────────
                         _staggeredSection(
-                            _aiSuggestionChips(user, lunarData), 5),
+                            _emotionalCommandBar(user, chat, weatherProv), 0),
+                        const SizedBox(height: 16),
+                        // ── Orb Hero ─────────────────────────────────────────
+                        _staggeredSection(_heroSection(user, chat), 0),
+                        const SizedBox(height: 16),
+                        // ── Phase 4: AI Insight of the Day ───────────────────
+                        _staggeredSection(
+                            _aiInsightOfDay(chat, weatherProv), 1),
+                        const SizedBox(height: 14),
+                        // ── Streak (conditional) ─────────────────────────────
+                        if (_streakData != null &&
+                            _streakData!.current > 0) ...[
+                          _staggeredSection(_streakRibbon(_streakData!), 1),
+                          const SizedBox(height: 14),
+                        ],
+                        // ── Phase 4: Emotional Energy Panel ──────────────────
+                        _staggeredSection(
+                            _emotionalEnergyPanel(chat, lunarData), 2),
+                        const SizedBox(height: 16),
+                        // ── Phase 4: Today's Focus Card ───────────────────────
+                        _staggeredSection(_todaysFocusCard(chat, user), 2),
+                        const SizedBox(height: 16),
+                        // ── Phase 3: Daily Emotional Reading ─────────────────
+                        _staggeredSection(_dailyReadingCard(weatherProv), 2),
+                        const SizedBox(height: 16),
+                        // ── Phase 4: Mood Trend Sparkline ─────────────────────
+                        _staggeredSection(_moodTrendCard(weatherProv), 3),
+                        const SizedBox(height: 20),
+                        // ── Phase 4: Quick Emotional Actions ─────────────────
+                        _staggeredSection(_quickEmotionalActions(context), 3),
                         const SizedBox(height: 22),
+                        // ── Phase 2: Emotional Memory Card ────────────────────
+                        _staggeredSection(_emotionalMemoryCard(chat), 3),
+                        const SizedBox(height: 22),
+                        // ── Healing Journey ───────────────────────────────────
+                        _staggeredSection(_healingJourneyCard(chat), 3),
+                        const SizedBox(height: 20),
+                        // ── Phase 3: Weather Banner ────────────────────────────
+                        _staggeredSection(_weatherBanner(weatherProv), 3),
+                        const SizedBox(height: 22),
+                        // ── Wellness Rings ────────────────────────────────────
+                        _staggeredSection(_wellnessRingsRow(lunarData), 4),
+                        const SizedBox(height: 22),
+                        // ── Daily Check-In ────────────────────────────────────
+                        _staggeredSection(_dailyCheckInCard(context, chat), 4),
+                        const SizedBox(height: 22),
+                        // ── Pregnancy ─────────────────────────────────────────
                         _staggeredSection(_pregnancyCard(context), 5),
-                        const SizedBox(height: 26),
-                        _staggeredSection(_insightCarousel(user), 6),
-                        const SizedBox(height: 26),
+                        const SizedBox(height: 22),
+                        // ── Orbital Tracker ───────────────────────────────────
+                        _staggeredSection(_orbitalTracker(user), 5),
+                        const SizedBox(height: 20),
+                        // ── Daily Ritual ──────────────────────────────────────
+                        _staggeredSection(_dailyRitualCard(context), 5),
+                        const SizedBox(height: 20),
+                        // ── Moon Companion ────────────────────────────────────
+                        _staggeredSection(_moonCompanionRow(user), 6),
+                        const SizedBox(height: 20),
+                        // ── Health Snapshot ───────────────────────────────────
                         _staggeredSection(_healthSnapshot(), 7),
                         const SizedBox(height: 100),
                       ],
@@ -1342,233 +1386,248 @@ class _HomeDashboardState extends State<HomeDashboard>
   // ─────────────────────────────────────────────────────────
   //  DAILY EMOTIONAL READING CARD — premium daily wow moment
   // ─────────────────────────────────────────────────────────
-  Widget _dailyReadingCard(ChatProvider chat, UserProvider user) {
-    final reading = chat.dailyReading;
-    final profile = chat.emotionalProfile;
+  Widget _dailyReadingCard(WeatherProvider weatherProv) {
+    final today = weatherProv.todayWeather;
+    final accent = today.accentColor;
+    final forecast = weatherProv.forecast;
 
-    // Determine accent color from reading's emotionKey
-    final Color accent = switch (reading.emotionKey) {
-      'happy' => _hGold,
-      'anxious' => _hTeal,
-      'stressed' => _hIndigo,
-      'sad' => _hIndigo,
-      'lonely' => _hPurple,
-      'tired' => _hPurple,
-      'period' => _hPink,
-      'emotional' => _hPink,
-      _ => _hPurple,
-    };
-
-    // Trajectory badge label
-    final traj = profile.emotionalTrajectory;
-    final String? trajLabel = switch (traj) {
-      'improving' => '↑ Growing',
-      'declining' => '↓ Tender',
-      'stable' => '~ Steady',
-      _ => null,
-    };
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: AnimatedBuilder(
-          animation: Listenable.merge([_glowAnim, _pulseAnim]),
-          builder: (_, __) => Container(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  accent.withOpacity(0.22),
-                  accent.withOpacity(0.09),
-                  _hPurple.withOpacity(0.06),
-                  Colors.white.withOpacity(0.02),
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const EmotionalWeatherScreen(),
+          ),
+        );
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_glowAnim, _pulseAnim]),
+            builder: (_, __) => Container(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    accent.withOpacity(0.22),
+                    accent.withOpacity(0.09),
+                    _hPurple.withOpacity(0.06),
+                    Colors.white.withOpacity(0.02),
+                  ],
+                ),
+                border: Border.all(
+                  color: accent.withOpacity(0.42 * _glowAnim.value),
+                  width: 1.3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withOpacity(0.18 * _glowAnim.value),
+                    blurRadius: 24,
+                    spreadRadius: 1,
+                  ),
                 ],
               ),
-              border: Border.all(
-                color: accent.withOpacity(0.42 * _glowAnim.value),
-                width: 1.3,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withOpacity(0.18 * _glowAnim.value),
-                  blurRadius: 24,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header row
-                Row(
-                  children: [
-                    // Animated weather orb
-                    AnimatedBuilder(
-                      animation: _pulseAnim,
-                      builder: (_, __) => Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(colors: [
-                            accent.withOpacity(0.38),
-                            accent.withOpacity(0.12),
-                          ]),
-                          boxShadow: [
-                            BoxShadow(
-                              color:
-                                  accent.withOpacity(0.30 * _pulseAnim.value),
-                              blurRadius: 16,
-                              spreadRadius: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header row
+                  Row(
+                    children: [
+                      AnimatedBuilder(
+                        animation: _pulseAnim,
+                        builder: (_, __) => Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(colors: [
+                              accent.withOpacity(0.38),
+                              accent.withOpacity(0.12),
+                            ]),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    accent.withOpacity(0.30 * _pulseAnim.value),
+                                blurRadius: 16,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Text(today.emoji,
+                                style: const TextStyle(fontSize: 24)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Daily Reading',
+                              style: TextStyle(
+                                color: accent.withOpacity(0.80),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              today.label,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                height: 1.1,
+                              ),
                             ),
                           ],
                         ),
-                        child: Center(
-                          child: Text(reading.weatherEmoji,
-                              style: const TextStyle(fontSize: 24)),
-                        ),
                       ),
+                      Icon(Icons.arrow_forward_ios_rounded,
+                          size: 14, color: accent.withOpacity(0.5)),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                        accent.withOpacity(0.35),
+                        Colors.transparent,
+                      ]),
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Daily Reading',
-                                style: TextStyle(
-                                  color: accent.withOpacity(0.80),
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.6,
-                                ),
-                              ),
-                              if (trajLabel != null) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 7, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(8),
-                                    color: accent.withOpacity(0.18),
-                                    border: Border.all(
-                                        color: accent.withOpacity(0.35),
-                                        width: 0.8),
-                                  ),
-                                  child: Text(
-                                    trajLabel,
-                                    style: TextStyle(
-                                      color: accent,
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            reading.weatherLabel,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              height: 1.1,
+                  ),
+                  const SizedBox(height: 12),
+                  // Reading text
+                  Text(
+                    today.reading.split('\n\n').first,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.85),
+                      fontSize: 13.5,
+                      height: 1.55,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // Healing intention
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      color: accent.withOpacity(0.10),
+                      border: Border.all(
+                          color: accent.withOpacity(0.22), width: 0.8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Text('💜', style: TextStyle(fontSize: 14)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            today.healingIntention,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.72),
+                              fontSize: 12,
+                              height: 1.45,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                    Text(reading.energyEmoji,
-                        style: const TextStyle(fontSize: 20)),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                // Divider
-                Container(
-                  height: 1,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [
-                      accent.withOpacity(0.35),
-                      Colors.transparent,
-                    ]),
                   ),
-                ),
-                const SizedBox(height: 12),
-                // Insight text
-                Text(
-                  reading.insight,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
-                    fontSize: 13.5,
-                    height: 1.55,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                // Healing message
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: accent.withOpacity(0.10),
-                    border:
-                        Border.all(color: accent.withOpacity(0.22), width: 0.8),
-                  ),
-                  child: Row(
-                    children: [
-                      Text('💜', style: const TextStyle(fontSize: 14)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          reading.healingMessage,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.72),
-                            fontSize: 12,
-                            height: 1.45,
+                  const SizedBox(height: 14),
+                  // Mini 3-day forecast strip
+                  Row(
+                    children: forecast.days.asMap().entries.map((e) {
+                      final d = e.value;
+                      final isT = e.key == 0;
+                      return Expanded(
+                        child: Container(
+                          margin: EdgeInsets.only(right: e.key < 2 ? 6 : 0),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 7, horizontal: 4),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            color: d.accentColor.withOpacity(isT ? 0.18 : 0.08),
+                            border: Border.all(
+                              color:
+                                  d.accentColor.withOpacity(isT ? 0.4 : 0.15),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(d.emoji,
+                                  style: const TextStyle(fontSize: 14)),
+                              const SizedBox(height: 2),
+                              Text(
+                                d.dayLabel ??
+                                    (isT
+                                        ? 'Today'
+                                        : e.key == 1
+                                            ? 'Tmrw'
+                                            : '+2'),
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.5),
+                                  fontSize: 9,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
+                      );
+                    }).toList(),
                   ),
-                ),
-                const SizedBox(height: 12),
-                // Share row — viral potential
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    // TODO: hook into share plugin for viral sharing
-                  },
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Icon(Icons.share_outlined,
-                          size: 13, color: accent.withOpacity(0.55)),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Share this reading',
-                        style: TextStyle(
-                          color: accent.withOpacity(0.55),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                  const SizedBox(height: 12),
+                  // Share row
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      _showWeatherShareSheet(context, today);
+                    },
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Icon(Icons.share_outlined,
+                            size: 13, color: accent.withOpacity(0.55)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Share this reading',
+                          style: TextStyle(
+                            color: accent.withOpacity(0.55),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  /// Share sheet for the weather reading card on the home dashboard.
+  void _showWeatherShareSheet(BuildContext ctx, DayWeather today) {
+    showModalBottomSheet(
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _HomeWeatherShareSheet(today: today),
     );
   }
 
@@ -1902,12 +1961,13 @@ class _HomeDashboardState extends State<HomeDashboard>
   }
 
   // ─────────────────────────────────────────────────────────
-  //  EMOTIONAL WEATHER STRIP
+  //  EMOTIONAL WEATHER BANNER (enhanced — Phase 3)
   // ─────────────────────────────────────────────────────────
-  Widget _emotionalWeatherStrip(UserProvider user) {
-    final color = _weatherColor(user);
-    final label = _emotionalWeather(user);
-    // BackdropFilter is OUTSIDE AnimatedBuilder to avoid per-frame blur recomputation
+  Widget _weatherBanner(WeatherProvider weatherProv) {
+    final today = weatherProv.todayWeather;
+    final forecast = weatherProv.forecast;
+    final color = today.accentColor;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
@@ -1915,7 +1975,7 @@ class _HomeDashboardState extends State<HomeDashboard>
         child: AnimatedBuilder(
           animation: _glowAnim,
           builder: (_, __) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               gradient: LinearGradient(colors: [
@@ -1945,18 +2005,836 @@ class _HomeDashboardState extends State<HomeDashboard>
                 ),
               ),
               const SizedBox(width: 10),
-              Text('Emotional Weather: ',
+              Text('Forecast: ',
                   style: TextStyle(
                       color: Colors.white.withOpacity(0.48), fontSize: 12)),
-              Text(label,
+              Text('${today.emoji} ${today.state.shortLabel}',
                   style: TextStyle(
                       color: color,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700)),
               const Spacer(),
-              Icon(Icons.auto_awesome_rounded,
-                  color: color.withOpacity(0.6), size: 14),
+              // Mini 3-day chips
+              ...forecast.days.asMap().entries.map((e) {
+                final d = e.value;
+                return Container(
+                  margin: const EdgeInsets.only(left: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    color: d.accentColor.withOpacity(e.key == 0 ? 0.22 : 0.1),
+                    border: Border.all(
+                        color: d.accentColor.withOpacity(0.3), width: 0.6),
+                  ),
+                  child: Text(d.emoji, style: const TextStyle(fontSize: 11)),
+                );
+              }),
             ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════
+  //  PHASE 4 — EMOTIONAL COMMAND CENTER WIDGETS
+  // ══════════════════════════════════════════════════════
+
+  // ─────────────────────────────────────────────────────────
+  //  EMOTIONAL COMMAND BAR — first thing users see
+  // ─────────────────────────────────────────────────────────
+  Widget _emotionalCommandBar(
+      UserProvider user, ChatProvider chat, WeatherProvider weather) {
+    final app = context.read<AppProvider>();
+    final rawName = app.userName;
+    final firstName = rawName.isNotEmpty ? rawName.split(' ').first : '';
+    final h = DateTime.now().hour;
+    final greeting = h < 6
+        ? '🌙 Good night'
+        : h < 12
+            ? '🌸 Good morning'
+            : h < 17
+                ? '✨ Good afternoon'
+                : '🌙 Good evening';
+    final today = weather.todayWeather;
+    final profile = chat.emotionalProfile;
+    final traj = profile.emotionalTrajectory;
+
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              today.gradientColors.first.withOpacity(0.20 * _glowAnim.value),
+              _hPurple.withOpacity(0.10),
+              Colors.transparent,
+            ],
+          ),
+          border: Border.all(
+            color: today.accentColor.withOpacity(0.28 * _glowAnim.value),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    firstName.isNotEmpty ? '$greeting, $firstName' : greeting,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    _emotionalContextLine(profile, today),
+                    style: TextStyle(
+                      color: today.accentColor.withOpacity(0.80),
+                      fontSize: 12.5,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    color: today.accentColor.withOpacity(0.16),
+                    border: Border.all(
+                        color: today.accentColor.withOpacity(0.38), width: 0.8),
+                  ),
+                  child: Text(
+                    '${today.emoji} ${today.state.shortLabel}',
+                    style: TextStyle(
+                      color: today.accentColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (traj != 'unknown') ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    traj == 'improving'
+                        ? '↑ Growing'
+                        : traj == 'declining'
+                            ? '→ Tender'
+                            : '~ Steady',
+                    style: TextStyle(
+                      color: traj == 'improving'
+                          ? _hGreen
+                          : Colors.white.withOpacity(0.42),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _emotionalContextLine(EmotionalProfile profile, DayWeather weather) {
+    if (profile.daysSinceLastVisit >= 7) {
+      return "It's been a while — Lunar has missed you";
+    }
+    if (profile.daysSinceLastVisit >= 3) {
+      return 'Welcome back. How have you been?';
+    }
+    if (profile.emotionalTrajectory == 'improving') {
+      return 'Your energy has been rising lately';
+    }
+    if (profile.anxietyMentions >= 3) {
+      return "You've been carrying a lot — you're safe here";
+    }
+    if (profile.hasPositiveStreak) {
+      return "You've been doing beautifully";
+    }
+    switch (weather.state) {
+      case EmotionalWeatherState.radiantDay:
+        return 'Your energy feels luminous today';
+      case EmotionalWeatherState.gentleHeartDay:
+        return 'Today calls for tenderness and rest';
+      case EmotionalWeatherState.emotionalStorm:
+        return "Turbulent energy — you're not alone";
+      case EmotionalWeatherState.releaseWeather:
+        return 'Some things want to be let go today';
+      case EmotionalWeatherState.calmMoon:
+        return 'A peaceful presence fills the air';
+      case EmotionalWeatherState.healingEnergy:
+        return 'Healing is quietly happening';
+      case EmotionalWeatherState.selfLoveDay:
+        return 'You deserve your own gentleness today';
+      case EmotionalWeatherState.emotionalTide:
+        return 'Emotions are moving — let them';
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  AI INSIGHT OF THE DAY
+  // ─────────────────────────────────────────────────────────
+  Widget _aiInsightOfDay(ChatProvider chat, WeatherProvider weather) {
+    final profile = chat.emotionalProfile;
+    final insight = profile.patternInsight ?? weather.todayWeather.insight;
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([_glowAnim, _breatheAnim]),
+      builder: (_, __) => ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  _hPurple.withOpacity(0.22 * _breatheAnim.value),
+                  _hPink.withOpacity(0.09),
+                  Colors.white.withOpacity(0.02),
+                ],
+              ),
+              border: Border.all(
+                  color: _hPurple.withOpacity(0.32 * _glowAnim.value),
+                  width: 1.0),
+              boxShadow: [
+                BoxShadow(
+                  color: _hPurple.withOpacity(0.10 * _glowAnim.value),
+                  blurRadius: 20,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AnimatedBuilder(
+                  animation: _pulseAnim,
+                  builder: (_, __) => Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(colors: [
+                        _hPurple.withOpacity(0.60 * _pulseAnim.value),
+                        Colors.transparent,
+                      ]),
+                    ),
+                    child: const Center(
+                        child: Text('🌙', style: TextStyle(fontSize: 18))),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'LUNAR INSIGHT',
+                        style: TextStyle(
+                          color: _hPurple.withOpacity(0.85),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        insight,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.82),
+                          fontSize: 13.5,
+                          fontStyle: FontStyle.italic,
+                          height: 1.55,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  EMOTIONAL ENERGY PANEL
+  // ─────────────────────────────────────────────────────────
+  Widget _emotionalEnergyPanel(ChatProvider chat, LunarDataProvider lunarData) {
+    final m = _computeEnergy(chat, lunarData);
+
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  _hIndigo.withOpacity(0.18),
+                  _hPurple.withOpacity(0.10),
+                  Colors.white.withOpacity(0.02),
+                ],
+              ),
+              border: Border.all(
+                  color: _hIndigo.withOpacity(0.32 * _glowAnim.value),
+                  width: 1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'EMOTIONAL ENERGY',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.45),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.3,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        color: _overallEnergyColor(m.overall).withOpacity(0.20),
+                        border: Border.all(
+                            color: _overallEnergyColor(m.overall)
+                                .withOpacity(0.45),
+                            width: 0.8),
+                      ),
+                      child: Text(
+                        '${m.overall}',
+                        style: TextStyle(
+                          color: _overallEnergyColor(m.overall),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _energyBar(
+                    'Emotional Balance',
+                    m.balance / 100,
+                    _hPurple,
+                    m.balance >= 65
+                        ? 'Centred'
+                        : m.balance >= 45
+                            ? 'Wavering'
+                            : 'Fragile'),
+                const SizedBox(height: 12),
+                _energyBar(
+                    'Stress Load',
+                    1 - m.stressLoad / 100,
+                    m.stressLoad > 65
+                        ? _hWarm
+                        : m.stressLoad > 40
+                            ? _hIndigo
+                            : _hGreen,
+                    m.stressLoad < 35
+                        ? 'Low'
+                        : m.stressLoad < 60
+                            ? 'Moderate'
+                            : 'High'),
+                const SizedBox(height: 12),
+                _energyBar(
+                    'Recovery Power',
+                    m.recovery / 100,
+                    _hTeal,
+                    m.recovery >= 65
+                        ? 'Strong'
+                        : m.recovery >= 45
+                            ? 'Building'
+                            : 'Low'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _energyBar(
+      String label, double value, Color color, String statusLabel) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.65),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              statusLabel,
+              style: TextStyle(
+                color: color.withOpacity(0.85),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Stack(
+            children: [
+              Container(
+                height: 7,
+                color: Colors.white.withOpacity(0.07),
+              ),
+              FractionallySizedBox(
+                widthFactor: value.clamp(0.04, 1.0),
+                child: Container(
+                  height: 7,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    gradient:
+                        LinearGradient(colors: [color.withOpacity(0.7), color]),
+                    boxShadow: [
+                      BoxShadow(color: color.withOpacity(0.40), blurRadius: 6),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _overallEnergyColor(int score) {
+    if (score >= 75) return _hGreen;
+    if (score >= 55) return _hPurple;
+    if (score >= 40) return _hIndigo;
+    return _hWarm;
+  }
+
+  _EnergyMetrics _computeEnergy(
+      ChatProvider chat, LunarDataProvider lunarData) {
+    final profile = chat.emotionalProfile;
+
+    int balance = 58;
+    if (profile.emotionalTrajectory == 'improving')
+      balance += 18;
+    else if (profile.emotionalTrajectory == 'declining') balance -= 15;
+    if (profile.hasPositiveStreak) balance += 10;
+    if (profile.dominantEmotion == EmotionTag.happy ||
+        profile.dominantEmotion == EmotionTag.energetic) balance += 12;
+    if (profile.dominantEmotion == EmotionTag.sad ||
+        profile.dominantEmotion == EmotionTag.lonely) balance -= 12;
+
+    int stressLoad = 18;
+    stressLoad += (profile.anxietyMentions * 9).clamp(0, 36);
+    stressLoad += (profile.stressMentions * 7).clamp(0, 28);
+    if (profile.dominantEmotion == EmotionTag.anxious) stressLoad += 14;
+    if (profile.dominantEmotion == EmotionTag.stressed) stressLoad += 11;
+
+    int recovery = 48;
+    if (lunarData.lastSleepHours >= 7.5)
+      recovery += 22;
+    else if (lunarData.lastSleepHours >= 6.5)
+      recovery += 10;
+    else if (lunarData.lastSleepHours < 5.5) recovery -= 18;
+    if (lunarData.todayWaterGlasses >= 7) recovery += 10;
+    if (lunarData.todayWaterGlasses >= 5) recovery += 5;
+    if (profile.sleepMentions >= 2 && lunarData.lastSleepHours >= 7.0) {
+      recovery += 8;
+    }
+
+    return _EnergyMetrics(
+      balance.clamp(8, 98),
+      stressLoad.clamp(5, 95),
+      recovery.clamp(8, 98),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  TODAY'S EMOTIONAL FOCUS
+  // ─────────────────────────────────────────────────────────
+  Widget _todaysFocusCard(ChatProvider chat, UserProvider user) {
+    final focus = _computeTodaysFocus(chat, user);
+    final color = focus.color;
+
+    return GestureDetector(
+      onTap: () => _nav(context, const AIVoiceScreen()),
+      child: AnimatedBuilder(
+        animation: _glowAnim,
+        builder: (_, __) => Container(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(colors: [
+              color.withOpacity(0.18 * _glowAnim.value),
+              color.withOpacity(0.07),
+            ]),
+            border: Border.all(
+                color: color.withOpacity(0.32 * _glowAnim.value), width: 1),
+          ),
+          child: Row(
+            children: [
+              Text(focus.emoji, style: const TextStyle(fontSize: 28)),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "TODAY'S FOCUS",
+                      style: TextStyle(
+                        color: color.withOpacity(0.75),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      focus.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      focus.subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.60),
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded,
+                  size: 14, color: color.withOpacity(0.45)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  _FocusData _computeTodaysFocus(ChatProvider chat, UserProvider user) {
+    final profile = chat.emotionalProfile;
+    final phase = _phaseOf(user);
+
+    if (profile.dominantEmotion == EmotionTag.anxious ||
+        profile.anxietyMentions >= 3) {
+      return _FocusData(
+          '🍃', 'Breathe & Ground', 'Let anxiety pass through you', _hTeal);
+    }
+    if (profile.dominantEmotion == EmotionTag.sad ||
+        profile.dominantEmotion == EmotionTag.lonely) {
+      return _FocusData(
+          '💜', 'Gentle Healing', 'Hold yourself softly today', _hPurple);
+    }
+    if (profile.stressMentions >= 3 ||
+        profile.dominantEmotion == EmotionTag.stressed) {
+      return _FocusData(
+          '🌿', 'Simplify & Release', 'One thing at a time', _hGreen);
+    }
+    if (phase == _CyclePhase.period) {
+      return _FocusData(
+          '🌸', 'Rest & Restore', 'Your body needs warmth now', _hPink);
+    }
+    if (phase == _CyclePhase.ovulation) {
+      return _FocusData(
+          '🌟', 'Express Yourself', 'Your energy is at its peak', _hGold);
+    }
+    if (phase == _CyclePhase.luteal) {
+      return _FocusData(
+          '🌊', 'Turn Inward', 'Honour your inner rhythm', _hIndigo);
+    }
+    if (profile.emotionalTrajectory == 'improving' ||
+        profile.hasPositiveStreak) {
+      return _FocusData(
+          '✨', 'Momentum Day', 'Channel this rising energy', _hGold);
+    }
+    if (profile.dominantEmotion == EmotionTag.happy ||
+        profile.dominantEmotion == EmotionTag.energetic) {
+      return _FocusData(
+          '💫', 'Radiant Energy', 'Share your light today', _hGold);
+    }
+    if (profile.sleepMentions >= 2) {
+      return _FocusData(
+          '😴', 'Rest First', 'Sleep is an act of self-love', _hIndigo);
+    }
+    return _FocusData(
+        '🌙', 'Open Heart Day', 'Stay curious about your feelings', _hPurple);
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  MOOD TREND CARD — 7-day emotional sparkline
+  // ─────────────────────────────────────────────────────────
+  Widget _moodTrendCard(WeatherProvider weather) {
+    final history = weather.recentHistory.take(7).toList().reversed.toList();
+
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: LinearGradient(
+                colors: [
+                  _hPurple.withOpacity(0.14),
+                  _hPink.withOpacity(0.08),
+                  Colors.white.withOpacity(0.02),
+                ],
+              ),
+              border: Border.all(
+                  color: _hPurple.withOpacity(0.25 * _glowAnim.value),
+                  width: 1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '7-DAY MOOD JOURNEY',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.45),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.3,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      history.isNotEmpty ? history.last.emoji : '🌙',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                if (history.length >= 2)
+                  SizedBox(
+                    height: 68,
+                    child: CustomPaint(
+                      size: const Size(double.infinity, 68),
+                      painter: _MoodSparklinePainter(
+                        history: history,
+                        lineColor: _hPurple,
+                        glowColor: _hPink,
+                      ),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    height: 68,
+                    child: Center(
+                      child: Text(
+                        'Keep journaling — your mood pattern will appear here',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.38),
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (history.length >= 2) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: history.map((d) {
+                      final isToday = d == history.last;
+                      return Text(
+                        d.emoji,
+                        style: TextStyle(fontSize: isToday ? 16 : 12),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  QUICK EMOTIONAL ACTIONS — 4 focused CTA buttons
+  // ─────────────────────────────────────────────────────────
+  Widget _quickEmotionalActions(BuildContext ctx) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'WHAT DO YOU NEED?',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.38),
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.4,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _emotionalActionBtn(
+                emoji: '🌙',
+                label: 'Talk to\nLunar',
+                color: _hPurple,
+                isPrimary: true,
+                onTap: () => _nav(ctx, const AIVoiceScreen()),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _emotionalActionBtn(
+                emoji: '📓',
+                label: 'Write in\nJournal',
+                color: _hPink,
+                isPrimary: false,
+                onTap: () => _nav(ctx, const JournalScreen()),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _emotionalActionBtn(
+                emoji: '🌤️',
+                label: "Today's\nReading",
+                color: _hTeal,
+                isPrimary: false,
+                onTap: () => Navigator.push(
+                  ctx,
+                  MaterialPageRoute(
+                      builder: (_) => const EmotionalWeatherScreen()),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _emotionalActionBtn(
+                emoji: '💜',
+                label: 'Community\nSupport',
+                color: _hIndigo,
+                isPrimary: false,
+                onTap: () => _nav(ctx, const CommunityScreen()),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _emotionalActionBtn({
+    required String emoji,
+    required String label,
+    required Color color,
+    required bool isPrimary,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: AnimatedBuilder(
+        animation: _glowAnim,
+        builder: (_, __) => Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: isPrimary
+                ? LinearGradient(colors: [
+                    color.withOpacity(0.85 * _glowAnim.value),
+                    _hPink.withOpacity(0.65 * _glowAnim.value),
+                  ])
+                : LinearGradient(colors: [
+                    color.withOpacity(0.16),
+                    color.withOpacity(0.07),
+                  ]),
+            border: Border.all(
+              color: color.withOpacity(isPrimary ? 0.80 : 0.30),
+              width: isPrimary ? 1.2 : 0.8,
+            ),
+            boxShadow: isPrimary
+                ? [
+                    BoxShadow(
+                      color: color.withOpacity(0.38 * _glowAnim.value),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: TextStyle(
+                  color:
+                      isPrimary ? Colors.white : Colors.white.withOpacity(0.85),
+                  fontSize: 13,
+                  fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w600,
+                  height: 1.35,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -4533,6 +5411,9 @@ class _HomeDashboardState extends State<HomeDashboard>
               final float = _floatAnim.value * 0.55;
               final dominantEmotion = chat.dominantEmotion;
               final emotionColor = _emotionOrbColor(dominantEmotion);
+              // Weather-reactive third glow layer (Phase 4)
+              final weatherOrb = context.read<WeatherProvider>();
+              final weatherAccent = weatherOrb.todayWeather.accentColor;
 
               // Emotion-reactive breathing — faster for anxiety, slower for sadness
               final breatheSpeed = dominantEmotion == EmotionTag.anxious
@@ -4601,6 +5482,24 @@ class _HomeDashboardState extends State<HomeDashboard>
                             ),
                           ),
                         ),
+                      // Weather-reactive outer halo (Phase 4)
+                      Container(
+                        width: 230,
+                        height: 230,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            center: const Alignment(0.0, -0.4),
+                            radius: 1.0,
+                            colors: [
+                              Colors.transparent,
+                              weatherAccent.withOpacity(0.10 * glow),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.3, 0.7, 1.0],
+                          ),
+                        ),
+                      ),
                       // Soft ambient phase glow behind orb
                       Container(
                         width: 212,
@@ -4642,6 +5541,12 @@ class _HomeDashboardState extends State<HomeDashboard>
                                     .withOpacity(glow * emotionGlowStrength),
                                 blurRadius: 36,
                                 spreadRadius: 8,
+                              ),
+                              // Weather-reactive glow (Phase 4)
+                              BoxShadow(
+                                color: weatherAccent.withOpacity(glow * 0.18),
+                                blurRadius: 30,
+                                spreadRadius: 5,
                               ),
                               // Soft pink inner warmth
                               BoxShadow(
@@ -5613,6 +6518,133 @@ class _NebulaPainter extends CustomPainter {
   bool shouldRepaint(_NebulaPainter old) => old.t != t;
 }
 
+// ══════════════════════════════════════════════════════════════
+//  HOME WEATHER SHARE SHEET
+//  Minimal share sheet used from home_dashboard _dailyReadingCard.
+//  Copies weather reading text to clipboard.
+// ══════════════════════════════════════════════════════════════
+
+class _HomeWeatherShareSheet extends StatelessWidget {
+  final DayWeather today;
+
+  const _HomeWeatherShareSheet({required this.today});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 80),
+      decoration: const BoxDecoration(
+        color: Color(0xFF12022B),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 12, bottom: 16),
+            width: 38,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(today.emoji, style: const TextStyle(fontSize: 44)),
+                const SizedBox(height: 8),
+                Text(
+                  today.label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  today.reading.split('\n\n').first,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.75),
+                    fontSize: 13.5,
+                    height: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Copy button
+                GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(
+                      ClipboardData(text: today.buildShareText()),
+                    );
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text(
+                          'Reading copied! Share it with someone you love 🌙',
+                        ),
+                        backgroundColor: today.accentColor.withOpacity(0.9),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: LinearGradient(
+                        colors: [
+                          today.accentColor.withOpacity(0.85),
+                          today.accentColor.withOpacity(0.6),
+                        ],
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.copy_rounded, color: Colors.white, size: 16),
+                        SizedBox(width: 8),
+                        Text(
+                          'Copy Reading',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Close',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.45),
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ═══════════════════════════════════════════════════════════
 //  EMOTION ATMOSPHERE LAYER
 //  Overlays a living, mood-reactive hue wash over the background.
@@ -5805,4 +6837,162 @@ class _EmotionAtmosphereLayer extends StatelessWidget {
       },
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PHASE 4 DATA CLASSES
+// ═══════════════════════════════════════════════════════════
+
+class _EnergyMetrics {
+  final int balance;
+  final int stressLoad;
+  final int recovery;
+
+  const _EnergyMetrics(this.balance, this.stressLoad, this.recovery);
+
+  int get overall => ((balance + (100 - stressLoad) + recovery) / 3).round();
+}
+
+class _FocusData {
+  final String emoji;
+  final String title;
+  final String subtitle;
+  final Color color;
+
+  const _FocusData(this.emoji, this.title, this.subtitle, this.color);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MOOD SPARKLINE PAINTER
+// ═══════════════════════════════════════════════════════════
+
+class _MoodSparklinePainter extends CustomPainter {
+  final List<DayWeather> history;
+  final Color lineColor;
+  final Color glowColor;
+
+  const _MoodSparklinePainter({
+    required this.history,
+    required this.lineColor,
+    required this.glowColor,
+  });
+
+  static double _stateValue(EmotionalWeatherState state) {
+    switch (state) {
+      case EmotionalWeatherState.radiantDay:
+        return 92;
+      case EmotionalWeatherState.healingEnergy:
+        return 78;
+      case EmotionalWeatherState.selfLoveDay:
+        return 72;
+      case EmotionalWeatherState.calmMoon:
+        return 68;
+      case EmotionalWeatherState.emotionalTide:
+        return 52;
+      case EmotionalWeatherState.gentleHeartDay:
+        return 45;
+      case EmotionalWeatherState.releaseWeather:
+        return 35;
+      case EmotionalWeatherState.emotionalStorm:
+        return 20;
+    }
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (history.length < 2) return;
+
+    final values = history.map((d) => _stateValue(d.state)).toList();
+    final minV = values.reduce((a, b) => a < b ? a : b) - 5;
+    final maxV = values.reduce((a, b) => a > b ? a : b) + 5;
+    final range = (maxV - minV).clamp(1.0, 100.0);
+
+    Offset toPoint(int i, double v) {
+      final x = (i / (values.length - 1)) * size.width;
+      final y = size.height - ((v - minV) / range) * size.height;
+      return Offset(x, y);
+    }
+
+    final points = List.generate(values.length, (i) => toPoint(i, values[i]));
+
+    // Glow fill beneath the line
+    final fillPath = Path();
+    fillPath.moveTo(points.first.dx, size.height);
+    fillPath.lineTo(points.first.dx, points.first.dy);
+    for (int i = 0; i < points.length - 1; i++) {
+      final cp1 = Offset((points[i].dx + points[i + 1].dx) / 2, points[i].dy);
+      final cp2 =
+          Offset((points[i].dx + points[i + 1].dx) / 2, points[i + 1].dy);
+      fillPath.cubicTo(
+          cp1.dx, cp1.dy, cp2.dx, cp2.dy, points[i + 1].dx, points[i + 1].dy);
+    }
+    fillPath.lineTo(points.last.dx, size.height);
+    fillPath.close();
+
+    canvas.drawPath(
+      fillPath,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            lineColor.withOpacity(0.28),
+            lineColor.withOpacity(0.0),
+          ],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
+
+    // Glow stroke
+    final glowPath = Path();
+    glowPath.moveTo(points.first.dx, points.first.dy);
+    for (int i = 0; i < points.length - 1; i++) {
+      final cp1 = Offset((points[i].dx + points[i + 1].dx) / 2, points[i].dy);
+      final cp2 =
+          Offset((points[i].dx + points[i + 1].dx) / 2, points[i + 1].dy);
+      glowPath.cubicTo(
+          cp1.dx, cp1.dy, cp2.dx, cp2.dy, points[i + 1].dx, points[i + 1].dy);
+    }
+
+    canvas.drawPath(
+      glowPath,
+      Paint()
+        ..color = glowColor.withOpacity(0.35)
+        ..strokeWidth = 6
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+
+    // Main line
+    canvas.drawPath(
+      glowPath,
+      Paint()
+        ..color = lineColor
+        ..strokeWidth = 2.2
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // Dot at each data point
+    for (int i = 0; i < points.length; i++) {
+      final isLast = i == points.length - 1;
+      canvas.drawCircle(
+        points[i],
+        isLast ? 4.5 : 2.5,
+        Paint()..color = isLast ? lineColor : lineColor.withOpacity(0.65),
+      );
+      if (isLast) {
+        canvas.drawCircle(
+          points[i],
+          8,
+          Paint()
+            ..color = lineColor.withOpacity(0.20)
+            ..style = PaintingStyle.fill,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MoodSparklinePainter old) => old.history != history;
 }

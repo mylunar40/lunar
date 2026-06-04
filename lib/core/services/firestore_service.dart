@@ -24,8 +24,7 @@ class FirestoreService {
     return LunarUserModel.fromMap(doc.data()!, doc.id);
   }
 
-  static Future<void> updateUser(
-          String uid, Map<String, dynamic> data) =>
+  static Future<void> updateUser(String uid, Map<String, dynamic> data) =>
       _db.collection('users').doc(uid).update({
         ...data,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -102,8 +101,7 @@ class FirestoreService {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-  static Future<void> updateJournal(
-          String docId, Map<String, dynamic> data) =>
+  static Future<void> updateJournal(String docId, Map<String, dynamic> data) =>
       _db.collection('journals').doc(docId).update({
         ...data,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -145,18 +143,17 @@ class FirestoreService {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>>
-      pregnancyJournalStream(String uid) =>
-          _db
-              .collection('pregnancy_journals')
-              .where('uid', isEqualTo: uid)
-              .orderBy('createdAt', descending: true)
-              .limit(50)
-              .snapshots();
+  static Stream<QuerySnapshot<Map<String, dynamic>>> pregnancyJournalStream(
+          String uid) =>
+      _db
+          .collection('pregnancy_journals')
+          .where('uid', isEqualTo: uid)
+          .orderBy('createdAt', descending: true)
+          .limit(50)
+          .snapshots();
 
   // ── AI Memory ───────────────────────────────────────────
-  static Future<void> saveAIMemory(
-          String uid, Map<String, dynamic> data) =>
+  static Future<void> saveAIMemory(String uid, Map<String, dynamic> data) =>
       _db.collection('ai_memory').doc(uid).set(
           {...data, 'updatedAt': FieldValue.serverTimestamp()},
           SetOptions(merge: true));
@@ -193,6 +190,7 @@ class FirestoreService {
     required String content,
     required List<String> tags,
     bool isSensitive = false,
+    String postType = 'regular',
   }) =>
       _db.collection('community_posts').add({
         'uid': uid,
@@ -204,13 +202,14 @@ class FirestoreService {
         'content': content,
         'tags': tags,
         'isSensitive': isSensitive,
+        'postType': postType,
         'reactions': <String, int>{},
         'commentsCount': 0,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>>
-      communityFeedStream({String? category, int limit = 30}) {
+  static Stream<QuerySnapshot<Map<String, dynamic>>> communityFeedStream(
+      {String? category, int limit = 30}) {
     var q = _db
         .collection('community_posts')
         .orderBy('createdAt', descending: true)
@@ -225,13 +224,11 @@ class FirestoreService {
     return q.snapshots();
   }
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>>
-      communityStream() =>
-          _db
-              .collection('community')
-              .orderBy('createdAt', descending: true)
-              .limit(50)
-              .snapshots();
+  static Stream<QuerySnapshot<Map<String, dynamic>>> communityStream() => _db
+      .collection('community')
+      .orderBy('createdAt', descending: true)
+      .limit(50)
+      .snapshots();
 
   static Future<void> toggleCommunityReaction({
     required String postId,
@@ -244,8 +241,7 @@ class FirestoreService {
       final snap = await tx.get(ref);
       if (!snap.exists) return;
       final data = snap.data()!;
-      final rxns = Map<String, dynamic>.from(
-          (data['reactions'] as Map?) ?? {});
+      final rxns = Map<String, dynamic>.from((data['reactions'] as Map?) ?? {});
       final current = (rxns[reaction] as int?) ?? 0;
       rxns[reaction] = add ? current + 1 : (current - 1).clamp(0, 99999);
       tx.update(ref, {'reactions': rxns});
@@ -261,20 +257,19 @@ class FirestoreService {
         'uid': uid,
         'postId': postId,
         'savedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: !add))
-          .then((_) => add
-              ? null
-              : _db
-                  .collection('community_bookmarks')
-                  .doc('${uid}_$postId')
-                  .delete());
-
-  static Stream<QuerySnapshot<Map<String, dynamic>>>
-      bookmarkStream(String uid) =>
-          _db
+      }, SetOptions(merge: !add)).then((_) => add
+          ? null
+          : _db
               .collection('community_bookmarks')
-              .where('uid', isEqualTo: uid)
-              .snapshots();
+              .doc('${uid}_$postId')
+              .delete());
+
+  static Stream<QuerySnapshot<Map<String, dynamic>>> bookmarkStream(
+          String uid) =>
+      _db
+          .collection('community_bookmarks')
+          .where('uid', isEqualTo: uid)
+          .snapshots();
 
   static Future<DocumentReference> addCommunityComment({
     required String postId,
@@ -300,14 +295,14 @@ class FirestoreService {
     return ref;
   }
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>>
-      commentsStream(String postId) =>
-          _db
-              .collection('community_comments')
-              .where('postId', isEqualTo: postId)
-              .orderBy('createdAt', descending: false)
-              .limit(50)
-              .snapshots();
+  static Stream<QuerySnapshot<Map<String, dynamic>>> commentsStream(
+          String postId) =>
+      _db
+          .collection('community_comments')
+          .where('postId', isEqualTo: postId)
+          .orderBy('createdAt', descending: false)
+          .limit(50)
+          .snapshots();
 
   static Future<void> reportCommunityPost({
     required String postId,

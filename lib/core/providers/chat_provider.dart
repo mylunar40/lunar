@@ -4,6 +4,7 @@
 //  contextual AI routing, and voice-ready architecture.
 // ═══════════════════════════════════════════════════════════
 
+import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -16,8 +17,10 @@ import '../models/emotional_memory.dart';
 import '../data/local_cache.dart';
 import '../../services/lunar_ai_service.dart';
 import '../../services/relationship_service.dart';
+import '../engine/memory_extraction_engine.dart';
 import 'app_provider.dart';
 import 'lunar_data_provider.dart';
+import 'memory_provider.dart';
 
 // ── Chat session status ───────────────────────────────────
 enum ChatStatus { idle, thinking, error }
@@ -175,6 +178,17 @@ class ChatProvider extends ChangeNotifier {
     if (_isRelationshipMessage(trimmed)) {
       _relationshipMentions++;
     }
+
+    // Extract and store persistent emotional memory
+    try {
+      if (context.mounted) {
+        final memProvider = Provider.of<MemoryProvider>(context, listen: false);
+        final extracted = MemoryExtractionEngine.extract(trimmed, emotionTag);
+        if (extracted != null) {
+          unawaited(memProvider.addMemory(extracted));
+        }
+      }
+    } catch (_) {}
 
     // Simulate natural thinking delay
     final delay = 1000 + math.Random().nextInt(1200);
@@ -386,10 +400,19 @@ class ChatProvider extends ChangeNotifier {
         'lastMood': lastMoodEmoji,
         'waterGlasses': lunarData.todayWaterGlasses,
         'sleepHours': lunarData.lastSleepHours,
-        // ── Emotional memory ─────────────────────────────────
+        // ── Emotional memory (session-level) ────────────────
         'memoryContext': _buildMemoryContextStr(),
         'dominantEmotion': dominantEmotion?.name,
         'daysSinceLastSession': _daysSinceLastSession(),
+        // ── Deep emotional memory (persistent, cross-session) ─
+        'deepMemoryContext': () {
+          try {
+            return Provider.of<MemoryProvider>(ctx, listen: false)
+                .buildContextString();
+          } catch (_) {
+            return null;
+          }
+        }(),
         // ── Emotional intelligence ───────────────────────────
         'emotionalTrajectory': emotionalProfile.emotionalTrajectory,
         'patternInsight': emotionalProfile.patternInsight,

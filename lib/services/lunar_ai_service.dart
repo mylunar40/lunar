@@ -194,6 +194,7 @@ class LunarAIService {
     final water = ctx['waterGlasses'];
     final sleep = ctx['sleepHours'];
     final memoryCtx = ctx['memoryContext'] as String?;
+    final deepMemoryCtx = ctx['deepMemoryContext'] as String?;
     final dominantEmotion = ctx['dominantEmotion'] as String?;
     final daysSince = (ctx['daysSinceLastSession'] as int?) ?? 0;
 
@@ -324,7 +325,18 @@ class LunarAIService {
       }
     }
 
-    // ── Emotional memory context ────────────────────────────
+    // ── Deep emotional memory (persistent cross-session) ────
+    if (deepMemoryCtx != null && deepMemoryCtx.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln(
+            'DEEP EMOTIONAL MEMORY — Her story across weeks and months (weave naturally, never like a database read):')
+        ..writeln(deepMemoryCtx)
+        ..writeln(
+            'Use this as genuine memory of a friend who has been walking alongside her — not as data. "I\'ve been thinking about..." and "I remember how..." are the language of this memory, never "According to your history..."');
+    }
+
+    // ── Emotional memory context (session-level) ────────────
     if (memoryCtx != null && memoryCtx.isNotEmpty) {
       buf
         ..writeln()

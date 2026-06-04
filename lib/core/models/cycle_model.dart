@@ -13,9 +13,9 @@ enum LunarCyclePhase { period, follicular, ovulation, luteal, unknown }
 class CycleLog {
   final String id;
   final DateTime periodStartDate;
-  final int cycleLength;    // days to next period
+  final int cycleLength; // days to next period
   final int periodDuration; // how many days flow lasted
-  final String flow;        // 'light' | 'normal' | 'heavy'
+  final String flow; // 'light' | 'normal' | 'heavy'
   final DateTime? createdAt;
 
   const CycleLog({
@@ -39,8 +39,7 @@ class CycleLog {
 
   factory CycleLog.fromMap(Map<String, dynamic> map, String docId) => CycleLog(
         id: docId,
-        periodStartDate:
-            (map['periodStartDate'] as Timestamp).toDate(),
+        periodStartDate: (map['periodStartDate'] as Timestamp).toDate(),
         cycleLength: (map['cycleLength'] as int?) ?? 28,
         periodDuration: (map['periodDuration'] as int?) ?? 5,
         flow: (map['flow'] as String?) ?? 'normal',

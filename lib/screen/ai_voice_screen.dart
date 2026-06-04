@@ -11,6 +11,8 @@ import '../core/models/chat_message.dart';
 import '../core/providers/chat_provider.dart';
 import '../core/providers/app_provider.dart';
 import '../core/providers/lunar_data_provider.dart';
+import '../core/providers/memory_provider.dart';
+import '../core/models/deep_memory.dart';
 import '../core/models/cycle_model.dart';
 import '../services/relationship_service.dart';
 
@@ -726,6 +728,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                 ),
                 _headerBar(chat),
                 _phaseBanner(context),
+                _lunarRemembersBanner(context),
                 if (!chat.apiKeyConfigured && !_apiNudgeDismissed) _apiNudge(),
                 Expanded(
                   child: Stack(
@@ -969,6 +972,12 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                     ? const Color(0xFF66BB6A)
                     : Colors.white.withOpacity(0.40),
                 () => setState(() => _showApiKeySheet = !_showApiKeySheet),
+              ),
+              const SizedBox(width: 8),
+              _headerBtn(
+                Icons.auto_awesome_rounded,
+                _kPurple.withOpacity(0.80),
+                () => _showMemorySheet(context),
               ),
               const SizedBox(width: 8),
               _headerBtn(
@@ -1558,25 +1567,42 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
           return _typingBubble();
         }
         final msg = msgs[i];
+        // ── Consecutive-sender grouping (within 3 min = compact)
+        final prevMsg = i > 0 ? msgs[i - 1] : null;
+        final isGrouped = prevMsg != null &&
+            prevMsg.isUser == msg.isUser &&
+            msg.timestamp.difference(prevMsg.timestamp).inMinutes < 3;
+        // ── Day-change separator
+        final showDate =
+            prevMsg == null || !_isSameDay(prevMsg.timestamp, msg.timestamp);
         // Last AI message gets a live breathing border
         final isLastAiMsg =
             !msg.isUser && !chat.isTyping && i == msgs.length - 1;
-        return _AnimatedMsg(
-          key: ValueKey(msg.id),
-          isUser: msg.isUser,
-          child: msg.type == ChatMsgType.healingCard
-              ? _buildHealingCard(msg, size)
-              : _buildBubble(msg, size, isLatestAi: isLastAiMsg),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (showDate) _dateSeparator(msg.timestamp),
+            _AnimatedMsg(
+              key: ValueKey(msg.id),
+              isUser: msg.isUser,
+              child: msg.type == ChatMsgType.healingCard
+                  ? _buildHealingCard(msg, size)
+                  : _buildBubble(msg, size,
+                      isLatestAi: isLastAiMsg, isGrouped: isGrouped),
+            ),
+          ],
         );
       },
     );
   }
 
   // -- Chat bubble ---------------------------------------------
-  Widget _buildBubble(ChatMessage msg, Size size, {bool isLatestAi = false}) {
+  Widget _buildBubble(ChatMessage msg, Size size,
+      {bool isLatestAi = false, bool isGrouped = false}) {
     return Padding(
       padding: EdgeInsets.only(
-        bottom: 14,
+        bottom: isGrouped ? 4 : 14,
         left: msg.isUser ? size.width * 0.16 : 0,
         right: msg.isUser ? 0 : size.width * 0.08,
       ),
@@ -1585,7 +1611,10 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
         mainAxisAlignment:
             msg.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
-          if (!msg.isUser) ...[_miniMoonAvatar(), const SizedBox(width: 8)],
+          if (!msg.isUser) ...[
+            isGrouped ? const SizedBox(width: 38) : _miniMoonAvatar(),
+            const SizedBox(width: 8),
+          ],
           Flexible(
             child: Column(
               crossAxisAlignment: msg.isUser
@@ -1931,13 +1960,55 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                         ),
                       ],
                     ),
-                    child: Text(
-                      msg.text,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.90),
-                        fontSize: 15,
-                        height: 1.65,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          msg.text,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.90),
+                            fontSize: 15,
+                            height: 1.65,
+                          ),
+                        ),
+                        if (msg.emotionTag != null &&
+                            msg.emotionTag != EmotionTag.neutral) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  color: emotionAccent.withOpacity(0.18),
+                                  border: Border.all(
+                                      color: emotionAccent.withOpacity(0.28),
+                                      width: 0.8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(_emotionEmoji(msg.emotionTag!),
+                                        style: const TextStyle(fontSize: 9)),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      _emotionLabel(msg.emotionTag!),
+                                      style: TextStyle(
+                                        color: emotionAccent.withOpacity(0.72),
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),
@@ -2058,6 +2129,247 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+
+  // -- Date separator helpers ----------------------------------
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  Widget _dateSeparator(DateTime date) {
+    final now = DateTime.now();
+    String label;
+    if (_isSameDay(date, now)) {
+      label = 'Today';
+    } else if (_isSameDay(date, now.subtract(const Duration(days: 1)))) {
+      label = 'Yesterday';
+    } else {
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+      ];
+      label = '${months[date.month - 1]} ${date.day}';
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(
+        children: [
+          Expanded(
+              child: Divider(color: Colors.white.withOpacity(0.07), height: 1)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.white.withOpacity(0.05),
+                border: Border.all(color: Colors.white.withOpacity(0.10)),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.38),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+              child: Divider(color: Colors.white.withOpacity(0.07), height: 1)),
+        ],
+      ),
+    );
+  }
+
+  // -- Emotion label helpers ------------------------------------
+  String _emotionEmoji(EmotionTag tag) => switch (tag) {
+        EmotionTag.anxious => '💙',
+        EmotionTag.sad => '💜',
+        EmotionTag.lonely => '🌙',
+        EmotionTag.stressed => '🌿',
+        EmotionTag.happy => '✨',
+        EmotionTag.energetic => '⚡',
+        EmotionTag.tired => '💤',
+        EmotionTag.emotional => '🌸',
+        EmotionTag.period => '🩸',
+        _ => '💫',
+      };
+
+  String _emotionLabel(EmotionTag tag) => switch (tag) {
+        EmotionTag.anxious => 'Anxiety',
+        EmotionTag.sad => 'Sadness',
+        EmotionTag.lonely => 'Loneliness',
+        EmotionTag.stressed => 'Stress',
+        EmotionTag.happy => 'Joy',
+        EmotionTag.energetic => 'Energy',
+        EmotionTag.tired => 'Fatigue',
+        EmotionTag.emotional => 'Emotional',
+        EmotionTag.period => 'Period',
+        _ => 'Present',
+      };
+
+  // -- Premium voice recording panel ---------------------------
+  Widget _voiceRecordingPanel() {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_waveCtrl, _glowAnim, _shimmerAnim]),
+      builder: (_, __) {
+        final pulse = (0.4 + 0.5 * math.sin(_shimmerAnim.value * math.pi * 2))
+            .clamp(0.0, 1.0);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  colors: [
+                    _kPink.withOpacity(0.13),
+                    _kPurple.withOpacity(0.09),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(
+                  color: _kPink.withOpacity(0.38 * _glowAnim.value),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: _kPink.withOpacity(0.14 * _glowAnim.value),
+                    blurRadius: 20,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Status row
+                  Row(
+                    children: [
+                      // Live recording dot
+                      AnimatedBuilder(
+                        animation: _glowAnim,
+                        builder: (_, __) => Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _kPink,
+                            boxShadow: [
+                              BoxShadow(
+                                  color:
+                                      _kPink.withOpacity(0.7 * _glowAnim.value),
+                                  blurRadius: 8,
+                                  spreadRadius: 2),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Listening to you...',
+                        style: TextStyle(
+                          color: _kPink.withOpacity(0.85),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: _stopListening,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 5),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: _kPink.withOpacity(0.16),
+                            border: Border.all(
+                                color: _kPink.withOpacity(0.38), width: 0.8),
+                          ),
+                          child: Text(
+                            'Done ✓',
+                            style: TextStyle(
+                              color: _kPink.withOpacity(0.90),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Premium waveform — 20 bars
+                  SizedBox(
+                    height: 38,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: List.generate(20, (i) {
+                        final phase = i / 20;
+                        final t = (_waveCtrl.value + phase) % 1.0;
+                        final h = 4.0 + 30.0 * math.sin(t * math.pi).abs();
+                        return Container(
+                          width: 3,
+                          height: h,
+                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(2),
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [
+                                _kPink.withOpacity(0.55),
+                                _kPurple,
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _kPink.withOpacity(0.32),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  if (_voiceText.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      '"$_voiceText"',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.60 + 0.28 * pulse),
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        height: 1.45,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -2362,76 +2674,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
               _showMediaOptions ? _mediaOptionsRow() : const SizedBox.shrink(),
         ),
 
-        // Voice transcript / waveform
-        if (_isRecording)
-          Padding(
-            padding: const EdgeInsets.only(left: 20, bottom: 4, right: 20),
-            child: Row(
-              children: [
-                // Animated waveform bars
-                AnimatedBuilder(
-                  animation: _waveCtrl,
-                  builder: (_, __) {
-                    const barCount = 7;
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: List.generate(barCount, (i) {
-                        final phase = i / barCount;
-                        final t = (_waveCtrl.value + phase) % 1.0;
-                        final height = 6.0 + 14.0 * math.sin(t * math.pi).abs();
-                        return Container(
-                          width: 3.5,
-                          height: height,
-                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(2),
-                            gradient: LinearGradient(
-                              begin: Alignment.bottomCenter,
-                              end: Alignment.topCenter,
-                              colors: [
-                                _kPink.withOpacity(0.55),
-                                _kPurple,
-                              ],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _kPink.withOpacity(0.40),
-                                blurRadius: 4,
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                    );
-                  },
-                ),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: AnimatedBuilder(
-                    animation: _shimmerAnim,
-                    builder: (_, __) {
-                      final pulse = (0.4 +
-                              0.5 * math.sin(_shimmerAnim.value * math.pi * 2))
-                          .clamp(0.0, 1.0);
-                      return Text(
-                        _voiceText.isNotEmpty
-                            ? '"$_voiceText"'
-                            : 'Listening to you... 🎙️',
-                        style: TextStyle(
-                          color: _kPink.withOpacity(pulse),
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
+        // Voice recording panel — premium immersive state
+        if (_isRecording) _voiceRecordingPanel(),
 
         // Input row
         Padding(
@@ -2646,45 +2890,64 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   }
 
   Widget _sendButton() {
-    return GestureDetector(
-      onTap: () {
-        if (_pendingMedia != null) {
-          _sendWithPendingMedia();
-        } else {
-          _send(_textCtrl.text);
-        }
-      },
-      child: AnimatedBuilder(
-        animation: _glowAnim,
-        builder: (_, __) => Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [
-                _kPurple.withOpacity(0.85 + 0.15 * _glowAnim.value),
-                _kPink.withOpacity(0.85 + 0.15 * _glowAnim.value),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: _kPurple.withOpacity(0.42 * _glowAnim.value),
-                blurRadius: 14,
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _textCtrl,
+      builder: (_, value, __) {
+        final hasContent =
+            value.text.trim().isNotEmpty || _pendingMedia != null;
+        return GestureDetector(
+          onTap: () {
+            if (_pendingMedia != null) {
+              _sendWithPendingMedia();
+            } else {
+              _send(_textCtrl.text);
+            }
+          },
+          child: AnimatedBuilder(
+            animation: _glowAnim,
+            builder: (_, __) => AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutBack,
+              width: hasContent ? 48 : 42,
+              height: hasContent ? 48 : 42,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: hasContent
+                      ? [_kPurple, _kPink]
+                      : [
+                          _kPurple.withOpacity(0.72),
+                          _kPink.withOpacity(0.72),
+                        ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: _kPurple.withOpacity(hasContent
+                        ? 0.62 * _glowAnim.value
+                        : 0.38 * _glowAnim.value),
+                    blurRadius: hasContent ? 22 : 14,
+                    spreadRadius: hasContent ? 2 : 0,
+                  ),
+                  if (hasContent)
+                    BoxShadow(
+                      color: _kPink.withOpacity(0.22 * _glowAnim.value),
+                      blurRadius: 14,
+                    ),
+                ],
               ),
-            ],
+              child: Icon(
+                _pendingMedia != null
+                    ? Icons.send_rounded
+                    : Icons.arrow_upward_rounded,
+                color: Colors.white,
+                size: hasContent ? 22 : 20,
+              ),
+            ),
           ),
-          child: Icon(
-            _pendingMedia != null
-                ? Icons.send_rounded
-                : Icons.arrow_upward_rounded,
-            color: Colors.white,
-            size: 20,
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -3183,76 +3446,283 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   }
 
   // ===========================================================
+  //  LUNAR REMEMBERS BANNER  (chat view — between phase and input)
+  // ===========================================================
+  Widget _lunarRemembersBanner(BuildContext context) {
+    final memProvider = context.watch<MemoryProvider>();
+    if (!memProvider.hasMemories) return const SizedBox.shrink();
+
+    final top = memProvider.topMemories(limit: 3);
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => Container(
+        margin: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: GestureDetector(
+              onTap: () => _showMemorySheet(context),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: LinearGradient(
+                    colors: [
+                      _kPurple.withOpacity(0.10),
+                      _kPink.withOpacity(0.05),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  border: Border.all(
+                    color: _kPurple.withOpacity(0.22 * _glowAnim.value),
+                    width: 0.9,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Text('🌙', style: const TextStyle(fontSize: 15)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Lunar Remembers',
+                            style: TextStyle(
+                              color: _kPurple.withOpacity(0.85),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: top.map((m) => _memoryChip(m)).toList(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: _kPurple.withOpacity(0.45),
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _memoryChip(DeepMemory memory) {
+    return GestureDetector(
+      onLongPress: () => _showMemoryDeleteDialog(memory),
+      child: Container(
+        margin: const EdgeInsets.only(right: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: _kPurple.withOpacity(0.13),
+          border: Border.all(
+            color: _kPurple.withOpacity(0.22),
+            width: 0.8,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(memory.category.emoji, style: const TextStyle(fontSize: 11)),
+            const SizedBox(width: 4),
+            Text(
+              memory.timeAgoLabel,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.58),
+                fontSize: 10.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================
+  //  MEMORY SHEET  (full memory management bottom sheet)
+  // ===========================================================
+  void _showMemorySheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MemorySheet(
+        onDeleteMemory: (id) {
+          context.read<MemoryProvider>().deleteMemory(id);
+        },
+        onResolveMemory: (id) {
+          context.read<MemoryProvider>().markResolved(id);
+        },
+        onClearAll: () {
+          context.read<MemoryProvider>().clearAll();
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+
+  void _showMemoryDeleteDialog(DeepMemory memory) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF160330),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          '${memory.category.emoji} ${memory.category.label}',
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              memory.summary,
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.75), fontSize: 14),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              memory.timeAgoLabel,
+              style:
+                  TextStyle(color: _kPurple.withOpacity(0.65), fontSize: 11.5),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Keep',
+                style: TextStyle(color: Colors.white.withOpacity(0.55))),
+          ),
+          TextButton(
+            onPressed: () {
+              context.read<MemoryProvider>().markResolved(memory.id);
+              Navigator.pop(context);
+            },
+            child: Text('Mark healed ✨',
+                style: TextStyle(color: _kPurple.withOpacity(0.80))),
+          ),
+          TextButton(
+            onPressed: () {
+              context.read<MemoryProvider>().deleteMemory(memory.id);
+              Navigator.pop(context);
+            },
+            child: const Text('Delete',
+                style: TextStyle(color: Color(0xFFFF6B6B))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================
   //  AI MEMORY INSIGHT CARD
   // ===========================================================
   Widget _memoryInsightCard(ChatProvider chat, LunarDataProvider lunarData) {
-    final insight = _getMemoryInsight(chat, lunarData);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: AnimatedBuilder(
-        animation: _glowAnim,
-        builder: (_, __) => ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: LinearGradient(
-                  colors: [
-                    _kPurple.withOpacity(0.13),
-                    _kPink.withOpacity(0.06),
+    // Use MemoryProvider insight if available, else fall back to session-based
+    final memProvider = context.watch<MemoryProvider>();
+    final insight =
+        memProvider.memoryInsight ?? _getMemoryInsight(chat, lunarData);
+    return GestureDetector(
+      onTap: memProvider.hasMemories ? () => _showMemorySheet(context) : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: AnimatedBuilder(
+          animation: _glowAnim,
+          builder: (_, __) => ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(
+                    colors: [
+                      _kPurple.withOpacity(0.13),
+                      _kPink.withOpacity(0.06),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  border: Border.all(
+                    color: _kPurple.withOpacity(0.26 * _glowAnim.value),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _kPurple.withOpacity(0.18),
+                      ),
+                      child: const Center(
+                        child: Text('💭', style: TextStyle(fontSize: 18)),
+                      ),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Lunar Remembers 🌙',
+                            style: TextStyle(
+                              color: _kPurple.withOpacity(0.78),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            insight,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.70),
+                              fontSize: 13.5,
+                              height: 1.45,
+                            ),
+                          ),
+                          if (memProvider.hasMemories) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              '${memProvider.memoryCount} memories · tap to view',
+                              style: TextStyle(
+                                color: _kPurple.withOpacity(0.55),
+                                fontSize: 10.5,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (memProvider.hasMemories)
+                      Icon(Icons.chevron_right_rounded,
+                          color: _kPurple.withOpacity(0.40), size: 18),
                   ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
                 ),
-                border: Border.all(
-                  color: _kPurple.withOpacity(0.26 * _glowAnim.value),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _kPurple.withOpacity(0.18),
-                    ),
-                    child: const Center(
-                      child:
-                          Text('\ud83d\udcad', style: TextStyle(fontSize: 18)),
-                    ),
-                  ),
-                  const SizedBox(width: 13),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Lunar remembers',
-                          style: TextStyle(
-                            color: _kPurple.withOpacity(0.78),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          insight,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.70),
-                            fontSize: 13.5,
-                            height: 1.45,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
@@ -3775,19 +4245,24 @@ class _AnimatedMsgState extends State<_AnimatedMsg>
   late AnimationController _ctrl;
   late Animation<double> _opacity;
   late Animation<Offset> _slide;
+  late Animation<double> _scale;
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 420),
+      duration: const Duration(milliseconds: 540),
     );
-    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _opacity = CurvedAnimation(
+        parent: _ctrl, curve: const Interval(0.0, 0.68, curve: Curves.easeOut));
     _slide = Tween<Offset>(
-      begin: Offset(widget.isUser ? 0.20 : -0.20, 0),
+      begin: Offset(widget.isUser ? 0.16 : -0.16, 0.05),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _scale = Tween<double>(begin: 0.92, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack),
+    );
     _ctrl.forward();
   }
 
@@ -3801,7 +4276,15 @@ class _AnimatedMsgState extends State<_AnimatedMsg>
   Widget build(BuildContext context) {
     return FadeTransition(
       opacity: _opacity,
-      child: SlideTransition(position: _slide, child: widget.child),
+      child: SlideTransition(
+        position: _slide,
+        child: ScaleTransition(
+          scale: _scale,
+          alignment:
+              widget.isUser ? Alignment.centerRight : Alignment.centerLeft,
+          child: widget.child,
+        ),
+      ),
     );
   }
 }
@@ -4229,5 +4712,335 @@ class _ShareCardDialogState extends State<_ShareCardDialog>
       'Dec'
     ];
     return '${months[now.month - 1]} ${now.day}, ${now.year}';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  MEMORY SHEET  — full memory management bottom sheet
+// ══════════════════════════════════════════════════════════════
+
+class _MemorySheet extends StatelessWidget {
+  final void Function(String id) onDeleteMemory;
+  final void Function(String id) onResolveMemory;
+  final VoidCallback onClearAll;
+
+  const _MemorySheet({
+    required this.onDeleteMemory,
+    required this.onResolveMemory,
+    required this.onClearAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final memProvider = context.watch<MemoryProvider>();
+    final tl = memProvider.timeline;
+    final insight = memProvider.memoryInsight;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.82,
+      decoration: const BoxDecoration(
+        color: Color(0xFF0E0220),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+            child: Row(
+              children: [
+                const Text('🌙', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Lunar Remembers',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.92),
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (insight != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          insight,
+                          style: TextStyle(
+                            color: _kPurple.withOpacity(0.75),
+                            fontSize: 12,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (tl.isNotEmpty)
+                  GestureDetector(
+                    onTap: () => _confirmClearAll(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 11, vertical: 6),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.red.withOpacity(0.10),
+                        border: Border.all(
+                            color: Colors.red.withOpacity(0.22), width: 0.8),
+                      ),
+                      child: Text(
+                        'Clear all',
+                        style: TextStyle(
+                          color: Colors.red.withOpacity(0.70),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Divider(color: Colors.white.withOpacity(0.07), height: 1),
+          // Memory list
+          Expanded(
+            child: tl.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('🌙', style: const TextStyle(fontSize: 40)),
+                        const SizedBox(height: 14),
+                        Text(
+                          'No memories yet',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.50),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 36),
+                          child: Text(
+                            'As you share meaningful moments with Lunar, they will be gently stored here.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.34),
+                              fontSize: 13,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    itemCount: tl.length,
+                    separatorBuilder: (_, __) => Divider(
+                        color: Colors.white.withOpacity(0.05), height: 1),
+                    itemBuilder: (ctx, i) {
+                      final m = tl[i];
+                      return _MemoryTile(
+                        memory: m,
+                        onDelete: () => onDeleteMemory(m.id),
+                        onResolve: () => onResolveMemory(m.id),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClearAll(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF160330),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Clear all memories?',
+            style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Text(
+          'This will permanently delete all of Lunar\'s memories about you. This cannot be undone.',
+          style:
+              TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel',
+                style: TextStyle(color: Colors.white.withOpacity(0.55))),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // close dialog
+              onClearAll();
+            },
+            child: const Text('Clear all',
+                style: TextStyle(color: Color(0xFFFF6B6B))),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemoryTile extends StatelessWidget {
+  final DeepMemory memory;
+  final VoidCallback onDelete;
+  final VoidCallback onResolve;
+
+  const _MemoryTile({
+    required this.memory,
+    required this.onDelete,
+    required this.onResolve,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Category icon circle
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _kPurple.withOpacity(0.14),
+              border: Border.all(color: _kPurple.withOpacity(0.22), width: 0.8),
+            ),
+            child: Center(
+              child: Text(memory.category.emoji,
+                  style: const TextStyle(fontSize: 18)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: _kPurple.withOpacity(0.12),
+                      ),
+                      child: Text(
+                        memory.category.label,
+                        style: TextStyle(
+                          color: _kPurple.withOpacity(0.80),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (memory.isResolved) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: const Color(0xFF66BB6A).withOpacity(0.12),
+                        ),
+                        child: Text(
+                          '✨ healed',
+                          style: TextStyle(
+                            color: const Color(0xFF66BB6A).withOpacity(0.80),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
+                    Text(
+                      memory.timeAgoLabel,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.35),
+                        fontSize: 10.5,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  memory.summary,
+                  style: TextStyle(
+                    color: Colors.white
+                        .withOpacity(memory.isResolved ? 0.45 : 0.75),
+                    fontSize: 13.5,
+                    height: 1.4,
+                    decoration:
+                        memory.isResolved ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Actions column
+          Column(
+            children: [
+              if (!memory.isResolved)
+                GestureDetector(
+                  onTap: onResolve,
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF66BB6A).withOpacity(0.12),
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      color: Color(0xFF66BB6A),
+                      size: 15,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: onDelete,
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.red.withOpacity(0.10),
+                  ),
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    color: Colors.red.withOpacity(0.65),
+                    size: 15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
