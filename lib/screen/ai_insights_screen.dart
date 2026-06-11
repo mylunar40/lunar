@@ -574,21 +574,38 @@ class _AIInsightsState extends State<AIInsightsScreen>
             child: AnimatedBuilder(
               animation: _glowAnim,
               builder: (_, __) => Container(
-                padding: const EdgeInsets.all(10),
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [
-                    _iKPurple.withOpacity(_glowAnim.value * 0.8),
-                    _iKPurple.withOpacity(0.05),
-                  ]),
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.20),
+                      _iKPurple.withOpacity(0.80),
+                      const Color(0xFF5C2DB8),
+                    ],
+                    stops: const [0.0, 0.40, 1.0],
+                    center: const Alignment(-0.2, -0.3),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: _iKPurple.withOpacity(_glowAnim.value * 0.55),
                       blurRadius: 20, spreadRadius: 2,
                     ),
+                    BoxShadow(
+                      color: const Color(0xFFFF69B4)
+                          .withOpacity(_glowAnim.value * 0.18),
+                      blurRadius: 14,
+                    ),
                   ],
+                  border: Border.all(
+                    color: Colors.white
+                        .withOpacity(0.15 * _glowAnim.value),
+                    width: 1.2,
+                  ),
                 ),
-                child: const Text('🧠', style: TextStyle(fontSize: 24)),
+                child: const Center(
+                    child: Text('🌙', style: TextStyle(fontSize: 22))),
               ),
             ),
           ),

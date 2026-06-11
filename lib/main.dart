@@ -14,9 +14,13 @@ import 'core/providers/memory_provider.dart';
 import 'core/providers/weather_provider.dart';
 import 'core/providers/community_provider.dart';
 import 'core/providers/avatar_provider.dart';
+import 'core/providers/connection_provider.dart';
 import 'models/avatar_model.dart';
 import 'widgets/lunar_avatar_widget.dart';
 import 'core/data/local_cache.dart';
+import 'core/services/fcm_service.dart';
+import 'core/services/subscription_service.dart';
+import 'core/providers/premium_provider.dart';
 import 'screen/home_dashboard.dart';
 import 'screen/calendar_screen.dart';
 import 'screen/community_screen.dart';
@@ -24,8 +28,11 @@ import 'screen/pregnancy_screen.dart';
 import 'screen/ai_voice_screen.dart';
 import 'screen/profile_screen.dart';
 import 'screen/auth/welcome_screen.dart';
+import 'screen/auth/email_verification_screen.dart';
 import 'screen/splash/lunar_splash_screen.dart';
 import 'screen/onboarding/onboarding_flow.dart';
+import 'screen/onboarding/intent_selection_screen.dart';
+import 'core/providers/check_in_provider.dart';
 import 'user_provider.dart';
 
 // ── TEMPORARY DEV BYPASS — set false before release ────────
@@ -43,7 +50,8 @@ const Color kLunarSurface = Color(0xFF160330);
 const Color kLunarIndigo = Color(0xFF7986CB);
 const Color kLunarTeal = Color(0xFF4FC3F7);
 const Color kLunarGreen = Color(0xFF66BB6A);
-
+// ── Navigator key (shared with FCMService for in-app banners) ──────
+final _navigatorKey = GlobalKey<NavigatorState>();
 // ── Navigator observer for avatar visibility ──────────────
 final _avatarObserver = _LunarAvatarObserver();
 
@@ -69,6 +77,10 @@ void main() async {
         .setCrashlyticsCollectionEnabled(!kDebugMode);
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
     debugPrint('[Lunar] Firebase initialised successfully.');
+    // FCM: set up background handler, request permissions, init listeners
+    await FCMService.init();
+    // RevenueCat — must init after Firebase, before any purchase call
+    await SubscriptionService.init();
   } catch (e) {
     // App runs in demo/offline mode when Firebase is not configured.
     // Run `flutterfire configure` and replace firebase_options.dart to enable.
@@ -93,10 +105,37 @@ void main() async {
   // ── Weather provider (pre-loaded from local cache) ─────
   final weatherProvider = WeatherProvider();
   await weatherProvider.init();
+
+  // ── CheckIn provider (pre-loaded from cache) ───────────────
+  final checkInProvider = CheckInProvider();
+  await checkInProvider.init();
+
+  // ── Wire UserProvider → LunarDataProvider sync bridge ──────
+  // UserProvider is legacy. This bridge ensures any screen that still calls
+  // userProvider.updatePeriodDate() also propagates the change into
+  // LunarDataProvider, eliminating split-brain cycle state.
+  final userProviderInstance = UserProvider()
+    ..attachLunarDataProvider(lunarData);
+
+  // ── PremiumProvider — created upfront so RC listener can reference it ──
+  final premiumProvider = PremiumProvider();
+
+  // ── Wire RC → PremiumProvider: no app restart required ────
+  // Fires after every purchase, restore, subscription expiry, or
+  // grace-period change. Updates the provider in-place.
+  SubscriptionService.addCustomerInfoListener(
+    (tier) => premiumProvider.updateFromRevenueCat(tier),
+  );
+
+  // Give FCMService the navigator key BEFORE runApp so that the
+  // getInitialMessage handler (called inside FCMService.init()) has a
+  // valid key reference if a notification launches the app from terminated state.
+  FCMService.navigatorKey = _navigatorKey;
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider<UserProvider>.value(value: userProviderInstance),
         ChangeNotifierProvider(create: (_) => LunarAuthProvider()),
         ChangeNotifierProvider<LunarDataProvider>.value(value: lunarData),
         ChangeNotifierProvider<AppProvider>.value(value: appProvider),
@@ -122,7 +161,40 @@ void main() async {
         ),
         ChangeNotifierProvider(create: (_) => CommunityProvider()),
         ChangeNotifierProvider(create: (_) => AvatarProvider()),
+        // ConnectionProvider — loads/resets when auth state changes
+        ChangeNotifierProxyProvider<LunarAuthProvider, ConnectionProvider>(
+          create: (_) => ConnectionProvider(),
+          update: (_, auth, conn) {
+            final uid = auth.firebaseUser?.uid;
+            if (uid != null && auth.isAuthenticated && !auth.isGuest) {
+              conn!.load(uid);
+            } else {
+              conn!.reset();
+            }
+            return conn;
+          },
+        ),
         ChangeNotifierProvider<WeatherProvider>.value(value: weatherProvider),
+        // CheckInProvider — syncs Firestore uid when auth changes
+        ChangeNotifierProxyProvider<LunarAuthProvider, CheckInProvider>(
+          create: (_) => checkInProvider,
+          update: (_, auth, ci) {
+            ci!.setUser(auth.isAuthenticated && !auth.isGuest
+                ? auth.firebaseUser?.uid
+                : null);
+            return ci;
+          },
+        ),
+        // PremiumProvider — proxied from LunarAuthProvider so it updates
+        // whenever the user model is refreshed from Firestore.
+        // RC listener above also feeds into it directly.
+        ChangeNotifierProxyProvider<LunarAuthProvider, PremiumProvider>(
+          create: (_) => premiumProvider,
+          update: (_, auth, premium) {
+            premium!.updateFromAuth(auth);
+            return premium;
+          },
+        ),
       ],
       child: const LunarApp(),
     ),
@@ -136,6 +208,7 @@ class LunarApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Lunar',
+      navigatorKey: _navigatorKey,
       navigatorObservers: [_avatarObserver],
       theme: ThemeData(
         scaffoldBackgroundColor: kLunarBg,
@@ -160,10 +233,22 @@ class LunarApp extends StatelessWidget {
             child = const MainNavigation(key: ValueKey('main'));
           } else if (auth.isLoading) {
             child = const LunarSplashScreen(key: ValueKey('splash'));
+          } else if (auth.isDemoMode) {
+            // Firebase unavailable — run in local demo mode (read-only, no auth)
+            child = const MainNavigation(key: ValueKey('main'));
           } else if (!auth.isAuthenticated) {
             child = const WelcomeScreen(key: ValueKey('welcome'));
+          } else if (!auth.isEmailVerified && !auth.isGuest) {
+            // Email accounts must verify before accessing the app.
+            // Google / anonymous accounts are pre-verified (emailVerified == true).
+            child = const EmailVerificationScreen(key: ValueKey('verify'));
           } else if (!app.onboardingComplete && !auth.isGuest) {
             child = const OnboardingFlow(key: ValueKey('onboarding'));
+          } else if (auth.isAuthenticated &&
+              !auth.isGuest &&
+              !auth.hasCompletedIntentOnboarding) {
+            child =
+                const IntentSelectionScreen(key: ValueKey('intent'));
           } else {
             child = const MainNavigation(key: ValueKey('main'));
           }
@@ -204,6 +289,8 @@ class _MainNavigationState extends State<MainNavigation> {
     if (i == _currentIndex) return;
     HapticFeedback.selectionClick();
     setState(() => _currentIndex = i);
+    // Avatar only on Home Dashboard (index 4)
+    _avatarObserver.onTabChanged(i);
   }
 
   @override
@@ -269,9 +356,12 @@ class _MainNavigationState extends State<MainNavigation> {
         ],
       ),
       extendBody: true,
-      bottomNavigationBar: _LunarPremiumNavBar(
-        currentIndex: _currentIndex,
-        onTap: _onTap,
+      bottomNavigationBar: Consumer<ConnectionProvider>(
+        builder: (_, cp, __) => _LunarPremiumNavBar(
+          currentIndex: _currentIndex,
+          onTap: _onTap,
+          connectionBadge: cp.incomingCount,
+        ),
       ),
     );
   }
@@ -542,10 +632,12 @@ class _ProfileMenuSheet extends StatelessWidget {
 class _LunarPremiumNavBar extends StatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final int connectionBadge;
 
   const _LunarPremiumNavBar({
     required this.currentIndex,
     required this.onTap,
+    this.connectionBadge = 0,
   });
 
   @override
@@ -623,6 +715,7 @@ class _LunarPremiumNavBarState extends State<_LunarPremiumNavBar>
                       label: 'Community',
                       color: kLunarPurple,
                       isActive: widget.currentIndex == 0,
+                      badge: widget.connectionBadge,
                       onTap: () => widget.onTap(0),
                     ),
                     // ── Calendar (1) ──────────────────────
@@ -678,6 +771,7 @@ class _NavTile extends StatelessWidget {
   final Color color;
   final bool isActive;
   final VoidCallback onTap;
+  final int badge;
 
   const _NavTile({
     required this.icon,
@@ -686,6 +780,7 @@ class _NavTile extends StatelessWidget {
     required this.color,
     required this.isActive,
     required this.onTap,
+    this.badge = 0,
   });
 
   @override
@@ -723,11 +818,39 @@ class _NavTile extends StatelessWidget {
               duration: const Duration(milliseconds: 200),
               transitionBuilder: (child, anim) =>
                   ScaleTransition(scale: anim, child: child),
-              child: Icon(
-                isActive ? icon : inactiveIcon,
-                key: ValueKey(isActive),
-                color: isActive ? color : Colors.white.withOpacity(0.34),
-                size: isActive ? 25 : 22,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    isActive ? icon : inactiveIcon,
+                    key: ValueKey(isActive),
+                    color: isActive ? color : Colors.white.withOpacity(0.34),
+                    size: isActive ? 25 : 22,
+                  ),
+                  if (badge > 0)
+                    Positioned(
+                      top: -4,
+                      right: -6,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFFFF69B4),
+                        ),
+                        child: Center(
+                          child: Text(
+                            badge > 9 ? '9+' : '$badge',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
             const SizedBox(height: 3),
@@ -885,13 +1008,23 @@ Route<T> _lunarFadeRoute<T>(Widget page) => PageRouteBuilder<T>(
 class _LunarAvatarObserver extends NavigatorObserver {
   final showAvatar = ValueNotifier<bool>(true);
   int _depth = 0;
+  // Avatar visible only on Home Dashboard tab (index 4)
+  bool _onHomeTab = true;
+
+  void onTabChanged(int tabIndex) {
+    _onHomeTab = tabIndex == 4;
+    _update();
+  }
+
+  void _update() {
+    showAvatar.value = _depth == 0 && _onHomeTab;
+  }
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    // Ignore the very first push (home route has no previousRoute)
     if (previousRoute != null) {
       _depth++;
-      if (showAvatar.value) showAvatar.value = false;
+      _update();
     }
   }
 
@@ -899,7 +1032,7 @@ class _LunarAvatarObserver extends NavigatorObserver {
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     if (_depth > 0) {
       _depth--;
-      if (_depth == 0) showAvatar.value = true;
+      _update();
     }
   }
 
@@ -907,7 +1040,7 @@ class _LunarAvatarObserver extends NavigatorObserver {
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
     if (_depth > 0) {
       _depth--;
-      if (_depth == 0) showAvatar.value = true;
+      _update();
     }
   }
 }

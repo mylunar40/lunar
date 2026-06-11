@@ -1,36 +1,46 @@
 import 'package:flutter/material.dart';
 import 'core/repositories/cycle_repository.dart';
+import 'core/providers/lunar_data_provider.dart';
 
 class UserProvider with ChangeNotifier {
-  // 1. Data jo hume har jagah chahiye
   DateTime? _lastPeriodDate;
   int _cycleLength = 28;
 
+  // Optional reference — set by main.dart after both providers are created.
+  // When set, every mutation is mirrored into LunarDataProvider so that
+  // screens consuming either provider see consistent cycle data.
+  LunarDataProvider? _lunarData;
+
   UserProvider() {
-    // Load from local cache on startup
     _lastPeriodDate = CycleRepository.loadLastPeriodDate();
     _cycleLength = CycleRepository.loadCycleLength();
   }
 
-  // 2. Data ko bahar dikhane ke liye (Getters)
+  /// Called once from main.dart to wire up the sync bridge.
+  void attachLunarDataProvider(LunarDataProvider lunarData) {
+    _lunarData = lunarData;
+  }
+
+  // ── Getters ──────────────────────────────────────────────
   DateTime? get lastPeriodDate => _lastPeriodDate;
   int get cycleLength => _cycleLength;
 
-  // 3. Data badalne ka tarika (Setter)
+  // ── Setters ──────────────────────────────────────────────
   void updatePeriodDate(DateTime newDate) {
     _lastPeriodDate = newDate;
     CycleRepository.saveLastPeriodDate(newDate);
-    // YE SABSE JARURI HAI: Ye poore app ko chillakar bolta hai "DATA BADAL GAYA HAI!"
+    _lunarData?.syncPeriodDateFrom(newDate, _cycleLength);
     notifyListeners();
   }
 
   void updateCycleLength(int length) {
     _cycleLength = length;
     CycleRepository.saveCycleLength(length);
+    _lunarData?.syncPeriodDateFrom(_lastPeriodDate, length);
     notifyListeners();
   }
 
-  // 4. Agle period tak kitne din bache hain (Calculations)
+  // ── Derived ──────────────────────────────────────────────
   int get daysUntilNext {
     if (_lastPeriodDate == null) return 0;
     final next = _lastPeriodDate!.add(Duration(days: _cycleLength));

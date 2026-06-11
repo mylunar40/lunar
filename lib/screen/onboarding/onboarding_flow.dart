@@ -16,14 +16,16 @@ const _kGold = Color(0xFFFFD700);
 const _kTeal = Color(0xFF4FC3F7);
 
 // ══════════════════════════════════════════════════════════════
-//  ONBOARDING FLOW  (7 pages)
+//  ONBOARDING FLOW  (9 pages)
 //  Page 0 — Welcome + name
-//  Page 1 — Cycle setup (last period + length)
-//  Page 2 — Pregnancy selection
-//  Page 3 — Wellness goals (water + sleep)
-//  Page 4 — Mood preferences
-//  Page 5 — Reminders
-//  Page 6 — Meet Lunar AI (final CTA)
+//  Page 1 — Privacy guarantee  ← NEW
+//  Page 2 — Emotional intent  ← NEW
+//  Page 3 — Cycle setup (last period + length)
+//  Page 4 — Pregnancy selection
+//  Page 5 — Wellness goals (water + sleep)
+//  Page 6 — Mood preferences
+//  Page 7 — Reminders
+//  Page 8 — Meet Lunar AI (final CTA)
 // ══════════════════════════════════════════════════════════════
 
 class OnboardingFlow extends StatefulWidget {
@@ -38,7 +40,7 @@ class _OnboardingFlowState extends State<OnboardingFlow>
   // ── Navigation ────────────────────────────────────────────
   final PageController _pageCtrl = PageController();
   int _currentPage = 0;
-  static const int _totalPages = 7;
+  static const int _totalPages = 9;
   bool _completing = false;
 
   // ── Animations ────────────────────────────────────────────
@@ -52,6 +54,7 @@ class _OnboardingFlowState extends State<OnboardingFlow>
 
   // ── Collected data ────────────────────────────────────────
   String _name = '';
+  String _emotionalIntent = ''; // from Page 2
   DateTime? _lastPeriodDate;
   int _cycleLength = 28;
   bool _isPregnant = false;
@@ -64,10 +67,12 @@ class _OnboardingFlowState extends State<OnboardingFlow>
 
   // ── Page meta ─────────────────────────────────────────────
   static const _pageEmojis = [
-    '🌙', '🌸', '🤱', '💜', '✨', '🔔', '🤖'
+    '🌙', '🔒', '💜', '🌸', '🤱', '💧', '✨', '🔔', '🤖'
   ];
   static const _pageTitles = [
     'Welcome to Lunar',
+    'Your Privacy',
+    'What Brings You Here',
     'Your Cycle Story',
     'Pregnancy Mode',
     'Wellness Goals',
@@ -77,6 +82,8 @@ class _OnboardingFlowState extends State<OnboardingFlow>
   ];
   static const _pageSubtitles = [
     'Your emotional wellness companion',
+    'Everything you share stays private',
+    'Help Lunar understand you from day one',
     'Help us personalise your journey',
     'Track your pregnancy journey',
     'Set your daily wellness targets',
@@ -154,6 +161,11 @@ class _OnboardingFlowState extends State<OnboardingFlow>
     // Save name
     if (_name.trim().isNotEmpty) {
       await appProvider.setUserName(_name.trim());
+    }
+
+    // Save emotional intent (personalises AI welcome message)
+    if (_emotionalIntent.isNotEmpty) {
+      await appProvider.setEmotionalIntent(_emotionalIntent);
     }
 
     // Save cycle data
@@ -269,12 +281,14 @@ class _OnboardingFlowState extends State<OnboardingFlow>
                         setState(() => _currentPage = i),
                     children: [
                       _buildPage0_Welcome(),
-                      _buildPage1_Cycle(),
-                      _buildPage2_Pregnancy(),
-                      _buildPage3_Goals(),
-                      _buildPage4_Mood(),
-                      _buildPage5_Reminders(),
-                      _buildPage6_Final(),
+                      _buildPage1_Privacy(),      // NEW
+                      _buildPage2_Intent(),        // NEW
+                      _buildPage3_Cycle(),
+                      _buildPage4_Pregnancy(),
+                      _buildPage5_Goals(),
+                      _buildPage6_Mood(),
+                      _buildPage7_Reminders(),
+                      _buildPage8_Final(),
                     ],
                   ),
                 ),
@@ -455,14 +469,134 @@ class _OnboardingFlowState extends State<OnboardingFlow>
   }
 
   // ══════════════════════════════════════════════════════════
-  //  PAGE 1 — CYCLE SETUP
+  //  PAGE 1 — PRIVACY
   // ══════════════════════════════════════════════════════════
 
-  Widget _buildPage1_Cycle() {
+  Widget _buildPage1_Privacy() {
+    final guarantees = [
+      ('🔒', 'Conversations stay on your device'),
+      ('🚫', 'We never sell your data'),
+      ('🔑', 'Your AI key is yours alone'),
+      ('💜', 'You can delete everything, anytime'),
+    ];
     return _OBPageShell(
       emoji: _pageEmojis[1],
       title: _pageTitles[1],
       subtitle: _pageSubtitles[1],
+      child: Column(
+        children: [
+          _glassCard(
+            child: Column(
+              children: guarantees.map((g) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(
+                    children: [
+                      Text(g.$1, style: const TextStyle(fontSize: 22)),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          g.$2,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 15),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              'Lunar is a wellness companion, not a medical provider.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.55), fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  //  PAGE 2 — EMOTIONAL INTENT
+  // ══════════════════════════════════════════════════════════
+
+  Widget _buildPage2_Intent() {
+    final options = [
+      ('💔', 'Heartbreak', 'heartbreak'),
+      ('😰', 'Anxiety', 'anxiety'),
+      ('🌿', 'Loneliness', 'loneliness'),
+      ('✨', 'Healing', 'healing'),
+      ('🌸', 'Self-Discovery', 'self-discovery'),
+      ('🤱', 'Pregnancy', 'pregnancy'),
+    ];
+    return _OBPageShell(
+      emoji: _pageEmojis[2],
+      title: _pageTitles[2],
+      subtitle: _pageSubtitles[2],
+      child: _glassCard(
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: options.map((o) {
+            final selected = _emotionalIntent == o.$3;
+            return GestureDetector(
+              onTap: () => setState(() => _emotionalIntent = o.$3),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: selected
+                      ? _kPurple.withOpacity(0.35)
+                      : Colors.white.withOpacity(0.07),
+                  border: Border.all(
+                    color: selected
+                        ? _kPurple
+                        : Colors.white.withOpacity(0.15),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(o.$1,
+                        style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: 8),
+                    Text(
+                      o.$2,
+                      style: TextStyle(
+                        color: selected
+                            ? Colors.white
+                            : Colors.white.withOpacity(0.75),
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  //  PAGE 3 — CYCLE SETUP (was PAGE 1)
+  // ══════════════════════════════════════════════════════════
+
+  Widget _buildPage3_Cycle() {
+    return _OBPageShell(
+      emoji: _pageEmojis[3],
+      title: _pageTitles[3],
+      subtitle: _pageSubtitles[3],
       child: _glassCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -580,11 +714,11 @@ class _OnboardingFlowState extends State<OnboardingFlow>
   //  PAGE 2 — PREGNANCY SELECTION
   // ══════════════════════════════════════════════════════════
 
-  Widget _buildPage2_Pregnancy() {
+  Widget _buildPage4_Pregnancy() {
     return _OBPageShell(
-      emoji: _pageEmojis[2],
-      title: _pageTitles[2],
-      subtitle: _pageSubtitles[2],
+      emoji: _pageEmojis[4],
+      title: _pageTitles[4],
+      subtitle: _pageSubtitles[4],
       child: _glassCard(
         child: Column(
           children: [
@@ -696,11 +830,11 @@ class _OnboardingFlowState extends State<OnboardingFlow>
   //  PAGE 3 — WELLNESS GOALS
   // ══════════════════════════════════════════════════════════
 
-  Widget _buildPage3_Goals() {
+  Widget _buildPage5_Goals() {
     return _OBPageShell(
-      emoji: _pageEmojis[3],
-      title: _pageTitles[3],
-      subtitle: _pageSubtitles[3],
+      emoji: _pageEmojis[5],
+      title: _pageTitles[5],
+      subtitle: _pageSubtitles[5],
       child: _glassCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -809,7 +943,7 @@ class _OnboardingFlowState extends State<OnboardingFlow>
   //  PAGE 4 — MOOD PREFERENCES
   // ══════════════════════════════════════════════════════════
 
-  Widget _buildPage4_Mood() {
+  Widget _buildPage6_Mood() {
     const emotions = [
       ('😊', 'Happy'),
       ('😌', 'Calm'),
@@ -826,9 +960,9 @@ class _OnboardingFlowState extends State<OnboardingFlow>
     ];
 
     return _OBPageShell(
-      emoji: _pageEmojis[4],
-      title: _pageTitles[4],
-      subtitle: _pageSubtitles[4],
+      emoji: _pageEmojis[6],
+      title: _pageTitles[6],
+      subtitle: _pageSubtitles[6],
       child: _glassCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -899,11 +1033,11 @@ class _OnboardingFlowState extends State<OnboardingFlow>
   //  PAGE 5 — REMINDERS
   // ══════════════════════════════════════════════════════════
 
-  Widget _buildPage5_Reminders() {
+  Widget _buildPage7_Reminders() {
     return _OBPageShell(
-      emoji: _pageEmojis[5],
-      title: _pageTitles[5],
-      subtitle: _pageSubtitles[5],
+      emoji: _pageEmojis[7],
+      title: _pageTitles[7],
+      subtitle: _pageSubtitles[7],
       child: _glassCard(
         child: Column(
           children: [
@@ -1027,7 +1161,7 @@ class _OnboardingFlowState extends State<OnboardingFlow>
   //  PAGE 6 — MEET LUNAR AI (final)
   // ══════════════════════════════════════════════════════════
 
-  Widget _buildPage6_Final() {
+  Widget _buildPage8_Final() {
     final appName = _name.trim().isNotEmpty
         ? _name.trim()
         : 'beautiful';

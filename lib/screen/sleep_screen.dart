@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../core/providers/lunar_data_provider.dart';
 
 // ═══════════════════════════════════════════════════════════
 //  LUNAR SLEEP + NIGHT WELLNESS — Peaceful Night Sanctuary
@@ -286,6 +288,9 @@ class _SleepState extends State<SleepScreen> with TickerProviderStateMixin {
   final TextEditingController _journalCtrl = TextEditingController();
   late  List<_SReminder>      _reminders;
 
+  // ── Provider seed flag ──────────────────────────────────
+  bool _loadedFromProvider = false;
+
   // ── Computed ─────────────────────────────────────────────
   int get _sleepScore => ((
     _quality.score * 0.40 +
@@ -301,6 +306,21 @@ class _SleepState extends State<SleepScreen> with TickerProviderStateMixin {
     if (s >= 55) return 'Fairly Rested';
     if (s >= 40) return 'Lightly Rested';
     return 'Rest Needed';
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loadedFromProvider) return;
+    _loadedFromProvider = true;
+    final last = context.read<LunarDataProvider>().lastSleepLog;
+    if (last != null) {
+      _sleepHours = last.hoursSlept;
+      _quality = _SSleepQuality.values.firstWhere(
+        (q) => q.name == last.quality,
+        orElse: () => _SSleepQuality.good,
+      );
+    }
   }
 
   @override
@@ -1609,6 +1629,12 @@ class _SleepState extends State<SleepScreen> with TickerProviderStateMixin {
                     energyScore:   tmpQual.score * 10.0,
                   );
                 });
+                // Persist to LunarDataProvider → HealthRepository → SharedPreferences
+                context.read<LunarDataProvider>().logSleep(
+                  hours: tmpHours,
+                  quality: tmpQual.name,
+                  note: tmpMood.label,
+                );
                 Navigator.pop(context);
                 HapticFeedback.mediumImpact();
               },

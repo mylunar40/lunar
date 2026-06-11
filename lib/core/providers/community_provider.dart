@@ -30,6 +30,8 @@ class CommunityPost {
   bool isBlurred;
   bool isReported;
   final CommunityPostType postType;
+  final bool isPremium;
+  final bool isVerified;
 
   CommunityPost({
     required this.id,
@@ -48,6 +50,8 @@ class CommunityPost {
     bool? isBlurred,
     this.isReported = false,
     this.postType = CommunityPostType.regular,
+    this.isPremium = false,
+    this.isVerified = false,
   }) : isBlurred = isBlurred ?? isSensitive;
 
   factory CommunityPost.fromFirestore(
@@ -72,6 +76,8 @@ class CommunityPost {
       isReported: d['isReported'] as bool? ?? false,
       postType:
           CommunityPostTypeX.fromId(d['postType'] as String? ?? 'regular'),
+      isPremium: d['isPremium'] as bool? ?? false,
+      isVerified: d['isVerified'] as bool? ?? false,
     );
   }
 }

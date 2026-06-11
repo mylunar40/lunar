@@ -849,20 +849,67 @@ class _PregnancyState extends State<PregnancyScreen>
               child: AnimatedBuilder(
                 animation: _glowAnim,
                 builder: (_, __) => Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 11, vertical: 7),
                   decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(colors: [
-                        tc.withOpacity(_glowAnim.value * 0.8),
-                        tc.withOpacity(0.05)
-                      ]),
-                      boxShadow: [
-                        BoxShadow(
-                            color: tc.withOpacity(_glowAnim.value * 0.6),
-                            blurRadius: 22,
-                            spreadRadius: 2)
-                      ]),
-                  child: const Text('🤰', style: TextStyle(fontSize: 24)),
+                    borderRadius: BorderRadius.circular(30),
+                    color: tc.withOpacity(0.10),
+                    border: Border.all(
+                      color: tc.withOpacity(
+                          0.28 + _glowAnim.value * 0.22),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color:
+                            tc.withOpacity(_glowAnim.value * 0.18),
+                        blurRadius: 14,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Lunar mini-orb
+                      Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              Colors.white.withOpacity(0.22),
+                              tc.withOpacity(0.80),
+                              _pDeep,
+                            ],
+                            stops: const [0.0, 0.45, 1.0],
+                            center: const Alignment(-0.2, -0.3),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: tc.withOpacity(
+                                  0.40 + _glowAnim.value * 0.30),
+                              blurRadius: 10,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                            child: Text('🌙',
+                                style: TextStyle(fontSize: 11))),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Lunar',
+                        style: TextStyle(
+                          color: tc.withOpacity(0.82),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

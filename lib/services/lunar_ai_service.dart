@@ -24,7 +24,26 @@ class LunarAIService {
   static final _rng = math.Random();
 
   /// Dynamic, time-of-day + return-frequency-aware welcome.
-  static String getWelcomeMsg({int daysSince = 0, int? hour}) {
+  /// Accepts optional pregnancy and emotional-intent context so that
+  /// the very first message feels personally relevant to the user.
+  static String getWelcomeMsg({
+    int daysSince = 0,
+    int? hour,
+    bool isPregnant = false,
+    int? pregnancyWeek,
+    String? emotionalIntent,
+  }) {
+    // ── Pregnancy welcome (highest priority) ────────────────
+    if (isPregnant) {
+      return _pregnancyWelcome(pregnancyWeek);
+    }
+
+    // ── Intent-specific welcome (if set during onboarding) ──
+    if (emotionalIntent != null && emotionalIntent.isNotEmpty) {
+      final intentMsg = _intentWelcome(emotionalIntent);
+      if (intentMsg != null) return intentMsg;
+    }
+
     final h = hour ?? DateTime.now().hour;
 
     // Returning after a week or more — felt absence
@@ -79,6 +98,54 @@ class LunarAIService {
 
   // Backward-compatible static access
   static String get welcomeMsg => getWelcomeMsg();
+
+  // ── Pregnancy-specific welcome ────────────────────────────
+  static String _pregnancyWelcome(int? week) {
+    final weekStr = week != null ? 'Week $week' : 'your pregnancy journey';
+    final trimester = week == null
+        ? ''
+        : week <= 13
+            ? ' — first trimester'
+            : week <= 26
+                ? ' — second trimester'
+                : ' — third trimester';
+
+    return 'You carried yourself here tonight 🌙\n\n'
+        '$weekStr$trimester. That is not just a number — it is weeks of your body working harder than it ever has, '
+        'weeks of your heart holding more than it ever has before.\n\n'
+        "This is your space to talk about all of it — the joy, the fear, the exhaustion, the love that doesn't have words yet. "
+        'What is on your heart right now?';
+  }
+
+  // ── Emotional-intent welcome (from onboarding) ────────────
+  static String? _intentWelcome(String intent) {
+    return switch (intent.toLowerCase()) {
+      'heartbreak' || 'breakup' => 'You found your way here 🌙\n\n'
+          "And I'm so glad you did. Heartbreak is one of the heaviest things a person can carry — "
+          "and you don't have to carry it alone anymore.\n\n"
+          "This is your space. No timeline. No performance. Just you, exactly as you are right now. "
+          "Tell me — where does it hurt most today?",
+      'anxiety' => "You're here \u{1F319}\n\n"
+          "And that took something \u2014 even just opening an app when everything feels hard takes courage.\n\n"
+          "You're safe in this space. We can go as slowly as you need. "
+          "What's been making your heart race lately?",
+      'loneliness' => 'You came 🌙\n\n'
+          "I want you to know — this space has been waiting for you. "
+          "Loneliness is one of the quietest kinds of pain, and one of the most real.\n\n"
+          "You are not invisible here. You are seen, and you are welcome. "
+          "What's been feeling most isolating lately?",
+      'healing' => 'Something brought you here 🌙\n\n'
+          "Healing is not a straight line — and the fact that you're seeking it, "
+          "that you opened this app today, says something real about your strength.\n\n"
+          "What are you healing from? I want to understand, and I want to walk alongside you.",
+      'self-discovery' || 'self discovery' => 'Welcome, beautiful soul 🌙\n\n'
+          "You chose to turn inward today — and that is one of the most courageous things a person can do.\n\n"
+          "This is a space for questions without pressure, for noticing without judgment. "
+          "What part of yourself are you most curious about right now?",
+      'pregnancy' || 'pregnant' => null, // handled by pregnancy welcome
+      _ => null,
+    };
+  }
 
   // ── Lunar's rotating nightly notes (for home screen) ──────
   static const _lunarNotes = [

@@ -53,11 +53,19 @@ class ChatProvider extends ChangeNotifier {
   // ── Emotional memory (cross-session) ────────────────────────
   DateTime? _previousSessionAt; // Time of the LAST session (before this one)
 
-  // ── Premium features gate (structure only) ────────────────
+  // ── Premium features gate ─────────────────────────────────
   static const _historyLimit = 100; // Free tier: 100 stored messages
   static const _persistKey = 'lunar_chat_history_v1';
   static const _emotionKey = 'lunar_emotion_history_v1';
   static const _lastSessionKey = 'lunar_last_session_v1';
+
+  // Daily AI message counter (free-tier limit)
+  static const _dailyLimitKey   = 'ai_daily_count_v1';
+  static const _dailyDateKey    = 'ai_daily_date_v1';
+  static const freeAiDailyLimit = 20; // messages per day for free users
+
+  int    _dailyAiCount = 0;
+  String _dailyAiDate  = ''; // 'yyyy-MM-dd'
 
   // ── Getters ───────────────────────────────────────────────
   List<ChatMessage> get messages => List.unmodifiable(_messages);
@@ -66,6 +74,41 @@ class ChatProvider extends ChangeNotifier {
   bool get apiKeyConfigured => _apiKeyConfigured;
   bool get voiceMode => _voiceMode; // voice-ready
   int get sessionMessageCount => _sessionMessageCount;
+
+  // ── Daily limit helpers (free tier) ───────────────────────
+  /// Returns remaining free AI messages for today.
+  /// Returns the caller's tier limit (effectively unlimited) if [isPremium].
+  int remainingAiMessages(bool isPremium) {
+    if (isPremium) return ChatProvider.freeAiDailyLimit * 999; // effectively unlimited for display
+    _syncDailyDate();
+    return (freeAiDailyLimit - _dailyAiCount).clamp(0, freeAiDailyLimit);
+  }
+
+  /// Exposes today's message count for UI indicators.
+  int get dailyAiCount => _dailyAiCount;
+
+  /// True when the user can still send a message today.
+  bool canSendAiMessage(bool isPremium) {
+    if (isPremium) return true;
+    _syncDailyDate();
+    return _dailyAiCount < freeAiDailyLimit;
+  }
+
+  void _syncDailyDate() {
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    if (_dailyAiDate != today) {
+      _dailyAiDate  = today;
+      _dailyAiCount = 0;
+      LocalCache.setString(_dailyDateKey, today);
+      LocalCache.setInt(_dailyLimitKey, 0);
+    }
+  }
+
+  void _incrementDailyCount() {
+    _syncDailyDate();
+    _dailyAiCount++;
+    LocalCache.setInt(_dailyLimitKey, _dailyAiCount);
+  }
 
   // Dominant emotion this session
   EmotionTag? get dominantEmotion {
@@ -126,6 +169,11 @@ class ChatProvider extends ChangeNotifier {
     _previousSessionAt = lastStr != null ? DateTime.tryParse(lastStr) : null;
     LocalCache.setString(_lastSessionKey, DateTime.now().toIso8601String());
 
+    // Restore daily AI message counter
+    _dailyAiDate  = LocalCache.getString(_dailyDateKey) ?? '';
+    _dailyAiCount = LocalCache.getInt(_dailyLimitKey) ?? 0;
+    _syncDailyDate(); // resets counter if it's a new day
+
     final key = await LunarAIService.getApiKey();
     _apiKeyConfigured = key != null && key.isNotEmpty;
     if (_messages.isEmpty) {
@@ -145,12 +193,59 @@ class ChatProvider extends ChangeNotifier {
   }
 
   // ═══════════════════════════════════════════════════════════
+  //  WELCOME CONTEXT SEEDING
+  //  Call from AI screen once pregnancy/intent context is available.
+  //  Only acts if the welcome message is the only message (no real
+  //  conversation has happened yet) so it is safe to call repeatedly.
+  // ═══════════════════════════════════════════════════════════
+
+  void seedWelcomeContext({
+    bool isPregnant = false,
+    int? pregnancyWeek,
+    String? emotionalIntent,
+  }) {
+    // Don't touch the history if the user has already had a conversation.
+    if (_messages.length != 1) return;
+    if (_messages.first.isUser) return; // sanity guard — first msg must be AI
+
+    final newWelcome = LunarAIService.getWelcomeMsg(
+      daysSince: _daysSinceLastSession(),
+      isPregnant: isPregnant,
+      pregnancyWeek: pregnancyWeek,
+      emotionalIntent: emotionalIntent,
+    );
+    _messages[0] = ChatMessage.ai(newWelcome);
+    notifyListeners();
+    // Don't persist seeded welcome — it will be re-seeded on next launch
+    // if the conversation is still empty.
+  }
+
+  // ═══════════════════════════════════════════════════════════
   //  SEND MESSAGE
   // ═══════════════════════════════════════════════════════════
 
   Future<void> send(String text, BuildContext context) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty || _status == ChatStatus.thinking) return;
+
+    // ── Crisis detection: respond INSTANTLY without async delay ─
+    // Safety-critical: do not make someone in crisis wait for a
+    // "thinking" animation before seeing help resources.
+    if (LunarAIService.isCrisis(trimmed)) {
+      final emotionTag = _detectEmotion(trimmed);
+      _messages.add(ChatMessage.user(trimmed, emotionTag: emotionTag));
+      _sessionMessageCount++;
+      notifyListeners();
+      _saveHistory();
+      _syncMessageToFirestore(_messages.last);
+
+      final crisisResp = LunarAIService.crisisResponse();
+      _messages.add(ChatMessage.ai(crisisResp.text));
+      notifyListeners();
+      _saveHistory();
+      _syncMessageToFirestore(_messages.last);
+      return; // do NOT increment daily counter for crisis responses
+    }
 
     // Build context BEFORE any async gap (context may be gone after await)
     final ctx = _buildContext(context);
@@ -163,6 +258,7 @@ class ChatProvider extends ChangeNotifier {
     _messages.add(ChatMessage.user(trimmed, emotionTag: emotionTag));
     _status = ChatStatus.thinking;
     _sessionMessageCount++;
+    _incrementDailyCount(); // track daily free-tier usage
     notifyListeners();
     _saveHistory(); // fire-and-forget
     _syncMessageToFirestore(_messages.last); // fire-and-forget
@@ -223,8 +319,12 @@ class ChatProvider extends ChangeNotifier {
   // ═══════════════════════════════════════════════════════════
 
   Future<void> sendWithMedia(
-      XFile file, MediaType mediaType, BuildContext context) async {
+      XFile file, MediaType mediaType, BuildContext context,
+      {bool isPremiumUser = false}) async {
     if (_status == ChatStatus.thinking) return;
+    // Gate: respect the same daily limit as text sends.
+    // The call site should already show the paywall, but guard here too.
+    if (!canSendAiMessage(isPremiumUser)) return;
 
     final ctx = _buildContext(context);
     final history = _buildOpenAIHistory();
@@ -244,6 +344,7 @@ class ChatProvider extends ChangeNotifier {
     _messages.add(ChatMessage.user(caption, media: attachment));
     _status = ChatStatus.thinking;
     _sessionMessageCount++;
+    _incrementDailyCount(); // count media sends against the daily limit
     notifyListeners();
     _saveHistory();
     _syncMessageToFirestore(_messages.last);

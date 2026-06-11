@@ -12,9 +12,12 @@ import '../core/providers/chat_provider.dart';
 import '../core/providers/app_provider.dart';
 import '../core/providers/lunar_data_provider.dart';
 import '../core/providers/memory_provider.dart';
+import '../core/providers/premium_provider.dart';
 import '../core/models/deep_memory.dart';
 import '../core/models/cycle_model.dart';
 import '../services/relationship_service.dart';
+import '../screen/paywall/paywall_screen.dart';
+import '../widgets/premium_gate.dart';
 
 // ===========================================================
 //  LUNAR AI CHAT SCREEN
@@ -366,6 +369,22 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
       _chatListenerRef = chat;
       _chatListenerRef?.addListener(_onChatUpdate);
     }
+
+    // Seed the welcome message with pregnancy/intent context.
+    // Runs every time dependencies change but seedWelcomeContext() is
+    // idempotent when a real conversation already exists.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final lunarData = context.read<LunarDataProvider>();
+      final app       = context.read<AppProvider>();
+      context.read<ChatProvider>().seedWelcomeContext(
+        isPregnant: lunarData.isPregnant || app.pregnancyMode,
+        pregnancyWeek: (lunarData.isPregnant || app.pregnancyMode)
+            ? lunarData.currentPregnancyWeek
+            : null,
+        emotionalIntent: app.emotionalIntent,
+      );
+    });
   }
 
   void _onChatUpdate() {
@@ -442,9 +461,17 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
   void _send(String text) {
     final t = text.trim();
     if (t.isEmpty) return;
+    // Premium gate: check daily AI message limit
+    final premium = context.read<PremiumProvider>();
+    final chat = context.read<ChatProvider>();
+    if (!chat.canSendAiMessage(premium.isPaid)) {
+      PaywallGate.show(context,
+          featureHint: 'Support whenever you need it');
+      return;
+    }
     _textCtrl.clear();
     _focusNode.unfocus();
-    context.read<ChatProvider>().send(t, context);
+    chat.send(t, context);
     _scrollToBottom();
   }
 
@@ -600,8 +627,15 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     final file = _pendingMedia;
     final type = _pendingMediaType;
     if (file == null || type == null) return;
+    final premium = context.read<PremiumProvider>();
+    final chat    = context.read<ChatProvider>();
+    // Gate media sends against the same daily limit as text sends.
+    if (!chat.canSendAiMessage(premium.isPaid)) {
+      PaywallGate.show(context, featureHint: 'Support whenever you need it');
+      return;
+    }
     _clearPendingMedia();
-    context.read<ChatProvider>().sendWithMedia(file, type, context);
+    chat.sendWithMedia(file, type, context, isPremiumUser: premium.isPaid);
     _scrollToBottom();
   }
 
@@ -792,25 +826,83 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                       ),
                     ),
                     // Moon avatar
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const RadialGradient(
-                          colors: [Color(0xFF9B59D8), Color(0xFF5C2DB8)],
-                          center: Alignment(-0.3, -0.3),
+                    // Orb — listening/thinking/idle states
+                    Builder(builder: (ctx) {
+                      final chatState = ctx.watch<ChatProvider>();
+                      final isListening = _isRecording;
+                      final isThinking  = chatState.isTyping;
+                      final orbBase = isListening
+                          ? _kPink
+                          : isThinking
+                              ? _kPurple
+                              : const Color(0xFF9B59D8);
+                      final orbDeep = isListening
+                          ? const Color(0xFF8B1A5C)
+                          : const Color(0xFF5C2DB8);
+                      final orbGlowStr = isListening
+                          ? 0.90
+                          : isThinking
+                              ? 0.80 * _glowAnim.value
+                              : 0.55 * _glowAnim.value;
+                      final orbLabel = isListening
+                          ? 'Listening'
+                          : isThinking
+                              ? 'Thinking'
+                              : 'Lunar';
+                      return Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              Colors.white.withOpacity(0.22),
+                              orbBase.withOpacity(0.88),
+                              orbDeep,
+                            ],
+                            stops: const [0.0, 0.40, 1.0],
+                            center: const Alignment(-0.25, -0.30),
+                          ),
+                          border: Border.all(
+                            color: orbBase.withOpacity(orbGlowStr),
+                            width: isListening || isThinking ? 2.0 : 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: orbBase.withOpacity(orbGlowStr * 0.70),
+                              blurRadius: isListening ? 28 : isThinking ? 22 : 14,
+                              spreadRadius: isListening ? 4 : isThinking ? 3 : 1,
+                            ),
+                            if (isListening)
+                              BoxShadow(
+                                color: _kPink.withOpacity(0.30),
+                                blurRadius: 16,
+                              ),
+                          ],
                         ),
-                        border: Border.all(
-                          color: _kPurple.withOpacity(0.72 * _glowAnim.value),
-                          width: 1.5,
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('\u{1F319}',
+                                  style: TextStyle(
+                                      fontSize:
+                                          isListening || isThinking ? 20 : 24)),
+                              if (isListening || isThinking)
+                                Text(
+                                  orbLabel,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.72),
+                                    fontSize: 7.5,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                      child: const Center(
-                        child:
-                            Text('\u{1F319}', style: TextStyle(fontSize: 26)),
-                      ),
-                    ),
+                      );
+                    }),
                     // Orbital dots
                     ...List.generate(3, (i) {
                       final angle = _particleCtrl.value * math.pi * 2 +
@@ -966,14 +1058,14 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
           ),
           Row(
             children: [
-              _headerBtn(
-                Icons.key_rounded,
-                chat.apiKeyConfigured
-                    ? const Color(0xFF66BB6A)
-                    : Colors.white.withOpacity(0.40),
-                () => setState(() => _showApiKeySheet = !_showApiKeySheet),
-              ),
-              const SizedBox(width: 8),
+              // Key button — only visible when not configured (soft invitation)
+              if (!chat.apiKeyConfigured)
+                _headerBtn(
+                  Icons.key_outlined,
+                  _kGold.withOpacity(0.65),
+                  () => setState(() => _showApiKeySheet = !_showApiKeySheet),
+                ),
+              if (!chat.apiKeyConfigured) const SizedBox(width: 8),
               _headerBtn(
                 Icons.auto_awesome_rounded,
                 _kPurple.withOpacity(0.80),
@@ -982,7 +1074,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
               const SizedBox(width: 8),
               _headerBtn(
                 Icons.refresh_rounded,
-                Colors.white.withOpacity(0.40),
+                Colors.white.withOpacity(0.35),
                 _showClearConfirm,
               ),
             ],
@@ -1104,7 +1196,7 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Add your OpenAI key for intelligent AI responses \u2014 tap to connect',
+                'Lunar AI is ready ✨  Add your OpenAI key to unlock smarter, deeper responses →',
                 style: TextStyle(
                   color: _kGold.withOpacity(0.85),
                   fontSize: 11.5,
@@ -1786,25 +1878,54 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _glowAnim,
-        builder: (_, __) => Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const RadialGradient(
-              colors: [Color(0xFF9B59D8), Color(0xFF5C2DB8)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: _kPurple.withOpacity(0.38 * _glowAnim.value),
-                blurRadius: 10,
+        builder: (_, __) {
+          // Emotion-reactive mini orb
+          final chat = context.read<ChatProvider>();
+          final emotionColor = switch (chat.dominantEmotion) {
+            EmotionTag.anxious  => const Color(0xFF4FC3F7),
+            EmotionTag.sad      => const Color(0xFF7986CB),
+            EmotionTag.lonely   => const Color(0xFFB39DDB),
+            EmotionTag.happy    => const Color(0xFFFFD700),
+            EmotionTag.energetic => _kPink,
+            EmotionTag.period   => const Color(0xFFB05C8A),
+            EmotionTag.stressed => const Color(0xFF9575CD),
+            _                   => _kPurple,
+          };
+          return Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  Colors.white.withOpacity(0.20),
+                  emotionColor.withOpacity(0.82),
+                  const Color(0xFF5C2DB8),
+                ],
+                stops: const [0.0, 0.42, 1.0],
+                center: const Alignment(-0.2, -0.3),
               ),
-            ],
-          ),
-          child: const Center(
-            child: Text('\u{1F319}', style: TextStyle(fontSize: 14)),
-          ),
-        ),
+              boxShadow: [
+                BoxShadow(
+                  color: emotionColor.withOpacity(0.45 * _glowAnim.value),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                ),
+                BoxShadow(
+                  color: _kPink.withOpacity(0.15 * _glowAnim.value),
+                  blurRadius: 8,
+                ),
+              ],
+              border: Border.all(
+                color: Colors.white.withOpacity(0.15 * _glowAnim.value),
+                width: 1,
+              ),
+            ),
+            child: const Center(
+              child: Text('\u{1F319}', style: TextStyle(fontSize: 14)),
+            ),
+          );
+        },
       ),
     );
   }
@@ -2281,13 +2402,27 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Listening to you...',
-                        style: TextStyle(
-                          color: _kPink.withOpacity(0.85),
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'I\'m listening...',
+                            style: TextStyle(
+                              color: _kPink.withOpacity(0.88),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Speak freely \u{1F319}',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.42),
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
                       ),
                       const Spacer(),
                       GestureDetector(
@@ -2735,10 +2870,10 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                             enabled: !chat.isTyping,
                             decoration: InputDecoration(
                               hintText: chat.isTyping
-                                  ? 'Lunar is thinking... 🌙'
+                                  ? 'Lunar is with you... \u{1F319}'
                                   : _isRecording
-                                      ? 'Listening... 🎙️'
-                                      : 'Share your heart... 🌙',
+                                      ? 'I\'m listening... \u{1F399}\uFE0F'
+                                      : _contextualHint(),
                               hintStyle: TextStyle(
                                 color: Colors.white.withOpacity(0.26),
                                 fontSize: 14.5,
@@ -3161,6 +3296,8 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                         _sanctuaryHealingCards(chat),
                         const SizedBox(height: 24),
                         _sanctuaryAffirmation(lunarData),
+                        const SizedBox(height: 20),
+                        _privacyTrustHint(),
                         const SizedBox(height: 120),
                       ],
                     ),
@@ -3370,22 +3507,36 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
             ),
           );
         },
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('\ud83c\udf19', style: TextStyle(fontSize: 46)),
-            const SizedBox(height: 4),
-            Text(
-              'Lunar AI',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.86),
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.4,
+        child: Builder(builder: (ctx) {
+          final chatState = ctx.watch<ChatProvider>();
+          final orbInnerLabel = chatState.isTyping
+              ? 'Thinking...'
+              : chatState.messages.isEmpty
+                  ? 'I\'m here'
+                  : 'Lunar';
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('\ud83c\udf19', style: TextStyle(fontSize: 46)),
+              const SizedBox(height: 4),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 500),
+                transitionBuilder: (child, anim) =>
+                    FadeTransition(opacity: anim, child: child),
+                child: Text(
+                  orbInnerLabel,
+                  key: ValueKey(orbInnerLabel),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.80),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          );
+        }),
       ),
     );
   }
@@ -3405,9 +3556,21 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
         profile.stressMentions >= 2;
     String displayText;
     if (chat.isTyping) {
-      displayText = 'Feeling your energy... \u2728';
+      displayText = 'Feeling your words... \u2728';
+    } else if (chat.messages.isEmpty && !hasMemory) {
+      // First-ever interaction — warm, personal invitation
+      final h = DateTime.now().hour;
+      displayText = h < 6
+          ? 'Still awake? I\'m here with you \u{1F319}'
+          : h < 12
+              ? 'What\'s on your heart this morning? \u{1F319}'
+              : h < 18
+                  ? 'How are you feeling right now? \u{1F49C}'
+                  : h < 22
+                      ? 'How was your day, really? \u2728'
+                      : 'What would you like to release tonight? \u{1F319}';
     } else if (_insightIdx == 0 && hasMemory) {
-      // First rotation: show personalised greeting (single line from full greeting)
+      // First rotation: show personalised greeting
       displayText =
           chat.generateGreeting(app.userName).split('\n\n').last.trim();
     } else {
@@ -3728,6 +3891,53 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+
+  // ── Contextual input hint — time-of-day & emotion aware ─
+  String _contextualHint() {
+    final h = DateTime.now().hour;
+    final chat = context.read<ChatProvider>();
+    // Emotion-aware hints
+    return switch (chat.dominantEmotion) {
+      EmotionTag.anxious  => 'Tell me what\'s making you anxious... \u{1F319}',
+      EmotionTag.sad      => 'What\'s weighing on your heart? \u{1F49C}',
+      EmotionTag.lonely   => 'You\'re not alone — tell me anything \u{1F319}',
+      EmotionTag.stressed => 'Let it out. I\'m here \u2728',
+      EmotionTag.tired    => 'Rest your thoughts here... \u{1F319}',
+      EmotionTag.happy    => 'Tell me what\'s lighting you up \u2728',
+      _ => h < 10
+          ? 'How did you sleep? \u{1F319}'
+          : h < 14
+              ? 'How are you feeling? \u{1F49C}'
+              : h < 18
+                  ? 'What\'s on your mind? \u2728'
+                  : h < 22
+                      ? 'How was your day? \u{1F338}'
+                      : 'What\'s weighing on you tonight? \u{1F319}',
+    };
+  }
+
+  // ── Privacy trust hint — quiet reassurance ──────────────
+  Widget _privacyTrustHint() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.lock_outline_rounded,
+          color: Colors.white.withOpacity(0.20),
+          size: 11,
+        ),
+        const SizedBox(width: 5),
+        Text(
+          'Private \u00B7 Held with care \u00B7 Always here',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.22),
+            fontSize: 10.5,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ],
     );
   }
 
@@ -4125,23 +4335,31 @@ class _AIVoiceState extends State<AIVoiceScreen> with TickerProviderStateMixin {
                     ),
                   ],
                 ),
-                child: const Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-                      SizedBox(width: 10),
-                      Text(
-                        'Talk to Lunar',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3,
+                child: Center(
+                  child: Builder(builder: (ctx) {
+                    final chatState = ctx.watch<ChatProvider>();
+                    final bool hasHistory = chatState.messages.isNotEmpty;
+                    final String ctaLabel = hasHistory
+                        ? 'Continue with Lunar \u{1F49C}'
+                        : 'Begin Your Journey \u{1F319}';
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.auto_awesome,
+                            color: Colors.white, size: 20),
+                        const SizedBox(width: 10),
+                        Text(
+                          ctaLabel,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    );
+                  }),
                 ),
               ),
             ),

@@ -88,6 +88,8 @@ class AuthService {
         case 'wrong-password':
         case 'invalid-credential':
           return 'Incorrect password. Please try again.';
+        case 'requires-recent-login':
+          return 'For security, please sign out and sign back in before deleting your account.';
         case 'too-many-requests':
           return 'Too many attempts. Please wait and try again.';
         case 'network-request-failed':

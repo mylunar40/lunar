@@ -340,31 +340,73 @@ class _MoodTrackingState extends State<MoodTrackingScreen>
             offset: Offset(0, _floatAnim.value * 0.45),
             child: AnimatedBuilder(
               animation: _glowAnim,
-              builder: (_, __) => Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 9),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  color: _kPurple.withOpacity(0.16),
-                  border: Border.all(
-                    color: _kPurple.withOpacity(0.45 * _glowAnim.value),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _kPurple.withOpacity(0.2 * _glowAnim.value),
-                      blurRadius: 14,
+              builder: (_, __) => Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Lunar Orb mini — brand identity badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 11, vertical: 6),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(30),
+                      color: _kPurple.withOpacity(0.10),
+                      border: Border.all(
+                        color: _kPurple
+                            .withOpacity(0.30 + _glowAnim.value * 0.22),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _kPurple
+                              .withOpacity(_glowAnim.value * 0.16),
+                          blurRadius: 12,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: Text(
-                  '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                Colors.white.withOpacity(0.22),
+                                _kPurple.withOpacity(0.85),
+                                const Color(0xFF5C2DB8),
+                              ],
+                              stops: const [0.0, 0.45, 1.0],
+                              center: const Alignment(-0.2, -0.3),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _kPurple.withOpacity(
+                                    0.30 + _glowAnim.value * 0.25),
+                                blurRadius: 7,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                              child: Text('🌙',
+                                  style: TextStyle(fontSize: 9))),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),

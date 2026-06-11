@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
+import '../models/user_intent.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/fcm_service.dart';
+import '../services/subscription_service.dart';
 import '../../user_provider.dart';
 
 /// Authentication + user state manager.
@@ -25,10 +29,21 @@ class LunarAuthProvider extends ChangeNotifier {
   bool get firebaseAvailable => _firebaseAvailable;
   String? get error => _error;
 
-  bool get isAuthenticated =>
-      !_firebaseAvailable || _firebaseUser != null;
+  /// True only when a real Firebase user is signed in.
+  bool get isAuthenticated => _firebaseUser != null;
+
+  /// True when Firebase could not be initialised (offline / demo mode).
+  bool get isDemoMode => !_firebaseAvailable;
 
   bool get isGuest => _firebaseUser?.isAnonymous ?? false;
+
+  /// True when the signed-in email account has been verified.
+  /// Google / Apple accounts always return true.
+  /// Anonymous (guest) users always return false — use [isGuest] to distinguish.
+  bool get isEmailVerified => _firebaseUser?.emailVerified ?? false;
+
+  /// True when the user has an active, non-expired premium subscription.
+  bool get isActivePremium => _userModel?.isActivePremium ?? false;
 
   String get displayName =>
       _userModel?.name ??
@@ -37,6 +52,13 @@ class LunarAuthProvider extends ChangeNotifier {
 
   String? get photoUrl =>
       _userModel?.photoUrl ?? _firebaseUser?.photoURL;
+
+  /// The user's parsed journey intent. Null if not yet selected.
+  UserIntent? get userIntent => UserIntent.fromString(_userModel?.userIntent);
+
+  /// True when the user has completed the intent onboarding flow.
+  bool get hasCompletedIntentOnboarding =>
+      _userModel?.onboardingIntentCompleted ?? false;
 
   // ── Init ────────────────────────────────────────────────
   LunarAuthProvider() {
@@ -68,9 +90,16 @@ class LunarAuthProvider extends ChangeNotifier {
 
     if (user != null && !user.isAnonymous) {
       await _fetchUserModel(user.uid);
+      // Register FCM token for push notifications (best-effort)
+      FCMService.registerToken(user.uid)
+          .catchError((e) => debugPrint('[LunarAuth] FCM token error: $e'));
+      // Identify user in RevenueCat so purchases are linked to their account
+      await SubscriptionService.logIn(user.uid);
     } else {
       _userModel = null;
       _userSub?.cancel();
+      // Revert RC to anonymous user on sign-out / guest sign-in
+      await SubscriptionService.logOut();
     }
 
     _isLoading = false;
@@ -126,8 +155,14 @@ class LunarAuthProvider extends ChangeNotifier {
           await FirestoreService.createUser(model);
           debugPrint('[LunarAuth] Firestore user document created.');
         } catch (firestoreErr) {
-          // Log but do not surface to user — account is created, they can proceed.
           debugPrint('[LunarAuth] Firestore createUser failed (non-blocking): $firestoreErr');
+        }
+        // Send email verification (best-effort — does not block sign-in)
+        try {
+          await cred.user!.sendEmailVerification();
+          debugPrint('[LunarAuth] Verification email sent to $email');
+        } catch (verifyErr) {
+          debugPrint('[LunarAuth] sendEmailVerification failed (non-blocking): $verifyErr');
         }
       }
       _setLoading(false);
@@ -218,7 +253,34 @@ class LunarAuthProvider extends ChangeNotifier {
     }
   }
 
-  // ── Sign Out ────────────────────────────────────────────
+  // ── Email Verification ──────────────────────────────────
+
+  /// Resend the verification email. Call from EmailVerificationScreen.
+  Future<bool> sendEmailVerification() async {
+    try {
+      await _firebaseUser?.sendEmailVerification();
+      return true;
+    } catch (e) {
+      debugPrint('[LunarAuth] sendEmailVerification error: $e');
+      _error = 'Could not send verification email. Try again later.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Reload Firebase Auth user to pick up fresh emailVerified status.
+  /// Call when the user taps "I've verified" on the verification screen.
+  Future<void> reloadUser() async {
+    try {
+      await _firebaseUser?.reload();
+      _firebaseUser = AuthService.currentUser;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[LunarAuth] reloadUser error: $e');
+    }
+  }
+
+  // ── Sign Out ─────────────────────────────────────────────
   Future<void> signOut() async {
     _setLoading(true);
     try {
@@ -227,6 +289,61 @@ class LunarAuthProvider extends ChangeNotifier {
       debugPrint('[LunarAuth] Sign out error: $e');
     }
     _setLoading(false);
+  }
+
+  // ── Delete Account (GDPR) ───────────────────────────────
+  /// Permanently removes the Firebase Auth account THEN purges all
+  /// Firestore documents for the user.
+  ///
+  /// ORDER MATTERS: Auth is deleted first so that if it throws
+  /// `requires-recent-login`, Firestore data is never touched and
+  /// no irrecoverable data loss occurs.
+  ///
+  /// Returns true on success, false on failure (with [error] set).
+  Future<bool> deleteAccount() async {
+    final uid = _firebaseUser?.uid;
+    if (uid == null) return false;
+    _setLoading(true);
+    try {
+      // Step 1: Delete the Firebase Auth account.
+      // This may throw 'requires-recent-login' — if so, Firestore is untouched.
+      await AuthService.deleteAccount();
+      debugPrint('[LunarAuth] Firebase Auth account deleted for $uid');
+
+      // Step 2: Best-effort Firestore purge.
+      // User is now unauthenticated; security rules may deny sub-collection
+      // deletes. Orphaned data is cleaned by a scheduled Cloud Function.
+      try {
+        await FirestoreService.deleteUserData(uid);
+        debugPrint('[LunarAuth] Firestore user data deleted for $uid');
+      } catch (firestoreErr) {
+        debugPrint('[LunarAuth] Firestore cleanup incomplete (non-fatal): $firestoreErr');
+      }
+
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      debugPrint('[LunarAuth] deleteAccount failed: $e');
+      _error = AuthService.friendlyError(e);
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // ── Intent Onboarding ────────────────────────────────────
+  /// Saves the selected journey intent and marks onboarding complete.
+  Future<void> setUserIntent(UserIntent intent) async {
+    final uid = _firebaseUser?.uid;
+    if (uid == null || isGuest) return;
+    try {
+      await FirestoreService.updateUser(uid, {
+        'userIntent': intent.firestoreValue,
+        'intentSelectedAt': Timestamp.fromDate(DateTime.now()),
+        'onboardingIntentCompleted': true,
+      });
+    } catch (e) {
+      debugPrint('[LunarAuth] setUserIntent error: $e');
+    }
   }
 
   // ── Cloud Sync ──────────────────────────────────────────

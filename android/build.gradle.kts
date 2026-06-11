@@ -7,6 +7,14 @@ allprojects {
         google()
         mavenCentral()
     }
+
+    // Suppress obsolete Java compiler warnings from dependencies like google_mlkit_face_detection
+    tasks.withType<JavaCompile>().configureEach {
+        options.compilerArgs.addAll(listOf(
+            "-Xlint:-options",
+            "-Xlint:-unchecked"
+        ))
+    }
 }
 
 val newBuildDir: Directory =

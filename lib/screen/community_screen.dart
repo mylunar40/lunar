@@ -9,7 +9,11 @@ import '../core/providers/auth_provider.dart';
 import '../core/providers/community_provider.dart';
 import '../widgets/guest_gate.dart';
 import '../core/providers/avatar_provider.dart';
+import '../core/providers/connection_provider.dart';
+import '../models/connection_model.dart';
 import '../widgets/lunar_avatar_widget.dart';
+import 'community_profile_screen.dart';
+import 'connections_hub_screen.dart';
 
 // ═══════════════════════════════════════════════════════════
 //  LUNAR COMMUNITY — Safe Space Screen
@@ -777,6 +781,72 @@ class _CommunityState extends State<CommunityScreen>
                     ],
                   ),
                   child: const Text('🌸', style: TextStyle(fontSize: 22)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // ── Connections button with badge ───────────────
+            Consumer<ConnectionProvider>(
+              builder: (_, cp, __) => GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.push<void>(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ConnectionsHubScreen()),
+                  );
+                },
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [
+                            _cPurple.withOpacity(0.30),
+                            _cPink.withOpacity(0.20),
+                          ],
+                        ),
+                        border: Border.all(
+                            color: _cPurple.withOpacity(0.45), width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                              color: _cPurple.withOpacity(0.25),
+                              blurRadius: 12),
+                        ],
+                      ),
+                      child: const Icon(Icons.favorite_rounded,
+                          color: _cPurple, size: 18),
+                    ),
+                    if (cp.incomingCount > 0)
+                      Positioned(
+                        top: -3,
+                        right: -3,
+                        child: Container(
+                          width: 16,
+                          height: 16,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _cPink,
+                          ),
+                          child: Center(
+                            child: Text(
+                              cp.incomingCount > 9
+                                  ? '9+'
+                                  : '${cp.incomingCount}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -2231,51 +2301,92 @@ class _CommunityState extends State<CommunityScreen>
         avatarProvider.avatar != null &&
         (post.pseudonym.startsWith('You'));
 
+    // Tap handler — navigate to profile (only for non-anonymous posts by others)
+    final canViewProfile = !post.isAnonymous && !isOwnPost && post.uid.isNotEmpty;
+    void onProfileTap() {
+      if (!canViewProfile) return;
+      HapticFeedback.lightImpact();
+      Navigator.push<void>(
+        context,
+        CommunityProfileScreen.route(
+          targetUid:      post.uid,
+          pseudonym:      post.pseudonym,
+          avatarEmoji:    post.avatarEmoji,
+          avatarColorHex: post.avatarColorHex,
+          isPremium:      post.isPremium,
+          isVerified:     post.isVerified,
+        ),
+      );
+    }
+
+    // Quick connection status from provider (no-async, cached)
+    final cp = context.read<ConnectionProvider>();
+    final isConnected = canViewProfile && cp.isConnected(post.uid);
+    final hasIncoming = canViewProfile && cp.incomingFrom(post.uid) != null;
+
     return Row(children: [
       // ── Avatar circle ────────────────────────────────────
-      isOwnPost
-          ? ClipOval(
-              child: Container(
+      GestureDetector(
+        onTap: canViewProfile ? onProfileTap : null,
+        child: isOwnPost
+            ? ClipOval(
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  color: const Color(0xFF160330),
+                  child: LunarAvatarWidget(
+                    avatar: avatarProvider.avatar!,
+                    size: 44,
+                    animate: false,
+                    showAura: false,
+                  ),
+                ),
+              )
+            : Container(
                 width: 44,
                 height: 44,
-                color: const Color(0xFF160330),
-                child: LunarAvatarWidget(
-                  avatar: avatarProvider.avatar!,
-                  size: 44,
-                  animate: false,
-                  showAura: false,
-                ),
+                decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(colors: [
+                      avatarColor.withOpacity(0.85),
+                      avatarColor.withOpacity(0.3)
+                    ]),
+                    border: Border.all(
+                        color: avatarColor.withOpacity(0.5), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                          color: avatarColor.withOpacity(0.28), blurRadius: 10)
+                    ]),
+                child: Center(
+                    child: Text(post.avatarEmoji,
+                        style: const TextStyle(fontSize: 22))),
               ),
-            )
-          : Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [
-                    avatarColor.withOpacity(0.85),
-                    avatarColor.withOpacity(0.3)
-                  ]),
-                  border: Border.all(
-                      color: avatarColor.withOpacity(0.5), width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                        color: avatarColor.withOpacity(0.28), blurRadius: 10)
-                  ]),
-              child: Center(
-                  child: Text(post.avatarEmoji,
-                      style: const TextStyle(fontSize: 22))),
-            ),
+      ),
       const SizedBox(width: 12),
       Expanded(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Text(post.pseudonym,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600)),
+          GestureDetector(
+            onTap: canViewProfile ? onProfileTap : null,
+            child: Text(post.pseudonym,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600)),
+          ),
+          // Connection indicator
+          if (isConnected) ...[const SizedBox(width: 5), const _ConnectionDot()],
+          if (hasIncoming && !isConnected) ...[const SizedBox(width: 5), const _RequestDot()],
+          // Verified / Premium badges
+          if (!post.isAnonymous && post.isVerified) ...[
+            const SizedBox(width: 4),
+            const Icon(Icons.verified_rounded, color: Color(0xFF4FC3F7), size: 13),
+          ],
+          if (!post.isAnonymous && post.isPremium) ...[
+            const SizedBox(width: 3),
+            const Icon(Icons.diamond_rounded, color: _cPurple, size: 12),
+          ],
           if (post.isAnonymous) ...[
             const SizedBox(width: 6),
             Container(
@@ -3721,4 +3832,48 @@ class _CNebulaP extends CustomPainter {
 
   @override
   bool shouldRepaint(_CNebulaP old) => old.t != t;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CONNECTION STATUS INDICATOR DOTS
+// ═══════════════════════════════════════════════════════════
+
+/// Small purple dot shown next to a pseudonym when you are connected.
+class _ConnectionDot extends StatelessWidget {
+  const _ConnectionDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Healing Connection',
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Color(0xFFAB5CF2),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small gold dot shown when a pending request exists from this user.
+class _RequestDot extends StatelessWidget {
+  const _RequestDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Healing Request Pending',
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Color(0xFFFFD700),
+        ),
+      ),
+    );
+  }
 }

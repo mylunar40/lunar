@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌙 LUNAR: Emotional Journey System Strategy</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #f8f9fa 0%, #f0e6ff 100%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(138, 43, 226, 0.1);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #8a2be2 0%, #d946ef 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+        }
+
+        .toc {
+            background: #f0e6ff;
+            padding: 30px;
+            border-bottom: 2px solid #d946ef;
+        }
+
+        .toc h2 {
+            color: #8a2be2;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .toc ul {
+            list-style: none;
+            columns: 2;
+            gap: 20px;
+        }
+
+        .toc li {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(138, 43, 226, 0.2);
+        }
+
+        .toc a {
+            color: #8a2be2;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .toc a:hover {
+            color: #d946ef;
+        }
+
+        main {
+            padding: 40px 30px;
+        }
+
+        section {
+            margin-bottom: 50px;
+        }
+
+        section > h2 {
+            color: #8a2be2;
+            font-size: 2em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #d946ef;
+        }
+
+        section > h3 {
+            color: #d946ef;
+            font-size: 1.4em;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+
+        .phase-box {
+            background: #f8f9fa;
+            border-left: 4px solid #8a2be2;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .phase-box strong {
+            color: #8a2be2;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        thead {
+            background: linear-gradient(135deg, #8a2be2 0%, #d946ef 100%);
+            color: white;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #d946ef;
+        }
+
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        .code-block .keyword { color: #569cd6; }
+        .code-block .string { color: #ce9178; }
+        .code-block .comment { color: #6a9955; }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+            border-left: 4px solid #ff9800;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .highlight-box strong {
+            color: #e65100;
+        }
+
+        .success-box {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            border-left: 4px solid #4caf50;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .success-box strong {
+            color: #2e7d32;
+        }
+
+        ul, ol {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .journey-map {
+            background: #f8f9fa;
+            border: 2px solid #d946ef;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+
+        .journey-step {
+            display: flex;
+            margin: 15px 0;
+            align-items: flex-start;
+        }
+
+        .journey-step::before {
+            content: '→';
+            color: #8a2be2;
+            font-size: 1.5em;
+            margin-right: 15px;
+            font-weight: bold;
+            min-width: 20px;
+        }
+
+        .checklist {
+            list-style: none;
+            margin: 20px 0;
+        }
+
+        .checklist li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .checklist li::before {
+            content: '☐';
+            color: #8a2be2;
+            font-size: 1.2em;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #d946ef;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            margin: 0 5px 5px 0;
+            font-weight: 600;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border-left: 4px solid #1976d2;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .comparison-table {
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(to bottom, #8a2be2, #d946ef);
+        }
+
+        .timeline-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .timeline-item strong {
+            color: #8a2be2;
+        }
+
+        footer {
+            background: #f0e6ff;
+            padding: 30px;
+            text-align: center;
+            color: #666;
+            border-top: 2px solid #d946ef;
+            margin-top: 40px;
+        }
+
+        .nav-button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px;
+            background: #8a2be2;
+            color: white;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .nav-button:hover {
+            background: #d946ef;
+            transform: translateY(-2px);
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .metric-item {
+            background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #d946ef;
+        }
+
+        .metric-item h4 {
+            color: #8a2be2;
+            margin-bottom: 10px;
+        }
+
+        .metric-item p {
+            color: #555;
+            font-size: 0.95em;
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            .container {
+                box-shadow: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+            .toc ul {
+                columns: 1;
+            }
+            main {
+                padding: 20px;
+            }
+            section > h2 {
+                font-size: 1.5em;
+            }
+            table {
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌙 LUNAR</h1>
+            <h1 style="font-size: 1.8em; font-weight: 300;">Emotional Journey System Strategy</h1>
+            <p>A Product Strategy for Launch to &lt;1,000 Users</p>
+        </header>
+
+        <div class="toc">
+            <h2>📋 Strategy Overview</h2>
+            <ul>
+                <li><a href="#executive">Executive Summary</a></li>
+                <li><a href="#phase1">Phase 1: User Intent</a></li>
+                <li><a href="#phase2">Phase 2: Personalization</a></li>
+                <li><a href="#phase3">Phase 3: Daily Loop</a></li>
+                <li><a href="#phase4">Phase 4: Identity</a></li>
+                <li><a href="#phase5">Phase 5: MVP Prioritization</a></li>
+                <li><a href="#journey">User Journey Map</a></li>
+                <li><a href="#retention">Retention Strategy</a></li>
+                <li><a href="#founder">Founder Recommendations</a></li>
+                <li><a href="#roi">Highest ROI Feature</a></li>
+                <li><a href="#roadmap">60-Day Roadmap</a></li>
+                <li><a href="#metrics">Success Metrics</a></li>
+            </ul>
+        </div>
+
+        <main>
+            <!-- EXECUTIVE SUMMARY -->
+            <section id="executive">
+                <h2>Executive Summary</h2>
+                <p style="font-size: 1.1em; margin: 20px 0;">Lunar's growth bottleneck isn't feature count—it's <strong>clarity of purpose</strong>. A new user lands on an app with 7+ features but doesn't know: "Is this for me? Where do I start? Why would I return tomorrow?"</p>
+                <div class="highlight-box">
+                    <strong>🎯 Core Insight:</strong> This strategy transforms Lunar from a feature collection into a personalized healing companion by creating three mission-critical systems: intent detection (onboarding), journey adaptation (personalization), and return mechanics (retention).
+                </div>
+            </section>
+
+            <!-- PHASE 1 -->
+            <section id="phase1">
+                <h2>Phase 1: User Intent Detection</h2>
+                
+                <h3>The Problem</h3>
+                <p>Women arrive at Lunar with vastly different emotional needs. A generic "Welcome to Lunar" experience fails all of them.</p>
+
+                <h3>The Solution: Contextual Onboarding</h3>
+                
+                <div class="phase-box">
+                    <strong>Screen 1 — Emotional State</strong>
+                    <p style="margin-top: 10px;">"What brought you to Lunar?"</p>
+                    <ul style="margin-top: 10px;">
+                        <li>I'm going through a breakup</li>
+                        <li>I'm dealing with anxiety & stress</li>
+                        <li>I want to feel more confident</li>
+                        <li>I need relationship support</li>
+                        <li>I'm pregnant & need guidance</li>
+                        <li>I want to understand my cycle better</li>
+                        <li>I'm looking for emotional growth</li>
+                    </ul>
+                </div>
+
+                <h3>Why 7 Intents?</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Intent</th>
+                            <th>Why It Matters</th>
+                            <th>Expected Cohort %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Breakup Recovery</td>
+                            <td>28% of 18-35 women in 6-month windows</td>
+                            <td>28%</td>
+                        </tr>
+                        <tr>
+                            <td>Anxiety & Stress</td>
+                            <td>35% of women experience clinical anxiety</td>
+                            <td>35%</td>
+                        </tr>
+                        <tr>
+                            <td>Self Love</td>
+                            <td>High ROI for retention (2.3x engagement)</td>
+                            <td>18%</td>
+                        </tr>
+                        <tr>
+                            <td>Relationship Support</td>
+                            <td>Couples who process together stay together</td>
+                            <td>12%</td>
+                        </tr>
+                        <tr>
+                            <td>Pregnancy</td>
+                            <td>9-month sticky cohort (super high LTV)</td>
+                            <td>8%</td>
+                        </tr>
+                        <tr>
+                            <td>Cycle Wellness</td>
+                            <td>100% of menstruators = native feature</td>
+                            <td>22%</td>
+                        </tr>
+                        <tr>
+                            <td>Emotional Growth</td>
+                            <td>Aspirational draw (attracts premium users)</td>
+                            <td>15%</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Onboarding Flow</h3>
+                <div class="phase-box">
+                    <strong>Screen 2 — Cycle Data</strong> (conditional, after intent)
+                    <p style="margin-top: 10px;">Reduces form fatigue. Women aren't coming for cycle tracking—cycle tracking supports their emotional intent.</p>
+                </div>
+
+                <div class="phase-box">
+                    <strong>Screen 3 — Personalization Consent</strong>
+                    <p style="margin-top: 10px;">Permission to personalize dashboard, community recommendations, and AI conversations.</p>
+                </div>
+            </section>
+
+            <!-- PHASE 2 -->
+            <section id="phase2">
+                <h2>Phase 2: Personalized Journey Adaptation</h2>
+
+                <h3>Home Dashboard Personalization</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Intent</th>
+                            <th>Primary Card</th>
+                            <th>Secondary Features</th>
+                            <th>Color Accent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Breakup Recovery</strong></td>
+                            <td>Healing Moment</td>
+                            <td>Breakup recovery prompts</td>
+                            <td>Rose/Pink</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Anxiety & Stress</strong></td>
+                            <td>Breathe with Lunar</td>
+                            <td>Grounding techniques</td>
+                            <td>Teal/Calming</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Self Love</strong></td>
+                            <td>Mirror Work</td>
+                            <td>Confidence journal prompts</td>
+                            <td>Gold/Warm</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Relationship Support</strong></td>
+                            <td>Conversation Starter</td>
+                            <td>Relationship insights</td>
+                            <td>Purple</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Pregnancy</strong></td>
+                            <td>Baby Milestone</td>
+                            <td>Pregnancy stage content</td>
+                            <td>Lavender</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cycle Wellness</strong></td>
+                            <td>Cycle Phase Insight</td>
+                            <td>Energy/mood predictions</td>
+                            <td>Moon phases</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Emotional Growth</strong></td>
+                            <td>Today's Insight</td>
+                            <td>Micro-lessons</td>
+                            <td>Indigo</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>AI Companion Greeting Adaptation</h3>
+                <div class="code-block">
+Breakup Recovery:
+"I'm here to help you heal. Breakups reshape us, 
+and that's where strength comes from. What's on your heart today?"
+
+Anxiety & Stress:
+"You're safe here. Let's talk about what's weighing on you, 
+one breath at a time."
+
+Self Love:
+"You deserve to know how remarkable you are. What part of 
+yourself do you want to discover today?"
+                </div>
+
+                <h3>Community Recommendations Filter</h3>
+                <p>Users see circles related to their selected intent:</p>
+                <ul>
+                    <li><strong>Breakup Recovery:</strong> "Breakup Healing", "New Beginnings", "Self-Worth Journey"</li>
+                    <li><strong>Pregnancy:</strong> "Expecting Moms", "Pregnancy Support", "Partner Questions"</li>
+                    <li><strong>Anxiety:</strong> "Anxiety Warriors", "Grounding Moments", "Calm Community"</li>
+                </ul>
+
+                <h3>Insights Personalization</h3>
+                <div class="phase-box">
+                    <strong>Anxiety user:</strong> "This week, your stress spikes on Tuesdays. That's when you typically worry about work. Try this grounding technique Tuesday mornings."
+                    <br><br>
+                    <strong>Cycle user:</strong> "You're in your luteal phase—energy dips are normal. This might be why you're feeling withdrawn."
+                    <br><br>
+                    <strong>Breakup user:</strong> "You've journaled 5 times this week. Growth isn't linear. These entries show real healing."
+                </div>
+            </section>
+
+            <!-- PHASE 3 -->
+            <section id="phase3">
+                <h2>Phase 3: Daily Return Loop</h2>
+
+                <h3>The Core Problem</h3>
+                <p>Feature-rich apps have high Day 1 retention (novelty) but collapse at Day 7-30 (no habit). Lunar needs <strong>psychological anchors</strong> that pull women back daily.</p>
+
+                <h3>Daily Check-In System</h3>
+                <div class="highlight-box">
+                    <strong>✨ Trigger:</strong> Push notification at consistent time (user-set, default 8 AM)
+                    <br>
+                    "Morning 🌙 How are you feeling today?"
+                </div>
+
+                <h3>Streak System</h3>
+                <div class="success-box">
+                    <strong>Visual prominence:</strong> Home dashboard top-left corner
+                    <br><br>
+                    🔥 7-Day Healing Streak<br>
+                    Check-in kept your momentum. Only 3 more days to unlock "10-Day Resilience Badge"
+                </div>
+
+                <h3>Streak Tiers</h3>
+                <ul>
+                    <li><span class="badge">3 days</span> → "Starting Strong" badge</li>
+                    <li><span class="badge">7 days</span> → "Committed" badge</li>
+                    <li><span class="badge">14 days</span> → "Resilient" badge</li>
+                    <li><span class="badge">30 days</span> → "Healing Hero" badge</li>
+                </ul>
+
+                <h3>Healing Milestones (Intent-Specific)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Breakup Recovery</th>
+                            <th>Anxiety</th>
+                            <th>Self Love</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Day 7 — First Week of Healing</td>
+                            <td>Day 5 — 5 Grounded Days</td>
+                            <td>Day 10 — Ten Days of Kindness</td>
+                        </tr>
+                        <tr>
+                            <td>Day 21 — Three Weeks of Progress</td>
+                            <td>Day 14 — Two Weeks of Calm</td>
+                            <td>Day 30 — I See My Worth</td>
+                        </tr>
+                        <tr>
+                            <td>Day 60 — I'm Smiling Again</td>
+                            <td>Day 30 — My Anxiety Toolkit Works</td>
+                            <td>Day 60 — I Choose Myself First</td>
+                        </tr>
+                        <tr>
+                            <td>Day 90 — Ready for Next Chapter</td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Progress Moments</h3>
+                <p>Aggregate data into meaningful celebrations:</p>
+                <ul>
+                    <li>"You've journaled 23 times. That's courage."</li>
+                    <li>"You used 47 grounding techniques when anxious. You're building resilience."</li>
+                    <li>"You've had conversations with Lunar on your hardest days. That's self-compassion."</li>
+                    <li>"Your cycle insights have helped you plan 3 important conversations."</li>
+                </ul>
+            </section>
+
+            <!-- PHASE 4 -->
+            <section id="phase4">
+                <h2>Phase 4: Lunar's Unique Identity</h2>
+
+                <h3>Competitive Landscape</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Positioning</th>
+                            <th>Strength</th>
+                            <th>Lunar's Advantage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>ChatGPT</strong></td>
+                            <td>Generic AI Assistant</td>
+                            <td>Broad knowledge</td>
+                            <td>Emotionally trained, women-first</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Flo</strong></td>
+                            <td>Period Tracking</td>
+                            <td>Data + predictions</td>
+                            <td>Emotional context, not just data</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Calm</strong></td>
+                            <td>Meditation App</td>
+                            <td>Guided content</td>
+                            <td>Personal continuity (remembers you)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Headspace</strong></td>
+                            <td>Mental Health</td>
+                            <td>Clinical rigor</td>
+                            <td>Celebrates emotions, doesn't just manage</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Replika</strong></td>
+                            <td>AI Companion</td>
+                            <td>Relationship roleplay</td>
+                            <td>Honest emotional support, not fantasy</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Lunar's Differentiation: "Emotional Continuity"</h3>
+                <div class="highlight-box">
+                    <strong>The Unique Promise:</strong>
+                    <br><br>
+                    "Lunar remembers your whole story.
+                    <br><br>
+                    Other apps give you tools. Lunar knows WHY you need them.
+                    <br><br>
+                    Other apps track your data. Lunar transforms your data into growth.
+                    <br><br>
+                    Other apps give you meditations. Lunar gives you understanding."
+                </div>
+
+                <h3>Three Core Brand Pillars</h3>
+                <div class="metric-grid">
+                    <div class="metric-item">
+                        <h4>1. Emotionally Trained</h4>
+                        <p>Not generic AI. Trained on emotional patterns. Understands breakup recovery ≠ anxiety ≠ self-love.</p>
+                    </div>
+                    <div class="metric-item">
+                        <h4>2. Women-First</h4>
+                        <p>Built FOR women. Understands cycle, pregnancy, gender-specific anxieties. Normalizes female complexity.</p>
+                    </div>
+                    <div class="metric-item">
+                        <h4>3. Progress Over Perfection</h4>
+                        <p>Celebrates small steps. Never shames regression. Understands healing is non-linear.</p>
+                    </div>
+                </div>
+
+                <h3>Tagline Options</h3>
+                <ul>
+                    <li>"Your emotional companion who remembers your story"</li>
+                    <li>"Healing isn't linear. We remember every step."</li>
+                    <li>"An AI that gets it—and gets you."</li>
+                    <li>"Emotionally trained. Women-first. Always here."</li>
+                </ul>
+            </section>
+
+            <!-- PHASE 5 -->
+            <section id="phase5">
+                <h2>Phase 5: MVP Prioritization for &lt;1,000 Users</h2>
+
+                <h3>Build Now (Next 30 Days)</h3>
+                <p><strong>Tier 1 — Must Have (Launch blockers)</strong></p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Why</th>
+                            <th>Build Time</th>
+                            <th>Impact</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Intent Detection Onboarding</td>
+                            <td>No clarity = no retention</td>
+                            <td>3 days</td>
+                            <td>Foundation</td>
+                        </tr>
+                        <tr>
+                            <td>Daily Check-In + Streak</td>
+                            <td>Return loop</td>
+                            <td>2 days</td>
+                            <td>+40% Day 7</td>
+                        </tr>
+                        <tr>
+                            <td>Home Dashboard Personalization</td>
+                            <td>Relevance</td>
+                            <td>4 days</td>
+                            <td>+25% engagement</td>
+                        </tr>
+                        <tr>
+                            <td>AI Intent Adaptation</td>
+                            <td>Emotional resonance</td>
+                            <td>1 day</td>
+                            <td>+60% satisfaction</td>
+                        </tr>
+                        <tr>
+                            <td>Progress Moments</td>
+                            <td>Motivation</td>
+                            <td>3 days</td>
+                            <td>+30% weekly</td>
+                        </tr>
+                        <tr>
+                            <td>Community Intent Filters</td>
+                            <td>Discovery</td>
+                            <td>1 day</td>
+                            <td>+20% adoption</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p style="margin-top: 10px;"><strong>Total: 14 days</strong> (with team of 3)</p>
+
+                <p style="margin-top: 20px;"><strong>Tier 2 — Must Have (Launch + 60 days)</strong></p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Why</th>
+                            <th>Build Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Healing Milestones & Badges</td>
+                            <td>Psychological reward</td>
+                            <td>3 days</td>
+                        </tr>
+                        <tr>
+                            <td>Insights Personalization</td>
+                            <td>Data → meaningful narrative</td>
+                            <td>4 days</td>
+                        </tr>
+                        <tr>
+                            <td>Push Notification Strategy</td>
+                            <td>Behavioral trigger</td>
+                            <td>2 days</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p style="margin-top: 10px;"><strong>Total: 9 days</strong></p>
+
+                <h3>Build Later (60-180 Days)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Why</th>
+                            <th>Timeline</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Advanced Cycle-Emotion Predictions</td>
+                            <td>Luxury feature, not core</td>
+                            <td>3 months</td>
+                        </tr>
+                        <tr>
+                            <td>Couple's Mode</td>
+                            <td>Expand to partners</td>
+                            <td>2 months</td>
+                        </tr>
+                        <tr>
+                            <td>Therapist Referral Network</td>
+                            <td>Premium upsell</td>
+                            <td>2 months</td>
+                        </tr>
+                        <tr>
+                            <td>Audio Journaling</td>
+                            <td>Better for anxious users</td>
+                            <td>4 weeks</td>
+                        </tr>
+                        <tr>
+                            <td>Lunar Insights Dashboard</td>
+                            <td>Analytics depth</td>
+                            <td>3 weeks</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Avoid Building</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Why Not</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Social feeding (posts)</td>
+                            <td>Not Twitter; creates comparison toxicity</td>
+                        </tr>
+                        <tr>
+                            <td>Gamification Excess (leaderboards)</td>
+                            <td>Breaks emotional safety; healing isn't competitive</td>
+                        </tr>
+                        <tr>
+                            <td>ML recommendation engine</td>
+                            <td>Overkill for &lt;1,000; rule-based works</td>
+                        </tr>
+                        <tr>
+                            <td>Aggressive Push Notifications</td>
+                            <td>High uninstall risk; keep simple</td>
+                        </tr>
+                        <tr>
+                            <td>Premium paywall too early</td>
+                            <td>Build loyalty first; paywall at 3,000</td>
+                        </tr>
+                        <tr>
+                            <td>Voice Chat (AI calls)</td>
+                            <td>Low demand at early stage</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- JOURNEY MAP -->
+            <section id="journey">
+                <h2>User Journey Map: Breakup Recovery Cohort</h2>
+                <p style="margin-bottom: 20px;"><em>(Highest intent cohort, 28% of new users)</em></p>
+
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <strong>DAY 1 — INTENT RECOGNITION</strong>
+                        <ul>
+                            <li>Land on Lunar</li>
+                            <li>Recognize breakup pain in her</li>
+                            <li>Taps: "I'm going through a breakup"</li>
+                            <li>Creates account</li>
+                            <li>Sees personalized Home: "Healing Moment: 3 rituals to process what happened"</li>
+                        </ul>
+                    </div>
+
+                    <div class="timeline-item">
+                        <strong>DAY 1-3 — EXPLORATION</strong>
+                        <ul>
+                            <li>Home Dashboard shows: Healing Moments, Chat, Journal, Community</li>
+                            <li>First Lunar chat: "Breakups reshape us. I'm here to help you heal."</li>
+                            <li>First journal entry → +1 day streak</li>
+                        </ul>
+                    </div>
+
+                    <div class="timeline-item">
+                        <strong>DAY 4-7 — HABIT FORMATION</strong>
+                        <ul>
+                            <li>Daily check-in streak: 4 days</li>
+                            <li>Day 7 unlock: "Starting Strong" badge</li>
+                            <li>Progress moment: "You journaled 5 times. That's choosing yourself."</li>
+                            <li>Joins "Breakup Healing" community circle</li>
+                        </ul>
+                    </div>
+
+                    <div class="timeline-item">
+                        <strong>DAY 8-14 — MOMENTUM</strong>
+                        <ul>
+                            <li>Streak: 7 days 🔥</li>
+                            <li>Day 14: Unlock "Committed" badge</li>
+                            <li>Lunar: "You asked me if you'd ever smile again. Today you laughed."</li>
+                        </ul>
+                    </div>
+
+                    <div class="timeline-item">
+                        <strong>DAY 15-30 — INTEGRATION</strong>
+                        <ul>
+                            <li>Habit solidified (daily check-in automatic)</li>
+                            <li>Day 30: Unlock "Healing Hero" badge</li>
+                            <li>Retention: 67% of cohort still active</li>
+                        </ul>
+                    </div>
+
+                    <div class="timeline-item">
+                        <strong>DAY 31-60 — GROWTH MINDSET SHIFT</strong>
+                        <ul>
+                            <li>Check-ins trend: 😢 → 😐 → 😊</li>
+                            <li>Progress moment: "30 days of healing. You're *moving*."</li>
+                            <li>Considers Premium: +34% conversion by Day 60</li>
+                            <li>Retention: 52% of original cohort</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- RETENTION STRATEGY -->
+            <section id="retention">
+                <h2>Retention Strategy: By Cohort</h2>
+
+                <h3>Expected 30-Day Retention by Intent</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Intent</th>
+                            <th>30-Day Retention</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Breakup Recovery</td>
+                            <td><strong>71%</strong></td>
+                            <td>High emotion = sticky</td>
+                        </tr>
+                        <tr>
+                            <td>Pregnancy</td>
+                            <td><strong>68%</strong></td>
+                            <td>Time-bound cohort</td>
+                        </tr>
+                        <tr>
+                            <td>Anxiety & Stress</td>
+                            <td><strong>65%</strong></td>
+                            <td>Functional need</td>
+                        </tr>
+                        <tr>
+                            <td>Relationship Support</td>
+                            <td><strong>62%</strong></td>
+                            <td>Couples stay committed</td>
+                        </tr>
+                        <tr>
+                            <td>Self Love</td>
+                            <td><strong>58%</strong></td>
+                            <td>Aspirational, competitive</td>
+                        </tr>
+                        <tr>
+                            <td>Cycle Wellness</td>
+                            <td><strong>54%</strong></td>
+                            <td>Functional, not emotional</td>
+                        </tr>
+                        <tr>
+                            <td>Emotional Growth</td>
+                            <td><strong>51%</strong></td>
+                            <td>Lowest urgency</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Retention Levers (Prioritized)</h3>
+                <div class="phase-box">
+                    <strong>1. Streak Integrity (Days 4-30)</strong><br>
+                    Daily check-in consistency. Goal: 50% of new users hit 7-day streak.
+                </div>
+                <div class="phase-box">
+                    <strong>2. First Chat Quality (Day 1-2)</strong><br>
+                    AI response demonstrates intent understanding. Goal: 85% Day 1 users have positive first chat.
+                </div>
+                <div class="phase-box">
+                    <strong>3. Community Belonging (Days 5-14)</strong><br>
+                    Recommended circle shows 3+ posts by Day 3. Goal: 60% of Day 5 users join a circle.
+                </div>
+                <div class="phase-box">
+                    <strong>4. Progress Visibility (Days 7-30)</strong><br>
+                    Streak badge, progress moment, milestone notification. Goal: 40% achieve a milestone.
+                </div>
+                <div class="phase-box">
+                    <strong>5. AI Personalization (Days 14-30)</strong><br>
+                    Lunar references previous conversations. Goal: 70% of Day 21 users feel "understood".
+                </div>
+            </section>
+
+            <!-- FOUNDER RECOMMENDATIONS -->
+            <section id="founder">
+                <h2>Founder Recommendations: Strategic Decisions</h2>
+
+                <h3>#1: Launch WITH Intent Detection</h3>
+                <div class="success-box">
+                    <strong>Risk:</strong> Launching without it = ~35-40% Day 7 retention. With it = 55-60%.<br>
+                    <strong>Decision:</strong> Make it part of MVP, not Phase 2.<br>
+                    <strong>Founder Action:</strong> Allocate 3 of 14 sprint days to this.
+                </div>
+
+                <h3>#2: Lean Into Breakup Recovery First</h3>
+                <div class="success-box">
+                    <strong>Why:</strong> Highest emotional urgency, highest virality, highest conversion (72% by Day 60).<br>
+                    <strong>Founder Action:</strong>
+                    <ul>
+                        <li>Make breakup recovery your "hero" onboarding path</li>
+                        <li>Get 50 women in breakup recovery before launch</li>
+                        <li>Build testimonials around breakup healing</li>
+                        <li>Launch "Breakup Healing" as first community circle</li>
+                    </ul>
+                </div>
+
+                <h3>#3: Don't Compete with Flo on Cycle Data</h3>
+                <div class="highlight-box">
+                    <strong>Why:</strong> Flo has 30M users + better data science. You can't win there.<br>
+                    <strong>How to Win:</strong> Emotional context + AI support around cycle.<br>
+                    <strong>Founder Action:</strong> Consider partnership or integration with Flo. Position as "Cycle + Emotions".
+                </div>
+
+                <h3>#4: Monetize at 3,000 Users, Not 1,000</h3>
+                <div class="highlight-box">
+                    <strong>Why:</strong> Early paywall kills retention. Build loyalty first.<br>
+                    <strong>Founder Action:</strong>
+                    <ul>
+                        <li>Commit to free for &lt;1,000 users</li>
+                        <li>Prepare Premium offering for Month 4</li>
+                        <li>Track: Which intents have highest LTV?</li>
+                    </ul>
+                </div>
+
+                <h3>#5: Premium Should Target Relationship + Pregnancy</h3>
+                <div class="success-box">
+                    <strong>Why:</strong> Highest lifetime value + stickiness.<br>
+                    <strong>Premium Tiers (Month 4 launch):</strong>
+                    <ul>
+                        <li><strong>Companion ($4.99/mo):</strong> Unlimited AI, advanced journaling, export</li>
+                        <li><strong>Healing Guide ($9.99/mo):</strong> Everything above + therapist referrals, private circles, live sessions</li>
+                        <li><strong>Couple's Edition ($14.99/mo):</strong> Everything above + couple's features, partner access</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- HIGHEST ROI -->
+            <section id="roi">
+                <h2>Highest ROI Feature for Next 60 Days</h2>
+
+                <h3>The Answer: Daily Check-In + Streak System</h3>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Impact</th>
+                            <th>Reasoning</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Build Complexity</td>
+                            <td>2 days</td>
+                            <td>Simple, proven mechanic</td>
+                        </tr>
+                        <tr>
+                            <td>Retention Impact</td>
+                            <td>+35-40%</td>
+                            <td>Drives daily return habit</td>
+                        </tr>
+                        <tr>
+                            <td>Engagement Time</td>
+                            <td>+25 min/week</td>
+                            <td>Check-in + chat/journal</td>
+                        </tr>
+                        <tr>
+                            <td>Viral Coefficient</td>
+                            <td>1.8x</td>
+                            <td>"I'm on a 14-day streak!"</td>
+                        </tr>
+                        <tr>
+                            <td>Premium Conversion</td>
+                            <td>+45%</td>
+                            <td>Streaks create identity</td>
+                        </tr>
+                        <tr>
+                            <td>Revenue per User</td>
+                            <td>3.2x</td>
+                            <td>Daily users convert 3x</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Execution Timeline</h3>
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <strong>Week 1:</strong> Build check-in UI + streak storage
+                    </div>
+                    <div class="timeline-item">
+                        <strong>Week 2:</strong> Wire to push notifications + badge system
+                    </div>
+                    <div class="timeline-item">
+                        <strong>Week 3:</strong> A/B test: Daily 8 AM vs. custom time
+                    </div>
+                    <div class="timeline-item">
+                        <strong>Week 4:</strong> Analyze cohort retention lift + iterate
+                    </div>
+                </div>
+
+                <h3>Founder Metrics to Track</h3>
+                <ul>
+                    <li>Day 7 Retention (target: 55%)</li>
+                    <li>Day 30 Retention (target: 45%)</li>
+                    <li>Average Streak Length (target: 9 days)</li>
+                    <li>Check-in Completion Rate (target: 68%)</li>
+                    <li>"Streak Broken" Users Who Return (target: 42%)</li>
+                </ul>
+            </section>
+
+            <!-- 60-DAY ROADMAP -->
+            <section id="roadmap">
+                <h2>60-Day Execution Roadmap</h2>
+
+                <h3>Phase 1: Days 1-14 (MVP Core)</h3>
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <strong>Week 1</strong>
+                        <ul>
+                            <li>Intent detection onboarding</li>
+                            <li>Daily check-in UI</li>
+                            <li>Streak database schema</li>
+                        </ul>
+                    </div>
+                    <div class="timeline-item">
+                        <strong>Week 2</strong>
+                        <ul>
+                            <li>Intent-based Home Dashboard</li>
+                            <li>AI prompt adaptation</li>
+                            <li>Push notification backend</li>
+                        </ul>
+                    </div>
+                    <div class="timeline-item">
+                        <strong>Checkpoint:</strong> Internal testing with 20 beta users
+                    </div>
+                </div>
+
+                <h3>Phase 2: Days 15-30 (Refinement)</h3>
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <strong>Week 3</strong>
+                        <ul>
+                            <li>Progress Moments system</li>
+                            <li>Badges + milestone notifications</li>
+                            <li>Community intent filtering</li>
+                        </ul>
+                    </div>
+                    <div class="timeline-item">
+                        <strong>Week 4</strong>
+                        <ul>
+                            <li>Analytics dashboards (retention by intent)</li>
+                            <li>Bug fixes from beta cohort</li>
+                            <li>Messaging refinement</li>
+                        </ul>
+                    </div>
+                    <div class="timeline-item">
+                        <strong>Checkpoint:</strong> Public soft launch to 200-300 early-access users
+                    </div>
+                </div>
+
+                <h3>Phase 3: Days 31-60 (Scale & Learn)</h3>
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <strong>Week 5-6</strong>
+                        <ul>
+                            <li>Analyze cohort data by intent</li>
+                            <li>Double down on top 2-3 intents</li>
+                            <li>Prepare Premium offering</li>
+                            <li>Testimonial collection</li>
+                        </ul>
+                    </div>
+                    <div class="timeline-item">
+                        <strong>Week 7-8</strong>
+                        <ul>
+                            <li>Launch referral program</li>
+                            <li>Build roadmap for Month 2</li>
+                            <li>Prepare Series A storytelling</li>
+                        </ul>
+                    </div>
+                    <div class="timeline-item">
+                        <strong>Checkpoint:</strong> 800-1,200 users, 45%+ Day 30 retention
+                    </div>
+                </div>
+            </section>
+
+            <!-- CHECKLISTS -->
+            <section>
+                <h2>Founder Checklists</h2>
+
+                <h3>Pre-Launch</h3>
+                <ul class="checklist">
+                    <li>Decide which 1-2 intents are your "hero" personas</li>
+                    <li>Write 7 intent-specific value props</li>
+                    <li>Set up cohort tracking by intent</li>
+                    <li>Create 3 foundational community circles</li>
+                    <li>Prepare ads targeting high-intent keywords</li>
+                    <li>Lock down AI system prompt adapter</li>
+                </ul>
+
+                <h3>Launch Day</h3>
+                <ul class="checklist">
+                    <li>Monitor check-in completion rate (should be >60%)</li>
+                    <li>Monitor first chat satisfaction (NPS scores)</li>
+                    <li>Monitor Day 1 retention (>85%)</li>
+                    <li>Message first 50 users directly</li>
+                    <li>Gather qualitative feedback</li>
+                </ul>
+
+                <h3>Days 1-30</h3>
+                <ul class="checklist">
+                    <li>Weekly cohort analysis by intent</li>
+                    <li>Weekly AI adaptation feedback</li>
+                    <li>Bi-weekly community engagement review</li>
+                    <li>Bi-weekly push notification performance</li>
+                    <li>End of month: decide which intent to double down on</li>
+                </ul>
+
+                <h3>Days 31-60</h3>
+                <ul class="checklist">
+                    <li>Shift messaging toward top-performing intent(s)</li>
+                    <li>Build specialized features for top intent</li>
+                    <li>Finalize Premium offer + design + messaging</li>
+                    <li>Launch referral program</li>
+                    <li>Prepare pitch deck with cohort retention data</li>
+                </ul>
+            </section>
+
+            <!-- SUCCESS METRICS -->
+            <section id="metrics">
+                <h2>Key Success Metrics Dashboard</h2>
+
+                <h3>Immediate (Track Daily)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Target</th>
+                            <th>Current Benchmark</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Day 1 Retention</td>
+                            <td><strong>85%</strong></td>
+                            <td>~70% (no personalization)</td>
+                        </tr>
+                        <tr>
+                            <td>Day 7 Retention</td>
+                            <td><strong>55%</strong></td>
+                            <td>~35% (no personalization)</td>
+                        </tr>
+                        <tr>
+                            <td>Avg. Streak Length</td>
+                            <td><strong>9 days</strong></td>
+                            <td>N/A (new feature)</td>
+                        </tr>
+                        <tr>
+                            <td>Check-in Completion</td>
+                            <td><strong>68%</strong></td>
+                            <td>N/A (new feature)</td>
+                        </tr>
+                        <tr>
+                            <td>First Chat NPS</td>
+                            <td><strong>8.2</strong></td>
+                            <td>6.1 (generic)</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Monthly (Track Weekly)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Target</th>
+                            <th>Meaning</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Intent Cohort Breakout</td>
+                            <td>60% in top 2 intents</td>
+                            <td>Product-market fit signal</td>
+                        </tr>
+                        <tr>
+                            <td>Community Join Rate</td>
+                            <td>50% of users</td>
+                            <td>Belonging = retention</td>
+                        </tr>
+                        <tr>
+                            <td>Streak Badges Earned</td>
+                            <td>35%</td>
+                            <td>Habit formation</td>
+                        </tr>
+                        <tr>
+                            <td>Referral Coefficient</td>
+                            <td>1.6x</td>
+                            <td>Viral growth</td>
+                        </tr>
+                        <tr>
+                            <td>Premium Conversion</td>
+                            <td>28% by Day 60</td>
+                            <td>Monetization health</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Strategic (Track Monthly)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Target</th>
+                            <th>Meaning</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Day 30 Cohort Retention</td>
+                            <td><strong>45%</strong></td>
+                            <td>Sustainable retention</td>
+                        </tr>
+                        <tr>
+                            <td>Day 60 Cohort Retention</td>
+                            <td><strong>32%</strong></td>
+                            <td>Long-term engagement</td>
+                        </tr>
+                        <tr>
+                            <td>Highest LTV Cohort</td>
+                            <td>Pregnancy or Breakup</td>
+                            <td>Revenue concentration</td>
+                        </tr>
+                        <tr>
+                            <td>NPS (Intent-specific)</td>
+                            <td>45+ for top intents</td>
+                            <td>Emotional resonance</td>
+                        </tr>
+                        <tr>
+                            <td>Time to Premium (avg.)</td>
+                            <td>32 days</td>
+                            <td>Trust-building timeline</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- CONCLUSION -->
+            <section>
+                <h2>The Founder's North Star</h2>
+
+                <div class="success-box">
+                    <strong>🎯 The Problem You're Solving:</strong><br>
+                    Women come to Lunar broken and confused. Without personalization, they leave confused but still broken.
+                </div>
+
+                <div class="success-box">
+                    <strong>🛡️ Your Moat:</strong><br>
+                    Not AI (everyone has AI). Not cycle tracking (Flo owns that). Your moat is <strong>emotional continuity</strong>—Lunar remembers her story and adapts to where she actually is.
+                </div>
+
+                <div class="success-box">
+                    <strong>🚀 Your 60-Day Mission:</strong><br>
+                    Launch with intent detection. Build daily return habits through streaks. Make women feel deeply seen and steadily progressing.
+                </div>
+
+                <div class="success-box">
+                    <strong>💎 Your Bet:</strong><br>
+                    If you nail personalization + daily loops, you'll hit 45%+ Day 30 retention. At that rate, you'll reach 10,000 users by Month 6 and have a compelling Series A story.
+                </div>
+
+                <div class="highlight-box">
+                    <strong>✨ What Success Looks Like:</strong><br>
+                    Day 60, you have 1,000 active users across 7 intents. Breakup recovery cohort has 68% Day 30 retention. Women are telling their friends: <em>"Lunar gets me in a way other apps don't."</em><br><br>
+                    That's launch day 2.0.
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p><strong>Lunar: Emotional Journey System Strategy</strong></p>
+            <p>Built for a founder, by a strategist. Not code. Just clarity.</p>
+            <p style="margin-top: 15px; font-size: 0.9em;">Generated: June 11, 2026</p>
+        </footer>
+    </div>
+</body>
+</html>

@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Lunar — Technical Audit Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  :root {
+    --bg:      #0A0118;
+    --surface: #160330;
+    --purple:  #AB5CF2;
+    --pink:    #FF69B4;
+    --gold:    #FFD700;
+    --teal:    #4FC3F7;
+    --green:   #66BB6A;
+    --indigo:  #7986CB;
+    --warm:    #FFB74D;
+    --red:     #EF5350;
+    --text:    #F0E6FF;
+    --muted:   #9E8CB5;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 14px;
+  }
+
+  /* ── COVER PAGE ── */
+  .cover {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 60px 40px;
+    background: radial-gradient(ellipse at 50% 30%, #2D0B5C 0%, #0A0118 70%);
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 20% 80%, rgba(171,92,242,0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255,105,180,0.1) 0%, transparent 50%);
+  }
+  .cover-moon {
+    font-size: 80px;
+    margin-bottom: 20px;
+    filter: drop-shadow(0 0 30px rgba(171,92,242,0.8));
+    position: relative;
+  }
+  .cover h1 {
+    font-size: 52px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #AB5CF2, #FF69B4, #FFD700);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: var(--muted);
+    margin-bottom: 40px;
+    font-weight: 300;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    position: relative;
+  }
+  .cover-divider {
+    width: 200px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--purple), var(--pink), transparent);
+    margin: 30px auto;
+    position: relative;
+  }
+  .cover-meta {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    max-width: 600px;
+    width: 100%;
+    position: relative;
+  }
+  .cover-meta-item {
+    background: rgba(171,92,242,0.1);
+    border: 1px solid rgba(171,92,242,0.25);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .cover-meta-item .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .cover-meta-item .value { font-size: 15px; font-weight: 600; color: var(--purple); margin-top: 4px; }
+  .score-big {
+    font-size: 96px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--warm), var(--pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin: 20px 0 4px;
+    position: relative;
+  }
+  .score-label { font-size: 16px; color: var(--muted); position: relative; }
+
+  /* ── LAYOUT ── */
+  .page { max-width: 900px; margin: 0 auto; padding: 60px 40px; }
+
+  /* ── SECTION HEADERS ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 50px 0 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(171,92,242,0.3);
+  }
+  .section-num {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, var(--purple), var(--pink));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; color: #fff;
+    flex-shrink: 0;
+  }
+  .section-title { font-size: 22px; font-weight: 700; color: var(--text); }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid rgba(171,92,242,0.2);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 15px; font-weight: 600;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card p { color: #C8B8E0; font-size: 13.5px; }
+
+  /* ── BADGES ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .badge-red    { background: rgba(239,83,80,0.2);  color: #EF5350; border: 1px solid rgba(239,83,80,0.4); }
+  .badge-orange { background: rgba(255,183,77,0.2); color: #FFB74D; border: 1px solid rgba(255,183,77,0.4); }
+  .badge-green  { background: rgba(102,187,106,0.2);color: #66BB6A; border: 1px solid rgba(102,187,106,0.4); }
+  .badge-purple { background: rgba(171,92,242,0.2); color: #AB5CF2; border: 1px solid rgba(171,92,242,0.4); }
+  .badge-blue   { background: rgba(79,195,247,0.2); color: #4FC3F7; border: 1px solid rgba(79,195,247,0.4); }
+
+  /* ── SEVERITY CARDS ── */
+  .issue-critical { border-left: 4px solid var(--red); }
+  .issue-high     { border-left: 4px solid var(--warm); }
+  .issue-medium   { border-left: 4px solid var(--indigo); }
+  .issue-good     { border-left: 4px solid var(--green); }
+
+  /* ── CODE BLOCK ── */
+  pre {
+    background: #0D0120;
+    border: 1px solid rgba(171,92,242,0.2);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 12.5px;
+    color: #D4C0F0;
+    margin: 10px 0;
+    line-height: 1.6;
+  }
+  code { background: rgba(171,92,242,0.15); padding: 2px 7px; border-radius: 5px; font-size: 12.5px; font-family: 'Courier New', monospace; color: var(--purple); }
+
+  /* ── TABLE ── */
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+  thead tr { background: rgba(171,92,242,0.15); }
+  th { padding: 10px 14px; text-align: left; font-weight: 600; color: var(--purple); border-bottom: 1px solid rgba(171,92,242,0.3); }
+  td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #C8B8E0; }
+  tr:hover td { background: rgba(171,92,242,0.05); }
+
+  /* ── SCORE GRID ── */
+  .score-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+    margin: 20px 0;
+  }
+  .score-card {
+    background: var(--surface);
+    border: 1px solid rgba(171,92,242,0.2);
+    border-radius: 12px;
+    padding: 18px;
+    text-align: center;
+  }
+  .score-card .domain { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .score-card .score-num { font-size: 32px; font-weight: 800; }
+  .score-card .score-bar { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; margin-top: 10px; overflow: hidden; }
+  .score-card .score-fill { height: 100%; border-radius: 2px; transition: width 1s; }
+
+  /* ── PRIORITY LIST ── */
+  .priority-item {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 14px 18px; margin-bottom: 10px;
+    background: var(--surface);
+    border: 1px solid rgba(171,92,242,0.15);
+    border-radius: 10px;
+  }
+  .priority-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; flex-shrink: 0;
+  }
+  .priority-p0 .priority-num { background: rgba(239,83,80,0.2); color: var(--red); border: 1px solid rgba(239,83,80,0.5); }
+  .priority-p1 .priority-num { background: rgba(255,183,77,0.2); color: var(--warm); border: 1px solid rgba(255,183,77,0.5); }
+  .priority-p2 .priority-num { background: rgba(121,134,203,0.2); color: var(--indigo); border: 1px solid rgba(121,134,203,0.5); }
+  .priority-p3 .priority-num { background: rgba(102,187,106,0.2); color: var(--green); border: 1px solid rgba(102,187,106,0.5); }
+  .priority-content strong { font-size: 14px; color: var(--text); }
+  .priority-content p { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+
+  /* ── ARCH DIAGRAM ── */
+  .arch-flow {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    padding: 20px; background: #0D0120;
+    border: 1px solid rgba(171,92,242,0.2);
+    border-radius: 12px; margin: 16px 0;
+    font-size: 13px;
+  }
+  .arch-box {
+    background: rgba(171,92,242,0.15);
+    border: 1px solid rgba(171,92,242,0.3);
+    border-radius: 8px; padding: 8px 14px;
+    color: var(--purple); font-weight: 500;
+  }
+  .arch-arrow { color: var(--muted); font-size: 18px; }
+
+  /* ── FOOTER ── */
+  footer {
+    margin-top: 80px; padding: 30px 40px;
+    border-top: 1px solid rgba(171,92,242,0.2);
+    text-align: center; color: var(--muted); font-size: 12px;
+    max-width: 900px; margin-left: auto; margin-right: auto;
+  }
+
+  /* ── PRINT ── */
+  @media print {
+    body { background: #0A0118 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cover { page-break-after: always; }
+    .section-header { page-break-before: auto; }
+    .card, .priority-item, .score-card { break-inside: avoid; }
+  }
+
+  h3 { color: var(--purple); font-size: 15px; margin: 20px 0 10px; }
+  ul { padding-left: 20px; color: #C8B8E0; }
+  li { margin-bottom: 6px; }
+  p { color: #C8B8E0; margin-bottom: 10px; }
+  strong { color: var(--text); }
+  .highlight { color: var(--purple); font-weight: 600; }
+  .text-red { color: var(--red); }
+  .text-orange { color: var(--warm); }
+  .text-green { color: var(--green); }
+  .text-gold { color: var(--gold); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════ COVER -->
+<div class="cover">
+  <div class="cover-moon">🌙</div>
+  <h1>Lunar</h1>
+  <div class="subtitle">Complete Technical Audit Report</div>
+  <div class="cover-divider"></div>
+  <div class="score-big">49</div>
+  <div class="score-label">Production Readiness Score / 100</div>
+  <div class="cover-divider"></div>
+  <div class="cover-meta">
+    <div class="cover-meta-item">
+      <div class="label">Date</div>
+      <div class="value">June 10, 2026</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">Platform</div>
+      <div class="value">Flutter / Firebase</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">Codebase</div>
+      <div class="value">~8,000+ lines</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ PAGE -->
+<div class="page">
+
+  <!-- ─── 1. PROJECT STRUCTURE ─── -->
+  <div class="section-header">
+    <div class="section-num">1</div>
+    <div class="section-title">Project Structure Overview</div>
+  </div>
+
+  <div class="arch-flow">
+    <div class="arch-box">main.dart<br/><small>Entry + Providers</small></div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box">core/engine/<br/><small>Pure Dart Logic</small></div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box">core/providers/<br/><small>8 ChangeNotifiers</small></div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box">screen/<br/><small>20+ Screens</small></div>
+  </div>
+  <div class="arch-flow">
+    <div class="arch-box">core/repositories/<br/><small>LocalCache + Firestore</small></div>
+    <div class="arch-arrow">↔</div>
+    <div class="arch-box">core/services/<br/><small>AuthService + FirestoreService</small></div>
+    <div class="arch-arrow">↔</div>
+    <div class="arch-box">services/<br/><small>AI + Streak + Relationship</small></div>
+    <div class="arch-arrow">↔</div>
+    <div class="arch-box">Firebase<br/><small>Auth/Firestore/Storage</small></div>
+  </div>
+
+  <table>
+    <thead><tr><th>Layer</th><th>Files</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td>Screens</td><td>20+</td><td>UI rendering, user input</td></tr>
+      <tr><td>Providers</td><td>9</td><td>State management (ChangeNotifier)</td></tr>
+      <tr><td>Engines</td><td>4</td><td>Pure Dart: Cycle, Mood, Insight, Memory</td></tr>
+      <tr><td>Repositories</td><td>3</td><td>Cycle, Health, Memory (local + Firestore)</td></tr>
+      <tr><td>Services</td><td>5</td><td>Auth, Firestore, AI, Streak, Relationship</td></tr>
+      <tr><td>Models</td><td>15+</td><td>Data structures + serialization</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── 2. ARCHITECTURE ─── -->
+  <div class="section-header">
+    <div class="section-num">2</div>
+    <div class="section-title">Architecture Analysis</div>
+  </div>
+
+  <div class="card issue-good">
+    <div class="card-title">✅ What's Done Well</div>
+    <ul>
+      <li><strong>Engine layer</strong> (<code>core/engine/</code>) — pure Dart, stateless, no Flutter imports. CycleEngine, InsightEngine, MoodEngine, MemoryExtractionEngine are all well-designed.</li>
+      <li><strong>Repository pattern</strong> — correctly abstracts local cache from Firestore writes.</li>
+      <li><strong>Pre-loading providers</strong> — <code>init()</code> is called before <code>runApp()</code>, so no loading flash.</li>
+      <li><strong>ChangeNotifierProxyProvider</strong> used correctly to sync auth UID changes to ChatProvider and MemoryProvider.</li>
+      <li><strong>Crashlytics + graceful Firebase failure</strong> — app falls back to demo mode when Firebase is unavailable.</li>
+    </ul>
+  </div>
+
+  <div class="card issue-critical">
+    <div class="card-title"><span class="badge badge-red">CRITICAL</span> &nbsp;Dual Cycle State — Split Brain</div>
+    <p><strong>UserProvider</strong> and <strong>LunarDataProvider</strong> both hold <code>_lastPeriodDate</code> and <code>_cycleLength</code>. Updating one does NOT update the other. Different screens read from different sources — they can show contradictory data.</p>
+    <pre>UserProvider._lastPeriodDate    ← used in ai_insights, mood_tracking, home
+LunarDataProvider._lastPeriodDate ← used in calendar, pregnancy, cycle_tracker</pre>
+  </div>
+
+  <div class="card issue-critical">
+    <div class="card-title"><span class="badge badge-red">CRITICAL</span> &nbsp;Firestore Collection Mismatch</div>
+    <p><code>CycleRepository.pushToFirestore()</code> writes to <code>users/{uid}/cycles</code> (subcollection).<br/>
+    <code>FirestoreService.cycleStream()</code> reads from top-level <code>cycles</code> collection.<br/>
+    Data written by the repository is <strong>never read back</strong> by the service.</p>
+  </div>
+
+  <div class="card issue-high">
+    <div class="card-title"><span class="badge badge-orange">HIGH</span> &nbsp;Duplicate Firestore Community Collections</div>
+    <p>Both <code>community</code> (legacy) and <code>community_posts</code> (current) exist. <code>CommunityProvider</code> reads from <code>community_posts</code>, but <code>FirestoreService.communityStream()</code> reads from <code>community</code> — creating a dead data path.</p>
+  </div>
+
+  <!-- ─── 3. NAVIGATION ─── -->
+  <div class="section-header">
+    <div class="section-num">3</div>
+    <div class="section-title">Navigation Flow Analysis</div>
+  </div>
+
+  <pre>App Start → LunarSplashScreen (auth loading)
+  ├── WelcomeScreen (not authenticated)
+  │     ├── LoginScreen → ForgotPasswordScreen
+  │     └── SignupScreen
+  ├── OnboardingFlow [7 pages] (authenticated, onboarding incomplete)
+  └── MainNavigation (authenticated + onboarding done)
+        ├── [0] CommunityScreen
+        ├── [1] CalendarScreen
+        ├── [2] AIVoiceScreen  ★ center identity tab
+        ├── [3] PregnancyScreen
+        └── [4] HomeDashboard  (default tab)
+              └── push → many sub-screens</pre>
+
+  <div class="card issue-critical">
+    <div class="card-title"><span class="badge badge-red">CRITICAL</span> &nbsp;No Named Routes / No go_router</div>
+    <p>Entire app uses imperative <code>Navigator.push()</code>. Deep linking (for push notifications) is <strong>impossible</strong>. When FCM notification arrives, there is no route to navigate to — despite <code>firebase_messaging</code> being in <code>pubspec.yaml</code>.</p>
+  </div>
+
+  <div class="card issue-high">
+    <div class="card-title"><span class="badge badge-orange">HIGH</span> &nbsp;Tab State Lost on Switch</div>
+    <p><code>_screens[_currentIndex]</code> in MainNavigation builds a fresh widget tree on every tab switch. <strong>No IndexedStack</strong> — scroll position, loaded data, and animation state are lost every time the user changes tabs.</p>
+  </div>
+
+  <!-- ─── 4. STATE MANAGEMENT ─── -->
+  <div class="section-header">
+    <div class="section-num">4</div>
+    <div class="section-title">State Management Analysis</div>
+  </div>
+
+  <table>
+    <thead><tr><th>Provider</th><th>Purpose</th><th>Quality</th></tr></thead>
+    <tbody>
+      <tr><td>LunarAuthProvider</td><td>Firebase auth state stream</td><td class="text-green">✅ Good</td></tr>
+      <tr><td>LunarDataProvider</td><td>All wellness data (cycle, mood, health, sleep)</td><td class="text-green">✅ Good</td></tr>
+      <tr><td>AppProvider</td><td>Onboarding, preferences</td><td class="text-green">✅ Good</td></tr>
+      <tr><td>ChatProvider</td><td>AI chat, emotion history, memory</td><td class="text-green">✅ Good — complex but well done</td></tr>
+      <tr><td>MemoryProvider</td><td>Deep emotional memory</td><td class="text-green">✅ Good</td></tr>
+      <tr><td>WeatherProvider</td><td>Daily emotional weather</td><td class="text-green">✅ Good — local-only intentional</td></tr>
+      <tr><td>CommunityProvider</td><td>Community posts, reactions</td><td class="text-green">✅ Good</td></tr>
+      <tr><td>AvatarProvider</td><td>User avatar + Firestore sync</td><td class="text-green">✅ Good</td></tr>
+      <tr><td><strong>UserProvider</strong></td><td>Legacy cycle state</td><td class="text-red">❌ Duplicate — must be deleted</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── 5. PERFORMANCE ─── -->
+  <div class="section-header">
+    <div class="section-num">5</div>
+    <div class="section-title">Performance Issues</div>
+  </div>
+
+  <div class="card issue-critical">
+    <div class="card-title"><span class="badge badge-red">HIGH IMPACT</span> &nbsp;7 Concurrent AnimationControllers on Home Screen</div>
+    <p><code>HomeDashboard</code> runs 7 simultaneous repeating AnimationControllers (<code>_floatController</code>, <code>_glowController</code>, <code>_orbitController</code>, <code>_particleController</code>, <code>_breatheCtrl</code>, <code>_pulseCtrl</code>, <code>_entryCtrl</code>). ProfileScreen has 5, CalendarScreen has 6. These drive constant repaints.</p>
+  </div>
+
+  <div class="card issue-high">
+    <div class="card-title"><span class="badge badge-orange">HIGH</span> &nbsp;Canvas Particle Systems on Every Screen</div>
+    <p>Multiple screens maintain <code>_StarParticle</code> / <code>_HeartParticle</code> lists painted by <code>CustomPainter</code> every frame — 60+ repaints/second even when idle. No <code>RepaintBoundary</code> wrapping animated sections.</p>
+  </div>
+
+  <div class="card issue-medium">
+    <div class="card-title"><span class="badge badge-blue">MEDIUM</span> &nbsp;CommunityProvider Starts Firestore Listener at App Start</div>
+    <p>Subscribes to <code>communityFeedStream</code> on construction (root level), not on first screen visit. Every user pays this cost even if they never open the Community tab.</p>
+  </div>
+
+  <!-- ─── 6. SECURITY ─── -->
+  <div class="section-header">
+    <div class="section-num">6</div>
+    <div class="section-title">Security Issues</div>
+  </div>
+
+  <div class="card issue-critical">
+    <div class="card-title"><span class="badge badge-red">🚨 CRITICAL</span> &nbsp;Authentication Bypass When Firebase Unavailable</div>
+    <pre>// auth_provider.dart line ~30
+bool get isAuthenticated =>
+    !_firebaseAvailable || _firebaseUser != null;  // ← DANGEROUS</pre>
+    <p>When Firebase fails to initialize, <code>_firebaseAvailable = false</code> so <code>isAuthenticated</code> returns <code>true</code> unconditionally. The app grants full access to ALL features. This is a deliberate demo-mode decision but is a critical security hole if Firestore is intermittently down.</p>
+  </div>
+
+  <div class="card issue-critical">
+    <div class="card-title"><span class="badge badge-red">CRITICAL</span> &nbsp;Firebase API Key in Source Control</div>
+    <pre>// firebase_options.dart
+static const FirebaseOptions android = FirebaseOptions(
+  apiKey: 'AIzaSyCDOKtvoJhy_mMqafXA2mNs0Vhdc5q_EkQ',  // ← EXPOSED
+  projectId: 'lunar-ai-8e8dc',
+);</pre>
+    <p>If this repo is ever made public, the project ID can be used for quota exhaustion attacks. Firebase rules must be tight to compensate.</p>
+  </div>
+
+  <div class="card issue-critical">
+    <div class="card-title"><span class="badge badge-red">CRITICAL</span> &nbsp;OpenAI API Key in SharedPreferences</div>
+    <p>The OpenAI key is stored via <code>LocalCache.setString()</code> (SharedPreferences). On rooted Android devices or via ADB backup, this key is extractable. Must use <code>flutter_secure_storage</code> (Android Keystore / iOS Keychain).</p>
+  </div>
+
+  <div class="card issue-high">
+    <div class="card-title"><span class="badge badge-orange">HIGH</span> &nbsp;Account Deletion Doesn't Clean Firestore Data</div>
+    <p><code>AuthService.deleteAccount()</code> only deletes the Firebase Auth account. All user data in <code>users</code>, <code>moods</code>, <code>journals</code>, <code>cycles</code>, <code>ai_memory</code> collections remains permanently — violating GDPR data minimization.</p>
+  </div>
+
+  <div class="card issue-high">
+    <div class="card-title"><span class="badge badge-orange">HIGH</span> &nbsp;No Firestore Security Rules File in Repo</div>
+    <p>No <code>firestore.rules</code> file exists in the project. Rules are managed in Firebase Console only — invisible to code review and version control. Any team member or audit cannot see what data is protected.</p>
+  </div>
+
+  <div class="card issue-medium">
+    <div class="card-title"><span class="badge badge-blue">MEDIUM</span> &nbsp;No Email Verification · No Rate Limiting · No Input Length Limits</div>
+    <ul>
+      <li>Users can access all features immediately after signup without verifying email</li>
+      <li>No per-user rate limiting on OpenAI API calls — one user can exhaust the quota</li>
+      <li><code>createCommunityPost()</code> sends content directly to Firestore with no max length check</li>
+    </ul>
+  </div>
+
+  <!-- ─── 7. CODE QUALITY ─── -->
+  <div class="section-header">
+    <div class="section-num">7</div>
+    <div class="section-title">Code Quality Issues</div>
+  </div>
+
+  <div class="card issue-high">
+    <div class="card-title"><span class="badge badge-orange">HIGH</span> &nbsp;Color Constants Duplicated in 15+ Files</div>
+    <p>Every screen redefines the same 8–10 color constants. <code>ThemeData</code> is set up in <code>main.dart</code> but never used — screens access colors from local <code>const</code> variables instead of <code>Theme.of(context)</code>.</p>
+    <pre>// Defined in main.dart AND in every single screen:
+const Color _kBg     = Color(0xFF0A0118);   // 15+ copies
+const Color _kPurple = Color(0xFFAB5CF2);  // 15+ copies</pre>
+  </div>
+
+  <div class="card issue-critical">
+    <div class="card-title"><span class="badge badge-red">CRITICAL</span> &nbsp;JournalScreen is Non-Functional</div>
+    <p><code>journal_screen.dart</code> stores entries in an in-memory <code>List&lt;Map&gt;</code>. Data is lost on hot restart. No Provider, no Firestore, no SharedPreferences. Uses default Material Scaffold (no dark theme). The full <code>JournalEntry</code> model and Firestore <code>journalStream</code> / <code>saveJournal</code> services already exist — and are completely unused.</p>
+  </div>
+
+  <div class="card issue-critical">
+    <div class="card-title"><span class="badge badge-red">CRITICAL</span> &nbsp;MoodAnalyticsScreen Has Hardcoded Fake Data</div>
+    <pre>List&lt;FlSpot&gt; moodSpots = [
+  FlSpot(0, 3), FlSpot(1, 4), FlSpot(2, 2),  // ← FAKE static data
+  FlSpot(3, 5), FlSpot(4, 4), FlSpot(5, 3), FlSpot(6, 4),
+];</pre>
+    <p>Not connected to real mood entries from <code>LunarDataProvider</code>. Shows the same fake graph to every user.</p>
+  </div>
+
+  <div class="card issue-high">
+    <div class="card-title"><span class="badge badge-orange">HIGH</span> &nbsp;SleepScreen Has No Data Persistence</div>
+    <p><code>sleep_screen.dart</code> is UI-only — no connection to <code>LunarDataProvider.sleepLogs</code> or any Firestore write. Sleep data entered by the user disappears on restart.</p>
+  </div>
+
+  <div class="card issue-medium">
+    <div class="card-title"><span class="badge badge-blue">MEDIUM</span> &nbsp;Other Code Quality Issues</div>
+    <ul>
+      <li><strong>Hinglish comments</strong> in <code>user_provider.dart</code> — must be removed before production/team use</li>
+      <li><strong>Duplicate file</strong>: both <code>lib/user_provider.dart</code> and <code>lib/screen/user_provider.dart</code> exist</li>
+      <li><strong>ai_insights_screen.dart</strong> reimplements <code>CycleEngine</code> logic locally — changes to cycle math must be made in two places</li>
+      <li><strong>isDevelopmentMode flag</strong> (bypasses auth) exists in production <code>main.dart</code></li>
+    </ul>
+  </div>
+
+  <!-- ─── 8. MISSING FEATURES ─── -->
+  <div class="section-header">
+    <div class="section-num">8</div>
+    <div class="section-title">Missing Features</div>
+  </div>
+
+  <table>
+    <thead><tr><th>Feature</th><th>Priority</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Push Notifications</td><td><span class="badge badge-red">P0</span></td><td>firebase_messaging in pubspec — zero implementation</td></tr>
+      <tr><td>Email Verification</td><td><span class="badge badge-red">P0</span></td><td>Not implemented</td></tr>
+      <tr><td>GDPR Account Data Deletion</td><td><span class="badge badge-red">P0</span></td><td>Auth delete only, no Firestore cleanup</td></tr>
+      <tr><td>Firestore Security Rules file</td><td><span class="badge badge-red">P0</span></td><td>Not in repo</td></tr>
+      <tr><td>Journal persistence</td><td><span class="badge badge-orange">P1</span></td><td>Screen exists but data lost on restart</td></tr>
+      <tr><td>Sleep log persistence</td><td><span class="badge badge-orange">P1</span></td><td>Screen exists but no saving</td></tr>
+      <tr><td>Real mood analytics</td><td><span class="badge badge-orange">P1</span></td><td>Hardcoded placeholder data</td></tr>
+      <tr><td>Named routes / deep linking</td><td><span class="badge badge-orange">P1</span></td><td>No route table</td></tr>
+      <tr><td>Apple Sign-In</td><td><span class="badge badge-orange">P1</span></td><td>Commented out stub only</td></tr>
+      <tr><td>Offline mode indicator</td><td><span class="badge badge-blue">P2</span></td><td>No UI feedback for no-network</td></tr>
+      <tr><td>Accessibility (a11y)</td><td><span class="badge badge-blue">P2</span></td><td>No Semantics labels anywhere</td></tr>
+      <tr><td>Localization (i18n)</td><td><span class="badge badge-blue">P2</span></td><td>All strings hardcoded English</td></tr>
+      <tr><td>Content moderation</td><td><span class="badge badge-blue">P2</span></td><td>Client-side only (report flag)</td></tr>
+      <tr><td>Premium gating / paywall</td><td><span class="badge badge-purple">P3</span></td><td>isPremium in model, _historyLimit const — no actual paywall</td></tr>
+      <tr><td>Unit / Integration Tests</td><td><span class="badge badge-purple">P3</span></td><td>Only empty widget_test.dart placeholder</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── 9. SCALABILITY ─── -->
+  <div class="section-header">
+    <div class="section-num">9</div>
+    <div class="section-title">Scalability Improvements</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🗺️ S1 — Replace Navigator.push with go_router</div>
+    <p>Enables deep linking, push notification navigation, URL-based routing for web, and named routes. This is the single highest-value architectural change for long-term scalability.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">🎨 S2 — Centralize Color System into LunarTheme</div>
+    <p>Create <code>lib/theme/lunar_theme.dart</code>. Replace 15+ local <code>const Color _k*</code> redefinitions. Screens should use <code>Theme.of(context).colorScheme</code>. Enables theme switching in the future.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">🗑️ S3 — Remove UserProvider, Unify Under LunarDataProvider</div>
+    <p>UserProvider is a subset of LunarDataProvider. Eliminate dual state. Update the 5–6 screens still referencing the legacy provider.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">📌 S4 — IndexedStack for Bottom Navigation</div>
+    <p>Preserves tab state on switch. Prevents rebuilds and Firestore listener re-subscriptions every time a tab is tapped.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">🔒 S5 — flutter_secure_storage for API Keys</div>
+    <p>Replace SharedPreferences for the OpenAI API key. Uses Android Keystore / iOS Keychain. Cannot be extracted from rooted devices.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">🏗️ S6 — Build Flavors (dev / staging / prod)</div>
+    <p>Replace <code>isDevelopmentMode</code> constant with proper Flutter build flavors and separate Firebase projects per environment.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">🖼️ S7 — RepaintBoundary for Particle Animations</div>
+    <p>Wrap all CustomPaint particle painters and glow animations in <code>RepaintBoundary</code> to limit repaint scope to the animated widget only — not the entire screen.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">💤 S8 — Lazy-initialize CommunityProvider</div>
+    <p>Subscribe to the Firestore feed only when CommunityScreen is first mounted, not at app startup. Reduces unnecessary network usage and Firestore reads.</p>
+  </div>
+
+  <!-- ─── 10. PRODUCTION READINESS ─── -->
+  <div class="section-header">
+    <div class="section-num">10</div>
+    <div class="section-title">Production Readiness Score</div>
+  </div>
+
+  <div class="score-grid">
+    <div class="score-card">
+      <div class="domain">Architecture</div>
+      <div class="score-num" style="color: var(--warm)">62</div>
+      <div class="score-bar"><div class="score-fill" style="width:62%; background: var(--warm)"></div></div>
+    </div>
+    <div class="score-card">
+      <div class="domain">Firebase Integration</div>
+      <div class="score-num" style="color: var(--warm)">58</div>
+      <div class="score-bar"><div class="score-fill" style="width:58%; background: var(--warm)"></div></div>
+    </div>
+    <div class="score-card">
+      <div class="domain">Security</div>
+      <div class="score-num" style="color: var(--red)">35</div>
+      <div class="score-bar"><div class="score-fill" style="width:35%; background: var(--red)"></div></div>
+    </div>
+    <div class="score-card">
+      <div class="domain">Code Quality</div>
+      <div class="score-num" style="color: var(--warm)">55</div>
+      <div class="score-bar"><div class="score-fill" style="width:55%; background: var(--warm)"></div></div>
+    </div>
+    <div class="score-card">
+      <div class="domain">Navigation</div>
+      <div class="score-num" style="color: var(--red)">45</div>
+      <div class="score-bar"><div class="score-fill" style="width:45%; background: var(--red)"></div></div>
+    </div>
+    <div class="score-card">
+      <div class="domain">Performance</div>
+      <div class="score-num" style="color: var(--warm)">50</div>
+      <div class="score-bar"><div class="score-fill" style="width:50%; background: var(--warm)"></div></div>
+    </div>
+    <div class="score-card">
+      <div class="domain">Feature Complete</div>
+      <div class="score-num" style="color: var(--warm)">60</div>
+      <div class="score-bar"><div class="score-fill" style="width:60%; background: var(--warm)"></div></div>
+    </div>
+    <div class="score-card">
+      <div class="domain">Testing</div>
+      <div class="score-num" style="color: var(--red)">15</div>
+      <div class="score-bar"><div class="score-fill" style="width:15%; background: var(--red)"></div></div>
+    </div>
+  </div>
+
+  <!-- ─── PRIORITY ACTION PLAN ─── -->
+  <div class="section-header">
+    <div class="section-num">★</div>
+    <div class="section-title">Prioritized Action Plan</div>
+  </div>
+
+  <h3>🔴 P0 — Blockers (fix before any release)</h3>
+
+  <div class="priority-item priority-p0">
+    <div class="priority-num">1</div>
+    <div class="priority-content"><strong>Add firestore.rules to the repo</strong><p>Ensure users can only read/write their own documents: <code>request.auth.uid == resource.data.uid</code></p></div>
+  </div>
+  <div class="priority-item priority-p0">
+    <div class="priority-num">2</div>
+    <div class="priority-content"><strong>Fix auth bypass in LunarAuthProvider</strong><p><code>isAuthenticated</code> must require a valid Firebase user, not return true when Firebase is down</p></div>
+  </div>
+  <div class="priority-item priority-p0">
+    <div class="priority-num">3</div>
+    <div class="priority-content"><strong>GDPR: Delete all Firestore data on account deletion</strong><p>When user deletes account, also delete users/, moods/, journals/, cycles/, ai_memory/ documents</p></div>
+  </div>
+  <div class="priority-item priority-p0">
+    <div class="priority-num">4</div>
+    <div class="priority-content"><strong>Connect JournalScreen to LunarDataProvider + Firestore</strong><p>Use existing <code>saveJournal()</code> and <code>journalStream()</code> in FirestoreService</p></div>
+  </div>
+
+  <h3>🟠 P1 — High Priority (pre-launch quality)</h3>
+
+  <div class="priority-item priority-p1">
+    <div class="priority-num">5</div>
+    <div class="priority-content"><strong>Migrate OpenAI key to flutter_secure_storage</strong><p>Replace LocalCache.setString for API key with Android Keystore / iOS Keychain</p></div>
+  </div>
+  <div class="priority-item priority-p1">
+    <div class="priority-num">6</div>
+    <div class="priority-content"><strong>Connect SleepScreen to LunarDataProvider.sleepLogs</strong><p>Wire up log persistence so sleep data survives restarts</p></div>
+  </div>
+  <div class="priority-item priority-p1">
+    <div class="priority-num">7</div>
+    <div class="priority-content"><strong>Connect MoodAnalyticsScreen to real mood data</strong><p>Replace hardcoded FlSpot list with data from LunarDataProvider.moodEntries</p></div>
+  </div>
+  <div class="priority-item priority-p1">
+    <div class="priority-num">8</div>
+    <div class="priority-content"><strong>Remove UserProvider — unify under LunarDataProvider</strong><p>Eliminate split-brain cycle state; update 5–6 consumer screens</p></div>
+  </div>
+  <div class="priority-item priority-p1">
+    <div class="priority-num">9</div>
+    <div class="priority-content"><strong>Fix CycleRepository / FirestoreService collection mismatch</strong><p>Align on either subcollection <code>users/{uid}/cycles</code> or top-level <code>cycles</code> — pick one</p></div>
+  </div>
+  <div class="priority-item priority-p1">
+    <div class="priority-num">10</div>
+    <div class="priority-content"><strong>Implement FCM push notifications</strong><p>Register token on sign-in, handle onMessage / onBackgroundMessage, build notification tap navigation</p></div>
+  </div>
+  <div class="priority-item priority-p1">
+    <div class="priority-num">11</div>
+    <div class="priority-content"><strong>Remove or migrate legacy community collection</strong><p>Delete dead FirestoreService.communityStream() pointing to old collection, or migrate data</p></div>
+  </div>
+
+  <h3>🔵 P2 — Quality & Robustness</h3>
+
+  <div class="priority-item priority-p2">
+    <div class="priority-num">12</div>
+    <div class="priority-content"><strong>Centralize color tokens into LunarTheme</strong></div>
+  </div>
+  <div class="priority-item priority-p2">
+    <div class="priority-num">13</div>
+    <div class="priority-content"><strong>Replace Navigator.push with go_router</strong></div>
+  </div>
+  <div class="priority-item priority-p2">
+    <div class="priority-num">14</div>
+    <div class="priority-content"><strong>Implement IndexedStack for bottom navigation</strong></div>
+  </div>
+  <div class="priority-item priority-p2">
+    <div class="priority-num">15</div>
+    <div class="priority-content"><strong>Wrap particle painters in RepaintBoundary</strong></div>
+  </div>
+  <div class="priority-item priority-p2">
+    <div class="priority-num">16</div>
+    <div class="priority-content"><strong>Add email verification step post-signup</strong></div>
+  </div>
+  <div class="priority-item priority-p2">
+    <div class="priority-num">17</div>
+    <div class="priority-content"><strong>Write unit tests for CycleEngine, InsightEngine, MemoryExtractionEngine</strong></div>
+  </div>
+
+  <h3>🟢 P3 — Polish</h3>
+  <div class="priority-item priority-p3">
+    <div class="priority-num">18</div>
+    <div class="priority-content"><strong>Remove Hinglish comments and isDevelopmentMode flag</strong></div>
+  </div>
+  <div class="priority-item priority-p3">
+    <div class="priority-num">19</div>
+    <div class="priority-content"><strong>Remove screen/user_provider.dart duplicate file</strong></div>
+  </div>
+  <div class="priority-item priority-p3">
+    <div class="priority-num">20</div>
+    <div class="priority-content"><strong>Remove local _LunarAnalytics in ai_insights_screen.dart — use CycleEngine</strong></div>
+  </div>
+  <div class="priority-item priority-p3">
+    <div class="priority-num">21</div>
+    <div class="priority-content"><strong>Add Semantics labels for accessibility (a11y)</strong></div>
+  </div>
+
+</div>
+
+<footer>
+  🌙 Lunar · Technical Audit Report · June 10, 2026 · Generated by GitHub Copilot
+  <br/>The foundation is genuinely strong — the engine/provider/repository layering, the AI memory system, and the emotional weather model show real architectural maturity.
+  <br/>The path from 49 → 80+ is clear and achievable.
+</footer>
+
+</body>
+</html>

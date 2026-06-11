@@ -306,8 +306,8 @@ class _AvatarPainter extends CustomPainter {
 
   // ── Eyes ──────────────────────────────────────────────────────────────────
   void _drawEyes(Canvas canvas, double w, double h) {
-    final (lx, ly) = (w * 0.36, h * 0.268);
-    final (rx, ry) = (w * 0.64, h * 0.268);
+    final (lx, ly) = (w * 0.36, h * 0.330);
+    final (rx, ry) = (w * 0.64, h * 0.330);
 
     _drawSingleEye(canvas, lx, ly, w, h, mirrorX: false);
     _drawSingleEye(canvas, rx, ry, w, h, mirrorX: true);
@@ -482,7 +482,7 @@ class _AvatarPainter extends CustomPainter {
 
     for (final side in [-1.0, 1.0]) {
       final bx = w * (side < 0 ? 0.36 : 0.64);
-      final by = h * 0.218;
+      final by = h * 0.300;
       final bw = w * 0.095;
 
       canvas.save();
@@ -536,7 +536,7 @@ class _AvatarPainter extends CustomPainter {
 
     // Two subtle nostril dots
     final nx = w * 0.50;
-    final ny = h * 0.345;
+    final ny = h * 0.400;
     final dotR = w * 0.018;
     canvas.drawCircle(Offset(nx - w * 0.025, ny), dotR, nosePaint);
     canvas.drawCircle(Offset(nx + w * 0.025, ny), dotR, nosePaint);
@@ -546,7 +546,7 @@ class _AvatarPainter extends CustomPainter {
   void _drawMouth(Canvas canvas, double w, double h) {
     final lipColor = avatar.lipColor.color;
     final mx = w * 0.50;
-    final my = h * 0.415;
+    final my = h * 0.460;
     final mw = w * 0.11;
 
     // Emotional state modifiers
@@ -613,13 +613,13 @@ class _AvatarPainter extends CustomPainter {
 
     canvas.drawOval(
         Rect.fromCenter(
-            center: Offset(w * 0.285, h * 0.315),
+            center: Offset(w * 0.285, h * 0.375),
             width: w * 0.11,
             height: h * 0.055),
         blushPaint);
     canvas.drawOval(
         Rect.fromCenter(
-            center: Offset(w * 0.715, h * 0.315),
+            center: Offset(w * 0.715, h * 0.375),
             width: w * 0.11,
             height: h * 0.055),
         blushPaint);
@@ -630,9 +630,9 @@ class _AvatarPainter extends CustomPainter {
     final color = avatar.skinTone.shadow.withAlpha(100);
     final paint = Paint()..color = color;
     final positions = [
-      (0.34, 0.295), (0.41, 0.285), (0.47, 0.300),
-      (0.53, 0.300), (0.59, 0.285), (0.66, 0.295),
-      (0.38, 0.310), (0.62, 0.310), (0.44, 0.320), (0.56, 0.320),
+      (0.34, 0.355), (0.41, 0.345), (0.47, 0.360),
+      (0.53, 0.360), (0.59, 0.345), (0.66, 0.355),
+      (0.38, 0.370), (0.62, 0.370), (0.44, 0.380), (0.56, 0.380),
     ];
     for (final (fx, fy) in positions) {
       canvas.drawCircle(Offset(w * fx, h * fy), w * 0.008, paint);
@@ -816,27 +816,20 @@ class _AvatarPainter extends CustomPainter {
         canvas.clipRect(Rect.fromLTWH(0, 0, w, cy + ry * 0.4));
         canvas.drawPath(pixiePath, _hairPaint(pixieRect));
         canvas.restore();
-
-      case HairStyle.halfUp:
-        // Top bun/twist
-        canvas.drawOval(
-            Rect.fromCenter(
-                center: Offset(cx, cy - ry * 0.80),
-                width: rx * 0.70,
-                height: ry * 0.45),
-            _hairPaint(topRect));
     }
   }
 
   void _drawHairCap(Canvas canvas, double cx, double cy, double rx, double ry,
       Paint paint) {
-    // Semi-circle cap at the top of the head
+    // Semi-circle cap at the TOP of the head.
+    // startAngle = math.pi (left), sweepAngle = -math.pi (counter-clockwise)
+    // → draws left → up → right  = top half of oval (above face).
     final path = Path()
       ..addArc(
           Rect.fromCenter(
               center: Offset(cx, cy), width: rx * 2.12, height: ry * 2.08),
           math.pi,
-          math.pi);
+          -math.pi); // negative sweep = counter-clockwise = top half
     canvas.drawPath(path, paint);
   }
 
@@ -948,7 +941,7 @@ class _AvatarPainter extends CustomPainter {
       ..strokeWidth = w * 0.018
       ..strokeCap = StrokeCap.round;
 
-    final (lx, ly) = (w * 0.36, h * 0.268);
+    final (lx, ly) = (w * 0.36, h * 0.330);
     final gw = w * 0.100;
     final gh = h * 0.046;
 

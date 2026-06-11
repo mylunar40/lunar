@@ -185,6 +185,24 @@ class LunarDataProvider extends ChangeNotifier {
     }
     _pregnancyKickCount =
         LocalCache.getInt('preg_kicks_$_todayKey') ?? 0;
+
+    // Journal entries — persisted locally
+    final rawJournals = LocalCache.getJsonList('journal_entries_v1') ?? [];
+    _journalEntries = rawJournals.map((m) {
+      try {
+        return JournalEntry(
+          id: (m['id'] as String?) ?? DateTime.now().toIso8601String(),
+          date: DateTime.parse(m['date'] as String),
+          title: (m['title'] as String?) ?? '',
+          content: (m['content'] as String?) ?? '',
+          mood: (m['mood'] as String?) ?? '😊',
+          tags: List<String>.from(m['tags'] ?? []),
+          isFavorite: (m['isFavorite'] as bool?) ?? false,
+        );
+      } catch (_) {
+        return null;
+      }
+    }).whereType<JournalEntry>().toList();
   }
 
   void _refreshAnalytics() {
@@ -447,6 +465,8 @@ class LunarDataProvider extends ChangeNotifier {
 
   void addJournalEntry(JournalEntry entry) {
     _journalEntries = [entry, ..._journalEntries].take(365).toList();
+    // Persist locally so entries survive full app restart
+    _saveJournalCache();
     notifyListeners();
   }
 
@@ -454,13 +474,31 @@ class LunarDataProvider extends ChangeNotifier {
     _journalEntries = _journalEntries
         .map((e) => e.id == updated.id ? updated : e)
         .toList();
+    _saveJournalCache();
     notifyListeners();
   }
 
   void deleteJournalEntry(String id) {
     _journalEntries =
         _journalEntries.where((e) => e.id != id).toList();
+    _saveJournalCache();
     notifyListeners();
+  }
+
+  void _saveJournalCache() {
+    final list = _journalEntries.map((e) => {
+          'id': e.id,
+          'date': e.date.toIso8601String(),
+          'title': e.title,
+          'content': e.content,
+          'mood': e.mood,
+          'tags': e.tags,
+          'isFavorite': e.isFavorite,
+        }).toList();
+    // Use unawaited with explicit error logging so write failures are
+    // visible in logs rather than silently dropped.
+    LocalCache.setJsonList('journal_entries_v1', list)
+        .catchError((e) => debugPrint('[LunarData] Journal cache write failed: $e'));
   }
 
   // ═══════════════════════════════════════════════════════════

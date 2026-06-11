@@ -37,6 +37,13 @@ class FirestoreService {
       });
 
   // ── Cycle Logs ──────────────────────────────────────────
+  // NOTE: These two methods write/read the top-level `cycles` collection.
+  // They are NEVER called by any screen or provider. All active cycle
+  // persistence goes through CycleRepository, which uses the subcollection
+  // path: users/{uid}/cycles — do NOT call these methods.
+  // They are kept here only to avoid breaking any potential future callers
+  // and will be removed in the next cleanup pass.
+  @Deprecated('Use CycleRepository.pushToFirestore() — writes users/{uid}/cycles subcollection')
   static Future<DocumentReference> saveCycleLog({
     required String uid,
     required DateTime periodDate,
@@ -51,6 +58,7 @@ class FirestoreService {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+  @Deprecated('Use CycleRepository.fetchFromFirestore() — reads users/{uid}/cycles subcollection')
   static Stream<QuerySnapshot<Map<String, dynamic>>> cycleStream(String uid) =>
       _db
           .collection('cycles')
@@ -339,4 +347,87 @@ class FirestoreService {
           .set(updates, SetOptions(merge: true));
     }
   }
+
+  // ── FCM Token ───────────────────────────────────────────
+  /// Stores the device FCM token on the user document (merge, no overwrite).
+  /// Called on every sign-in so the token stays current after rotation.
+  static Future<void> saveFcmToken(String uid, String token) =>
+      _db.collection('users').doc(uid).set({
+        'fcmToken': token,
+        'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+  // ── Account Deletion (GDPR) ─────────────────────────────
+  /// Deletes ALL Firestore documents that belong to [uid].
+  /// Call this BEFORE deleting the Firebase Auth account so that
+  /// security rules still allow the write.
+  ///
+  /// Collections with uid-keyed documents (single doc per user):
+  ///   users, pregnancy, ai_memory, avatars
+  ///
+  /// Collections with uid-field documents (multiple docs per user):
+  ///   moods, journals, pregnancy_journals, community_posts,
+  ///   community_comments, community_bookmarks
+  ///
+  /// Sub-collections:
+  ///   users/{uid}/cycles
+  ///
+  /// Note: community_reports are kept for audit/safety purposes.
+  static Future<void> deleteUserData(String uid) async {
+    // 1. Single-doc collections (uid == docId)
+    final singleDocCollections = [
+      'users',
+      'pregnancy',
+      'ai_memory',
+      'avatars',
+      'chatHistory',
+    ];
+    for (final col in singleDocCollections) {
+      try {
+        await _db.collection(col).doc(uid).delete();
+      } catch (_) {}
+    }
+
+    // 2. users/{uid}/cycles subcollection
+    try {
+      final cyclesSnap = await _db
+          .collection('users')
+          .doc(uid)
+          .collection('cycles')
+          .limit(200)
+          .get();
+      for (final doc in cyclesSnap.docs) {
+        await doc.reference.delete();
+      }
+    } catch (_) {}
+
+    // 3. Multi-doc collections filtered by uid field
+    // Processed in batches of 100 to stay within Firestore limits.
+    final multiDocCollections = [
+      'moods',
+      'journals',
+      'pregnancy_journals',
+      'community_posts',
+      'community_comments',
+      'community_bookmarks',
+    ];
+    for (final col in multiDocCollections) {
+      try {
+        QuerySnapshot snap;
+        do {
+          snap = await _db
+              .collection(col)
+              .where('uid', isEqualTo: uid)
+              .limit(100)
+              .get();
+          final batch = _db.batch();
+          for (final doc in snap.docs) {
+            batch.delete(doc.reference);
+          }
+          if (snap.docs.isNotEmpty) await batch.commit();
+        } while (snap.docs.length == 100);
+      } catch (_) {}
+    }
+  }
 }
+

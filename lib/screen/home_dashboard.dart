@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -26,6 +26,13 @@ import '../core/providers/memory_provider.dart';
 import '../core/models/emotional_weather.dart';
 import '../core/models/emotional_memory.dart' show EmotionalProfile;
 import 'emotional_weather_screen.dart';
+import 'profile_screen.dart';
+import '../core/providers/auth_provider.dart';
+import '../core/providers/check_in_provider.dart';
+import '../core/models/check_in_model.dart';
+import '../core/services/intent_greeting_service.dart';
+import '../core/providers/auth_provider.dart';
+import '../core/services/intent_greeting_service.dart';
 
 // ── Local design tokens ─────────────────────────────────────
 const Color _hBg = Color(0xFF0A0118);
@@ -523,68 +530,38 @@ class _HomeDashboardState extends State<HomeDashboard>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 18),
-                        // ── Phase 4: Emotional Command Bar ──────────────────
+                        // ── Greeting bar ─────────────────────────────────────
                         _staggeredSection(
                             _emotionalCommandBar(user, chat, weatherProv), 0),
-                        const SizedBox(height: 16),
-                        // ── Orb Hero ─────────────────────────────────────────
+                        const SizedBox(height: 22),
+                        // ── Orb Hero — the emotional center ──────────────────
                         _staggeredSection(_heroSection(user, chat), 0),
-                        const SizedBox(height: 16),
-                        // ── Phase 4: AI Insight of the Day ───────────────────
+                        const SizedBox(height: 24),
+                        // ── Single primary CTA ────────────────────────────────
+                        _staggeredSection(_primaryCTAButton(context), 1),
+                        const SizedBox(height: 22),
+                        // ── Today's insight card ──────────────────────────────
                         _staggeredSection(
                             _aiInsightOfDay(chat, weatherProv), 1),
-                        const SizedBox(height: 14),
-                        // ── Streak (conditional) ─────────────────────────────
+                        const SizedBox(height: 16),
+                        // ── Intent-personalised nudge card ────────────────────
+                        _staggeredSection(_intentHeroCard(), 2),
+                        const SizedBox(height: 20),
+                        // ── Wellness snapshot — 4 compact tiles ───────────────
+                        _staggeredSection(
+                            _wellnessSnapshot(context, lunarData, user), 2),
+                        const SizedBox(height: 18),
+                        // ── Streak ribbon (conditional) ───────────────────────
                         if (_streakData != null &&
                             _streakData!.current > 0) ...[
-                          _staggeredSection(_streakRibbon(_streakData!), 1),
-                          const SizedBox(height: 14),
+                          _staggeredSection(_streakRibbon(_streakData!), 2),
+                          const SizedBox(height: 16),
                         ],
-                        // ── Phase 4: Emotional Energy Panel ──────────────────
-                        _staggeredSection(
-                            _emotionalEnergyPanel(chat, lunarData), 2),
-                        const SizedBox(height: 16),
-                        // ── Phase 4: Today's Focus Card ───────────────────────
-                        _staggeredSection(_todaysFocusCard(chat, user), 2),
-                        const SizedBox(height: 16),
-                        // ── Phase 3: Daily Emotional Reading ─────────────────
-                        _staggeredSection(_dailyReadingCard(weatherProv), 2),
-                        const SizedBox(height: 16),
-                        // ── Phase 4: Mood Trend Sparkline ─────────────────────
-                        _staggeredSection(_moodTrendCard(weatherProv), 3),
-                        const SizedBox(height: 20),
-                        // ── Phase 4: Quick Emotional Actions ─────────────────
-                        _staggeredSection(_quickEmotionalActions(context), 3),
-                        const SizedBox(height: 22),
-                        // ── Phase 2: Emotional Memory Card ────────────────────
-                        _staggeredSection(_emotionalMemoryCard(chat), 3),
-                        const SizedBox(height: 22),
-                        // ── Healing Journey ───────────────────────────────────
-                        _staggeredSection(_healingJourneyCard(chat), 3),
-                        const SizedBox(height: 20),
-                        // ── Phase 3: Weather Banner ────────────────────────────
-                        _staggeredSection(_weatherBanner(weatherProv), 3),
-                        const SizedBox(height: 22),
-                        // ── Wellness Rings ────────────────────────────────────
-                        _staggeredSection(_wellnessRingsRow(lunarData), 4),
-                        const SizedBox(height: 22),
-                        // ── Daily Check-In ────────────────────────────────────
-                        _staggeredSection(_dailyCheckInCard(context, chat), 4),
-                        const SizedBox(height: 22),
-                        // ── Pregnancy ─────────────────────────────────────────
-                        _staggeredSection(_pregnancyCard(context), 5),
-                        const SizedBox(height: 22),
-                        // ── Orbital Tracker ───────────────────────────────────
-                        _staggeredSection(_orbitalTracker(user), 5),
-                        const SizedBox(height: 20),
-                        // ── Daily Ritual ──────────────────────────────────────
-                        _staggeredSection(_dailyRitualCard(context), 5),
-                        const SizedBox(height: 20),
-                        // ── Moon Companion ────────────────────────────────────
-                        _staggeredSection(_moonCompanionRow(user), 6),
-                        const SizedBox(height: 20),
-                        // ── Health Snapshot ───────────────────────────────────
-                        _staggeredSection(_healthSnapshot(), 7),
+                        // ── Daily check-in ritual ─────────────────────────────
+                        _staggeredSection(_healingCheckInCard(context), 3),
+                        const SizedBox(height: 18),
+                        // ── Pregnancy journey entry point ─────────────────────
+                        _staggeredSection(_pregnancyCard(context), 3),
                         const SizedBox(height: 100),
                       ],
                     ),
@@ -598,6 +575,80 @@ class _HomeDashboardState extends State<HomeDashboard>
             _milestoneOverlay(_streakData!.newMilestone!),
         ],
       ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  INTENT HERO CARD — Personalised greeting based on journey focus
+  // ─────────────────────────────────────────────────────────
+  Widget _intentHeroCard() {
+    return Consumer<LunarAuthProvider>(
+      builder: (context, auth, _) {
+        final intent = auth.userIntent;
+        if (intent == null) return const SizedBox.shrink();
+        final greeting = IntentGreetingService.getGreeting(intent);
+        final nudge = IntentGreetingService.getNudge(intent);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    _hPurple.withOpacity(0.18),
+                    _hPink.withOpacity(0.10),
+                    Colors.white.withOpacity(0.03),
+                  ],
+                ),
+                border: Border.all(
+                  color: _hPurple.withOpacity(0.28),
+                  width: 1.0,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    intent.emoji,
+                    style: const TextStyle(fontSize: 30),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          greeting,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          nudge,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.55),
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -848,200 +899,251 @@ class _HomeDashboardState extends State<HomeDashboard>
     );
   }
 
-  // ─────────────────────────────────────────────────────────
-  //  DAILY EMOTIONAL CHECK-IN — gentle daily ritual invitation
-  // ─────────────────────────────────────────────────────────
-  Widget _dailyCheckInCard(BuildContext ctx, ChatProvider chat) {
-    final hour = DateTime.now().hour;
-    final lastCheckInDay = chat.lastCheckInDay ?? -1;
-    final todayDay = DateTime.now().day;
-    final alreadyCheckedIn = lastCheckInDay == todayDay;
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  HEALING CHECK-IN â€” Mood picker + streak display
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  Widget _healingCheckInCard(BuildContext ctx) {
+    return Consumer2<CheckInProvider, LunarAuthProvider>(
+      builder: (context, checkIn, auth, _) {
+        final intent = auth.userIntent;
 
-    // Time-sensitive prompts — feel alive and personal
-    final String prompt;
-    final String emoji;
-    final Color accentColor;
-    if (hour < 10) {
-      prompt = 'Good morning, love. How did you wake up feeling today?';
-      emoji = '🌅';
-      accentColor = _hGold;
-    } else if (hour < 14) {
-      prompt = 'Midday check-in. How is your heart doing right now?';
-      emoji = '🌸';
-      accentColor = _hPink;
-    } else if (hour < 18) {
-      prompt = 'Afternoon pause. What are you carrying into the rest of today?';
-      emoji = '🌿';
-      accentColor = const Color(0xFF66BB6A);
-    } else if (hour < 21) {
-      prompt = 'Evening. How did today sit with you?';
-      emoji = '🌙';
-      accentColor = _hPurple;
-    } else {
-      prompt = 'Late night. What\'s on your heart before you rest?';
-      emoji = '✨';
-      accentColor = const Color(0xFF7986CB);
-    }
-
-    if (alreadyCheckedIn) {
-      // Show a completed state — warmly acknowledged
-      return AnimatedBuilder(
-        animation: _glowAnim,
-        builder: (_, __) => ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: LinearGradient(colors: [
-                  accentColor.withOpacity(0.10),
-                  Colors.white.withOpacity(0.02),
-                ]),
-                border: Border.all(
-                    color: accentColor.withOpacity(0.20 * _glowAnim.value),
-                    width: 1),
-              ),
-              child: Row(children: [
-                Text(emoji, style: const TextStyle(fontSize: 18)),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: Text(
-                  'You checked in with yourself today. That matters 💜',
-                  style: TextStyle(
-                      color: Colors.white.withOpacity(0.52),
-                      fontSize: 12.5,
-                      fontStyle: FontStyle.italic,
-                      height: 1.4),
-                )),
-              ]),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return AnimatedBuilder(
-      animation: Listenable.merge([_glowAnim, _pulseAnim]),
-      builder: (_, __) => GestureDetector(
-        onTap: () {
-          HapticFeedback.mediumImpact();
-          chat.markCheckInToday();
-          chat.queueCheckInSeed(prompt);
-          Navigator.push(
-            ctx,
-            PageRouteBuilder(
-              pageBuilder: (_, anim, __) => FadeTransition(
-                opacity: anim,
-                child: const AIVoiceScreen(),
-              ),
-              transitionDuration: const Duration(milliseconds: 420),
-            ),
-          );
-        },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    accentColor.withOpacity(0.18),
-                    accentColor.withOpacity(0.08),
-                    Colors.white.withOpacity(0.03),
-                  ],
-                ),
-                border: Border.all(
-                  color: accentColor.withOpacity(0.40 * _glowAnim.value),
-                  width: 1.3,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: accentColor.withOpacity(0.12 * _glowAnim.value),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: Row(children: [
-                // Pulsing orb
-                AnimatedBuilder(
-                  animation: _pulseAnim,
-                  builder: (_, __) => Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(colors: [
-                        accentColor.withOpacity(0.60 * _pulseAnim.value),
-                        accentColor.withOpacity(0.20),
-                        Colors.transparent,
-                      ]),
-                      boxShadow: [
-                        BoxShadow(
-                          color:
-                              accentColor.withOpacity(0.32 * _pulseAnim.value),
-                          blurRadius: 12,
-                          spreadRadius: 2,
-                        ),
+        if (checkIn.hasTodayCheckIn) {
+          // Post-check-in: streak + encouragement card
+          final streak = checkIn.streakDays;
+          final encouragement =
+              CheckInProvider.encouragement(intent, checkIn.currentMood!);
+          final streakEmoji = streak >= 30
+              ? 'ðŸŒ•'
+              : streak >= 14
+                  ? 'ðŸ’œ'
+                  : streak >= 7
+                      ? 'ðŸ”¥'
+                      : streak >= 3
+                          ? 'âœ¨'
+                          : 'ðŸŒ±';
+          return AnimatedBuilder(
+            animation: _glowAnim,
+            builder: (_, __) => ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 18, vertical: 14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        _hPurple.withOpacity(0.20 * _glowAnim.value),
+                        _hGold.withOpacity(0.10),
+                        Colors.white.withOpacity(0.02),
                       ],
                     ),
-                    child: Center(
-                        child:
-                            Text(emoji, style: const TextStyle(fontSize: 22))),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Daily check-in',
-                          style: TextStyle(
-                              color: accentColor.withOpacity(0.75),
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.4),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          prompt,
-                          style: TextStyle(
-                              color: Colors.white.withOpacity(0.82),
-                              fontSize: 13.5,
-                              fontStyle: FontStyle.italic,
-                              height: 1.45),
-                        ),
-                      ]),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: accentColor.withOpacity(0.18),
                     border: Border.all(
-                        color: accentColor.withOpacity(0.40), width: 1),
+                      color: _hPurple.withOpacity(0.32 * _glowAnim.value),
+                      width: 1.0,
+                    ),
                   ),
-                  child: Icon(Icons.arrow_forward_ios_rounded,
-                      color: accentColor, size: 13),
+                  child: Row(children: [
+                    Text(streakEmoji,
+                        style: const TextStyle(fontSize: 26)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (streak > 1) ...[
+                            Text(
+                              '$streak-Day Healing Streak',
+                              style: TextStyle(
+                                color: _hGold,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                          ],
+                          Text(
+                            encouragement,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.75),
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      checkIn.currentMood!.emoji,
+                      style: const TextStyle(fontSize: 22),
+                    ),
+                  ]),
                 ),
-              ]),
+              ),
+            ),
+          );
+        }
+
+        // Not checked in: mood picker card
+        return AnimatedBuilder(
+          animation: Listenable.merge([_glowAnim, _pulseAnim]),
+          builder: (_, __) => ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      _hPurple.withOpacity(0.18 * _glowAnim.value),
+                      _hPink.withOpacity(0.10),
+                      Colors.white.withOpacity(0.03),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: _hPurple.withOpacity(0.35 * _glowAnim.value),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _hPurple.withOpacity(0.10 * _glowAnim.value),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      AnimatedBuilder(
+                        animation: _pulseAnim,
+                        builder: (_, __) => Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(colors: [
+                              _hPurple.withOpacity(
+                                  0.55 * _pulseAnim.value),
+                              _hPurple.withOpacity(0.18),
+                              Colors.transparent,
+                            ]),
+                          ),
+                          child: const Center(
+                              child: Text('ðŸŒ™',
+                                  style: TextStyle(fontSize: 18))),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Daily Check-In',
+                              style: TextStyle(
+                                color: _hPurple.withOpacity(0.80),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'How are you feeling today?',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.82),
+                                fontSize: 14,
+                                fontStyle: FontStyle.italic,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ]),
+                    const SizedBox(height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: CheckInMood.values.map((mood) {
+                        return GestureDetector(
+                          onTap: () =>
+                              _onMoodSelected(ctx, mood, checkIn, auth),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(mood.emoji,
+                                  style: const TextStyle(fontSize: 32)),
+                              const SizedBox(height: 6),
+                              Text(
+                                mood.label,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.55),
+                                  fontSize: 10.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
+  Future<void> _onMoodSelected(BuildContext ctx, CheckInMood mood,
+      CheckInProvider checkIn, LunarAuthProvider auth) async {
+    HapticFeedback.mediumImpact();
+    if (ctx.mounted) {
+      ctx.read<ChatProvider>().markCheckInToday();
+    }
+    final milestone =
+        await checkIn.submitCheckIn(mood, intent: auth.userIntent);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetCtx) => _SecondaryQuestionSheet(
+        question: CheckInProvider.secondaryQuestion(auth.userIntent),
+        options: CheckInProvider.secondaryOptions(auth.userIntent),
+        onSelected: (reason) {
+          checkIn.updateSecondary(reason);
+          Navigator.of(sheetCtx).pop();
+        },
+        onSkip: () => Navigator.of(sheetCtx).pop(),
+      ),
+    );
+    if (!mounted) return;
+    if (milestone != null) {
+      await showModalBottomSheet<void>(
+        context: ctx,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (sheetCtx) => _CheckInMilestoneSheet(
+          milestone: milestone,
+          onDismiss: () => Navigator.of(sheetCtx).pop(),
+        ),
+      );
+    }
+  }
   //  LUNAR'S NOTE TONIGHT — Daily AI message that feels alive
   // ─────────────────────────────────────────────────────────
   Widget _lunarNoteCard() {
@@ -1120,37 +1222,28 @@ class _HomeDashboardState extends State<HomeDashboard>
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        AnimatedBuilder(
-          animation: _glowAnim,
-          builder: (_, __) => Container(
-            padding: const EdgeInsets.all(2.5),
+        // Profile tap — slim, non-competing with the Orb
+        GestureDetector(
+          onTap: () => _nav(context, ProfileScreen()),
+          child: Container(
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: SweepGradient(colors: [
-                Color.lerp(const Color(0xFFAB5CF2), const Color(0xFFFF69B4),
-                    _glowAnim.value)!,
-                const Color(0xFFFF69B4),
-                Color.lerp(const Color(0xFFAB5CF2), const Color(0xFFFF69B4),
-                    _glowAnim.value)!,
-              ]),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFAB5CF2)
-                      .withOpacity(_glowAnim.value * 0.7),
-                  blurRadius: 18,
-                  spreadRadius: 2,
-                ),
-              ],
+              color: Colors.white.withOpacity(0.07),
+              border: Border.all(
+                color: const Color(0xFFAB5CF2).withOpacity(0.30),
+                width: 1,
+              ),
             ),
-            child: const CircleAvatar(
-              radius: 24,
-              backgroundColor: Color(0xFF1E0A3C),
-              child: Icon(Icons.person_rounded,
-                  color: Color(0xFFD8A8FF), size: 26),
+            child: const Icon(
+              Icons.person_outline_rounded,
+              color: Color(0xFFD8A8FF),
+              size: 18,
             ),
           ),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -5343,34 +5436,6 @@ class _HomeDashboardState extends State<HomeDashboard>
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            AnimatedBuilder(
-              animation: _glowAnim,
-              builder: (_, __) => Container(
-                padding: const EdgeInsets.all(2.5),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: SweepGradient(colors: [
-                    Color.lerp(_hPurple, _hPink, _glowAnim.value)!,
-                    _hPink,
-                    Color.lerp(_hPurple, _hPink, _glowAnim.value)!,
-                  ]),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _hPurple.withOpacity(_glowAnim.value * 0.7),
-                      blurRadius: 18,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: const CircleAvatar(
-                  radius: 22,
-                  backgroundColor: Color(0xFF1E0A3C),
-                  child: Icon(Icons.person_rounded,
-                      color: Color(0xFFD8A8FF), size: 24),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -5938,6 +6003,284 @@ class _HomeDashboardState extends State<HomeDashboard>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  PRIMARY CTA BUTTON — Single hero call-to-action
+  // ─────────────────────────────────────────────────────────
+  Widget _primaryCTAButton(BuildContext ctx) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_glowAnim, _breatheAnim, _shimmerAnim]),
+      builder: (_, __) => GestureDetector(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          _nav(ctx, const AIVoiceScreen());
+        },
+        child: Container(
+          width: double.infinity,
+          height: 60,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF5C2DB8),
+                Color(0xFFAB5CF2),
+                Color(0xFFFF69B4)
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFAB5CF2)
+                    .withOpacity(0.28 + _glowAnim.value * 0.28),
+                blurRadius: 22 + _glowAnim.value * 14,
+                spreadRadius: _breatheAnim.value * 2.5,
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: OverflowBox(
+                    maxWidth: double.infinity,
+                    child: Transform.translate(
+                      offset: Offset(_shimmerAnim.value * 160, 0),
+                      child: Container(
+                        width: 60,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withOpacity(0.0),
+                              Colors.white.withOpacity(0.18),
+                              Colors.white.withOpacity(0.0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedBuilder(
+                    animation: _pulseAnim,
+                    builder: (_, __) => Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white
+                            .withOpacity(0.12 + _pulseAnim.value * 0.08),
+                      ),
+                      child: const Center(
+                          child:
+                              Text('🌙', style: TextStyle(fontSize: 17))),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Talk to Lunar',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.white.withOpacity(0.70),
+                    size: 14,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  WELLNESS SNAPSHOT — 4 compact tappable tiles
+  // ─────────────────────────────────────────────────────────
+  Widget _wellnessSnapshot(
+      BuildContext ctx, LunarDataProvider lunarData, UserProvider user) {
+    final phaseColor = _phaseRingColor(user);
+    final cycleDay = user.lastPeriodDate == null
+        ? 'Set up'
+        : 'Day ${DateTime.now().difference(user.lastPeriodDate!).inDays + 1}';
+    final moodValue =
+        lunarData.moodEntries.isNotEmpty ? 'Logged ✓' : 'Log today';
+    final sleepValue = '${lunarData.lastSleepHours.toStringAsFixed(1)} hrs';
+    final journalCount = lunarData.journalEntries.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'TODAY AT A GLANCE',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.38),
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.4,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _snapshotCard(
+                emoji: '😊',
+                label: 'Mood',
+                value: moodValue,
+                color: _hPink,
+                onTap: () => _nav(ctx, const MoodTrackingScreen()),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _snapshotCard(
+                emoji: '😴',
+                label: 'Sleep',
+                value: sleepValue,
+                color: _hIndigo,
+                onTap: () => _nav(ctx, const SleepScreen()),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _snapshotCard(
+                emoji: '🌙',
+                label: 'Cycle',
+                value: cycleDay,
+                color: phaseColor,
+                onTap: () => _nav(ctx, const CycleTrackerScreen()),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _snapshotCard(
+                emoji: '📓',
+                label: 'Journal',
+                value: journalCount > 0
+                    ? '$journalCount entries'
+                    : 'Write today',
+                color: _hGold,
+                onTap: () => _nav(ctx, const JournalScreen()),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _snapshotCard({
+    required String emoji,
+    required String label,
+    required String value,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => GestureDetector(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    color.withOpacity(0.18),
+                    color.withOpacity(0.06),
+                  ],
+                ),
+                border: Border.all(
+                  color: color.withOpacity(0.3 + _glowAnim.value * 0.2),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(_glowAnim.value * 0.12),
+                    blurRadius: 12,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color.withOpacity(0.16),
+                      border: Border.all(
+                          color: color.withOpacity(0.35), width: 1),
+                    ),
+                    child: Center(
+                        child: Text(emoji,
+                            style: const TextStyle(fontSize: 19))),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.45),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          value,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded,
+                      color: color.withOpacity(0.45), size: 16),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -6995,4 +7338,265 @@ class _MoodSparklinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_MoodSparklinePainter old) => old.history != history;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SECONDARY QUESTION SHEET
+//  Intent-aware follow-up shown after mood selection.
+// ═══════════════════════════════════════════════════════════
+class _SecondaryQuestionSheet extends StatefulWidget {
+  const _SecondaryQuestionSheet({
+    required this.question,
+    required this.options,
+    required this.onSelected,
+    required this.onSkip,
+  });
+  final String question;
+  final List<String> options;
+  final void Function(String) onSelected;
+  final VoidCallback onSkip;
+
+  @override
+  State<_SecondaryQuestionSheet> createState() =>
+      _SecondaryQuestionSheetState();
+}
+
+class _SecondaryQuestionSheetState extends State<_SecondaryQuestionSheet> {
+  String? _selected;
+
+  static const _bg = Color(0xFF0A0118);
+  static const _surface = Color(0xFF160330);
+  static const _purple = Color(0xFFAB5CF2);
+  static const _pink = Color(0xFFFF69B4);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: _bg,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 22),
+          Text(
+            widget.question,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ...widget.options.map((opt) {
+            final isSelected = _selected == opt;
+            return GestureDetector(
+              onTap: () => setState(() => _selected = opt),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 18, vertical: 14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: isSelected
+                      ? LinearGradient(colors: [
+                          _purple.withOpacity(0.30),
+                          _pink.withOpacity(0.15),
+                        ])
+                      : null,
+                  color: isSelected ? null : _surface,
+                  border: Border.all(
+                    color: isSelected
+                        ? _purple.withOpacity(0.70)
+                        : Colors.white.withOpacity(0.08),
+                    width: isSelected ? 1.5 : 1.0,
+                  ),
+                ),
+                child: Text(
+                  opt,
+                  style: TextStyle(
+                    color: isSelected
+                        ? Colors.white
+                        : Colors.white.withOpacity(0.70),
+                    fontSize: 14,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: widget.onSkip,
+                child: Center(
+                  child: Text(
+                    'Skip',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.35),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: AnimatedOpacity(
+                opacity: _selected != null ? 1.0 : 0.38,
+                duration: const Duration(milliseconds: 200),
+                child: GestureDetector(
+                  onTap: _selected != null
+                      ? () => widget.onSelected(_selected!)
+                      : null,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: const LinearGradient(
+                        colors: [_purple, _pink],
+                      ),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'Save',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CHECK-IN MILESTONE SHEET
+//  Celebration card shown when a streak milestone is earned.
+// ═══════════════════════════════════════════════════════════
+class _CheckInMilestoneSheet extends StatelessWidget {
+  const _CheckInMilestoneSheet({
+    required this.milestone,
+    required this.onDismiss,
+  });
+  final CheckInMilestone milestone;
+  final VoidCallback onDismiss;
+
+  static const _bg = Color(0xFF0A0118);
+  static const _gold = Color(0xFFFFD700);
+  static const _purple = Color(0xFFAB5CF2);
+  static const _pink = Color(0xFFFF69B4);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: _bg,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(28, 16, 28, 48),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 28),
+          Text(
+            milestone.emoji,
+            style: const TextStyle(fontSize: 52),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Milestone Reached',
+            style: TextStyle(
+              color: _gold,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            milestone.title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            milestone.message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.65),
+              fontSize: 14,
+              fontStyle: FontStyle.italic,
+              height: 1.55,
+            ),
+          ),
+          const SizedBox(height: 28),
+          GestureDetector(
+            onTap: onDismiss,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: const LinearGradient(
+                  colors: [_purple, _pink],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+              ),
+              child: const Center(
+                child: Text(
+                  'Keep Going 💜',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

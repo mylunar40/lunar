@@ -11,9 +11,12 @@ import '../core/providers/auth_provider.dart';
 import '../core/providers/lunar_data_provider.dart';
 import '../core/providers/app_provider.dart';
 import '../core/providers/chat_provider.dart';
+import '../core/providers/premium_provider.dart';
+import '../core/models/user_model.dart' show PlanTier;
 import '../core/models/chat_message.dart' show EmotionTag;
 import '../core/services/firestore_service.dart';
 import '../widgets/guest_gate.dart';
+import '../screen/paywall/paywall_screen.dart';
 import '../models/avatar_model.dart';
 import '../core/providers/avatar_provider.dart';
 import '../widgets/lunar_avatar_widget.dart';
@@ -436,8 +439,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                         _sectionLabel('Settings', '⚙️'),
                         const SizedBox(height: 14),
                         _settingsCard(appProvider),
+                        const SizedBox(height: 28),
+                        _sectionLabel('Subscription', '✨'),
+                        const SizedBox(height: 14),
+                        _subscriptionCard(),
                         const SizedBox(height: 24),
                         _logoutButton(),
+                        const SizedBox(height: 8),
+                        _deleteAccountButton(),
                         const SizedBox(height: 100),
                       ],
                     ),
@@ -2399,6 +2408,106 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ──────────────────────────────────────────────────────────
+  //  SUBSCRIPTION CARD
+  // ──────────────────────────────────────────────────────────
+  Widget _subscriptionCard() {
+    final premium = context.watch<PremiumProvider>();
+    final isPaid  = premium.isPaid;
+    final Color planColor = premium.tier == PlanTier.premium
+        ? const Color(0xFFFFD700)
+        : premium.tier == PlanTier.plus
+            ? const Color(0xFF4FC3F7)
+            : _prPurple;
+
+    return GestureDetector(
+      onTap: isPaid
+          ? null
+          : () => PaywallGate.show(context,
+              featureHint: 'Deepen your wellness journey'),
+      child: AnimatedBuilder(
+        animation: _glowAnim,
+        builder: (_, __) => ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    planColor.withOpacity(0.18),
+                    const Color(0xFF0A0118),
+                  ],
+                ),
+                border: Border.all(
+                    color: planColor
+                        .withOpacity(_glowAnim.value * 0.55),
+                    width: 1.2),
+              ),
+              child: Row(children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: planColor.withOpacity(0.15),
+                    border: Border.all(
+                        color: planColor.withOpacity(0.4),
+                        width: 1),
+                  ),
+                  child: Center(
+                    child: Text(premium.planEmoji,
+                        style: const TextStyle(fontSize: 22)),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(premium.planName,
+                        style: TextStyle(
+                            color: planColor,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 3),
+                    Text(
+                      isPaid
+                          ? 'Your ${premium.planName} is active ✨'
+                          : 'Unlock your full emotional companion 💜',
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.52),
+                          fontSize: 12),
+                    ),
+                  ]),
+                ),
+                if (!isPaid)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: LinearGradient(
+                          colors: [_prPurple, _prPink.withOpacity(0.6)]),
+                    ),
+                    child: const Text('Start journey',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700)),
+                  ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────
   //  LOGOUT BUTTON
   // ──────────────────────────────────────────────────────────
   Widget _logoutButton() {
@@ -2440,6 +2549,82 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
       ),
     );
+  }
+
+  // ── Delete Account button ──────────────────────────────────
+  Widget _deleteAccountButton() {
+    final auth = context.watch<LunarAuthProvider>();
+    // Only show for real signed-in users (not guests, not demo mode)
+    if (auth.isGuest || !auth.isAuthenticated) return const SizedBox.shrink();
+
+    return GestureDetector(
+      onTap: () => _handleDeleteAccount(auth),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(Icons.delete_forever_rounded,
+              color: const Color(0xFFEF5350).withOpacity(0.6), size: 16),
+          const SizedBox(width: 6),
+          Text('Delete Account',
+              style: TextStyle(
+                  color: const Color(0xFFEF5350).withOpacity(0.6),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500)),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _handleDeleteAccount(LunarAuthProvider auth) async {
+    HapticFeedback.heavyImpact();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.8),
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A0535),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: const Color(0xFFEF5350).withOpacity(0.4)),
+        ),
+        title: const Text('Delete Account?',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        content: const Text(
+          'This will permanently delete your account and ALL your data — '
+          'journal entries, mood logs, cycle history, AI memories, community posts — everything.\n\n'
+          'This cannot be undone.',
+          style: TextStyle(color: Color(0xFFFFB74D), fontSize: 13, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel',
+                style: TextStyle(color: Colors.white.withOpacity(0.6))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete Everything',
+                style: TextStyle(
+                    color: Color(0xFFEF5350), fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final ok = await auth.deleteAccount();
+    if (!mounted) return;
+    if (!ok && auth.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(auth.error!),
+          backgroundColor: const Color(0xFFEF5350),
+        ),
+      );
+      auth.clearError();
+    }
+    // On success, LunarAuthProvider emits isAuthenticated = false
+    // and main.dart AnimatedSwitcher navigates back to WelcomeScreen.
   }
 
   // ──────────────────────────────────────────────────────────

@@ -22,6 +22,7 @@ class AppProvider extends ChangeNotifier {
   static const _kReminderHour = 'reminder_hour_v1';
   static const _kReminderMin = 'reminder_min_v1';
   static const _kUserName = 'user_display_name_v1';
+  static const _kEmotionalIntent = 'emotional_intent_v1';
 
   // ── State ──────────────────────────────────────────────────
   bool _onboardingComplete = false;
@@ -33,6 +34,7 @@ class AppProvider extends ChangeNotifier {
   int _reminderHour = 9;
   int _reminderMinute = 0;
   String _userName = '';
+  String _emotionalIntent = '';
   bool _isReady = false;
 
   // ═══════════════════════════════════════════════════════════
@@ -48,6 +50,7 @@ class AppProvider extends ChangeNotifier {
   int get reminderHour => _reminderHour;
   int get reminderMinute => _reminderMinute;
   String get userName => _userName;
+  String get emotionalIntent => _emotionalIntent;
   bool get isReady => _isReady;
 
   // ═══════════════════════════════════════════════════════════
@@ -65,6 +68,7 @@ class AppProvider extends ChangeNotifier {
     _reminderHour = LocalCache.getInt(_kReminderHour) ?? 9;
     _reminderMinute = LocalCache.getInt(_kReminderMin) ?? 0;
     _userName = LocalCache.getString(_kUserName) ?? '';
+    _emotionalIntent = LocalCache.getString(_kEmotionalIntent) ?? '';
     _isReady = true;
     notifyListeners();
   }
@@ -98,6 +102,12 @@ class AppProvider extends ChangeNotifier {
   Future<void> setUserName(String name) async {
     _userName = name;
     await LocalCache.setString(_kUserName, name);
+    notifyListeners();
+  }
+
+  Future<void> setEmotionalIntent(String intent) async {
+    _emotionalIntent = intent;
+    await LocalCache.setString(_kEmotionalIntent, intent);
     notifyListeners();
   }
 

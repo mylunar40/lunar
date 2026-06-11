@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌙 LUNAR: Intent Detection Onboarding Blueprint</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #f8f9fa 0%, #f0e6ff 100%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(138, 43, 226, 0.1);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #8a2be2 0%, #d946ef 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+        }
+
+        .subtitle {
+            font-size: 0.9em;
+            margin-top: 10px;
+            opacity: 0.9;
+        }
+
+        .toc {
+            background: #f0e6ff;
+            padding: 30px;
+            border-bottom: 2px solid #d946ef;
+        }
+
+        .toc h2 {
+            color: #8a2be2;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .toc ul {
+            list-style: none;
+            columns: 2;
+            gap: 20px;
+        }
+
+        .toc li {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(138, 43, 226, 0.2);
+        }
+
+        .toc a {
+            color: #8a2be2;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .toc a:hover {
+            color: #d946ef;
+        }
+
+        main {
+            padding: 40px 30px;
+        }
+
+        section {
+            margin-bottom: 50px;
+        }
+
+        section > h2 {
+            color: #8a2be2;
+            font-size: 2em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #d946ef;
+        }
+
+        section > h3 {
+            color: #d946ef;
+            font-size: 1.4em;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+
+        section > h4 {
+            color: #8a2be2;
+            font-size: 1.1em;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .phase-box {
+            background: #f8f9fa;
+            border-left: 4px solid #8a2be2;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+            border-left: 4px solid #ff9800;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .success-box {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            border-left: 4px solid #4caf50;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        thead {
+            background: linear-gradient(135deg, #8a2be2 0%, #d946ef 100%);
+            color: white;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        ul, ol {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #d946ef;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            margin: 0 5px 5px 0;
+            font-weight: 600;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(to bottom, #8a2be2, #d946ef);
+        }
+
+        .timeline-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .timeline-item strong {
+            color: #8a2be2;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .metric-item {
+            background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #d946ef;
+        }
+
+        .metric-item h4 {
+            color: #8a2be2;
+            margin-bottom: 10px;
+        }
+
+        .metric-item p {
+            color: #555;
+            font-size: 0.95em;
+        }
+
+        .checklist {
+            list-style: none;
+            margin: 20px 0;
+        }
+
+        .checklist li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .checklist li::before {
+            content: '☐';
+            color: #8a2be2;
+            font-size: 1.2em;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        footer {
+            background: #f0e6ff;
+            padding: 30px;
+            text-align: center;
+            color: #666;
+            border-top: 2px solid #d946ef;
+            margin-top: 40px;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #d946ef;
+        }
+
+        .summary-box {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border-left: 4px solid #1976d2;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+            .toc ul {
+                columns: 1;
+            }
+            main {
+                padding: 20px;
+            }
+            section > h2 {
+                font-size: 1.5em;
+            }
+            table {
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌙 LUNAR</h1>
+            <h1 style="font-size: 1.8em; font-weight: 300;">Intent Detection Onboarding Blueprint</h1>
+            <p class="subtitle">Senior Flutter Product Architect Analysis</p>
+        </header>
+
+        <div class="toc">
+            <h2>📋 Blueprint Overview</h2>
+            <ul>
+                <li><a href="#reusable">1. Reusable Assets</a></li>
+                <li><a href="#screens">2. New Screens</a></li>
+                <li><a href="#firestore">3. Firestore Fields</a></li>
+                <li><a href="#provider">4. Provider Fields</a></li>
+                <li><a href="#flow">5. Onboarding Flow</a></li>
+                <li><a href="#behavior">6. Post-Selection Behavior</a></li>
+                <li><a href="#prioritization">7. Build Prioritization</a></li>
+                <li><a href="#complexity">8. Complexity Assessment</a></li>
+                <li><a href="#files">9. Files Affected</a></li>
+                <li><a href="#roadmap">10. Implementation Roadmap</a></li>
+            </ul>
+        </div>
+
+        <main>
+            <section id="reusable">
+                <h2>1. What Already Exists (Reusable)</h2>
+                
+                <h3>Authentication & User Foundation</h3>
+                <ul>
+                    <li><strong>LunarAuthProvider:</strong> User auth state, email verification tracking</li>
+                    <li><strong>Users Firestore Collection:</strong> Base user document structure</li>
+                    <li><strong>Account Creation Flow:</strong> onboarding_screen.dart or sign_up_screen.dart</li>
+                    <li><strong>Premium System:</strong> isActivePremium flag already tracked per user</li>
+                    <li><strong>Email Verification:</strong> Already implemented</li>
+                </ul>
+
+                <h3>State Management</h3>
+                <ul>
+                    <li><strong>Provider Pattern:</strong> All screens use ChangeNotifier + Consumer</li>
+                    <li><strong>User Data Persistence:</strong> Firebase integration for user updates</li>
+                    <li><strong>Route Navigation:</strong> Named routes system in place</li>
+                </ul>
+
+                <h3>UI Patterns</h3>
+                <ul>
+                    <li><strong>Multi-step Screens:</strong> Onboarding precedent exists</li>
+                    <li><strong>Radio Button/Selection UI:</strong> Used in settings/preferences</li>
+                    <li><strong>Bottom Sheet Navigation:</strong> Used for feature access</li>
+                    <li><strong>Progress Indicators:</strong> Can reuse existing patterns</li>
+                </ul>
+
+                <h3>Content Systems</h3>
+                <ul>
+                    <li><strong>Journal Prompts:</strong> System exists for conditional prompts</li>
+                    <li><strong>Cycle Tracking UI:</strong> Already built</li>
+                    <li><strong>Pregnancy Mode:</strong> Already has specialized views</li>
+                    <li><strong>Theme System:</strong> Color accents already implemented</li>
+                </ul>
+            </section>
+
+            <section id="screens">
+                <h2>2. New Screens Required</h2>
+
+                <h3>Four New Screens</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Screen</th>
+                            <th>Purpose</th>
+                            <th>Complexity</th>
+                            <th>Approx. LOC</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Intent Selection Screen</strong></td>
+                            <td>7 radio button options for emotional intent</td>
+                            <td>Low</td>
+                            <td>250</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cycle Data Screen</strong></td>
+                            <td>LMP date + cycle length (conditional)</td>
+                            <td>Low</td>
+                            <td>200</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Personalization Consent Screen</strong></td>
+                            <td>3 checkboxes: Dashboard, Community, AI</td>
+                            <td>Low</td>
+                            <td>180</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Confirmation Card</strong></td>
+                            <td>Summary before proceeding to home</td>
+                            <td>Low</td>
+                            <td>150</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Modified Screens (Not New)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Screen</th>
+                            <th>Modification</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>main_home_screen</td>
+                            <td>Add intro banner if intent not set</td>
+                            <td>First-time guidance</td>
+                        </tr>
+                        <tr>
+                            <td>community_screen</td>
+                            <td>Show intent-filtered circles</td>
+                            <td>Discovery personalization</td>
+                        </tr>
+                        <tr>
+                            <td>ai_chat_screen</td>
+                            <td>Prepend intent-specific greeting</td>
+                            <td>Emotional resonance</td>
+                        </tr>
+                        <tr>
+                            <td>journal_screen</td>
+                            <td>Filter prompts by intent</td>
+                            <td>Relevant guidance</td>
+                        </tr>
+                        <tr>
+                            <td>mood_tracking_screen</td>
+                            <td>Add intent context to insights</td>
+                            <td>Analysis personalization</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="firestore">
+                <h2>3. New Firestore Fields Required</h2>
+
+                <h3>Recommended: Extend users/{uid} Document</h3>
+
+                <div class="phase-box">
+                    <strong>Addition to users/{uid}:</strong><br><br>
+                    <code>userJourney: {</code><br>
+                    &nbsp;&nbsp;<code>intent: "breakup_recovery" | "anxiety" | ...</code><br>
+                    &nbsp;&nbsp;<code>intentSelectedAt: timestamp</code><br>
+                    &nbsp;&nbsp;<code>cycleTracking: boolean</code><br>
+                    &nbsp;&nbsp;<code>lastMenstrualPeriod: date (nullable)</code><br>
+                    &nbsp;&nbsp;<code>cycleLengthDays: integer (nullable)</code><br>
+                    &nbsp;&nbsp;<code>personalizationEnabled: boolean</code><br>
+                    &nbsp;&nbsp;<code>personalizationConsentAt: timestamp</code><br>
+                    <code>}</code><br><br>
+                    <code>onboardingProgress: {</code><br>
+                    &nbsp;&nbsp;<code>completedIntentSelection: boolean</code><br>
+                    &nbsp;&nbsp;<code>completedCycleData: boolean</code><br>
+                    &nbsp;&nbsp;<code>completedPersonalizationConsent: boolean</code><br>
+                    &nbsp;&nbsp;<code>onboardingCompletedAt: timestamp</code><br>
+                    <code>}</code>
+                </div>
+
+                <h3>Why This Structure?</h3>
+                <ul>
+                    <li>No extra document read (all user data in one place)</li>
+                    <li>Supports all 7 intents</li>
+                    <li>Optional cycle data (only populated if relevant)</li>
+                    <li>Tracks onboarding completion</li>
+                </ul>
+            </section>
+
+            <section id="provider">
+                <h2>4. New Provider Fields & Methods</h2>
+
+                <h3>Fields to Add to LunarAuthProvider</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Type</th>
+                            <th>Purpose</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>_userIntent</td>
+                            <td>String?</td>
+                            <td>Current user's selected intent</td>
+                        </tr>
+                        <tr>
+                            <td>_intentSelectedAt</td>
+                            <td>DateTime?</td>
+                            <td>When intent was selected</td>
+                        </tr>
+                        <tr>
+                            <td>_cycleTracking</td>
+                            <td>bool</td>
+                            <td>User opted into cycle data</td>
+                        </tr>
+                        <tr>
+                            <td>_cycleData</td>
+                            <td>Map?</td>
+                            <td>LMP, cycle length (if cycle intent)</td>
+                        </tr>
+                        <tr>
+                            <td>_personalizationEnabled</td>
+                            <td>bool</td>
+                            <td>AI/dashboard personalization enabled</td>
+                        </tr>
+                        <tr>
+                            <td>_onboardingComplete</td>
+                            <td>bool</td>
+                            <td>All 3 screens completed</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Methods to Add</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Method</th>
+                            <th>Purpose</th>
+                            <th>Trigger</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>setUserIntent(String)</td>
+                            <td>Save selected intent</td>
+                            <td>After Screen 1</td>
+                        </tr>
+                        <tr>
+                            <td>setCycleData(date, int)</td>
+                            <td>Save cycle info or skip</td>
+                            <td>After Screen 2</td>
+                        </tr>
+                        <tr>
+                            <td>setPersonalizationConsent(Map)</td>
+                            <td>Save privacy choices</td>
+                            <td>After Screen 3</td>
+                        </tr>
+                        <tr>
+                            <td>completeOnboarding()</td>
+                            <td>Mark flow as done</td>
+                            <td>After Screen 4</td>
+                        </tr>
+                        <tr>
+                            <td>refreshJourneyData()</td>
+                            <td>Reload from Firestore</td>
+                            <td>App launch</td>
+                        </tr>
+                        <tr>
+                            <td>getIntentColor()</td>
+                            <td>Return theme color by intent</td>
+                            <td>UI rendering</td>
+                        </tr>
+                        <tr>
+                            <td>getIntentEmoji()</td>
+                            <td>Return emoji by intent</td>
+                            <td>UI rendering</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="flow">
+                <h2>5. Onboarding Flow Specification</h2>
+
+                <h3>Path A: Brand New User (First Time)</h3>
+                <div class="timeline">
+                    <div class="timeline-item">
+                        [Auth] → [User Created] → [Check Intent]
+                    </div>
+                    <div class="timeline-item">
+                        Intent NULL? YES → [Show Intent Selection]
+                    </div>
+                    <div class="timeline-item">
+                        [Save Intent + Load Screen 2 Logic]
+                    </div>
+                    <div class="timeline-item">
+                        [Show Cycle Data Screen] (if relevant)
+                    </div>
+                    <div class="timeline-item">
+                        [Show Personalization Consent]
+                    </div>
+                    <div class="timeline-item">
+                        [Confirmation Card]
+                    </div>
+                    <div class="timeline-item">
+                        [Navigate to Home] → [Load Personalized Dashboard]
+                    </div>
+                </div>
+
+                <h3>Path B: Returning User (App Reopened)</h3>
+                <div class="timeline">
+                    <div class="timeline-item">
+                        [App Launched] → [Auth Check] → [User Intent Exists?]
+                    </div>
+                    <div class="timeline-item">
+                        YES → [Skip Onboarding] → [Load Home with User Intent Loaded]
+                    </div>
+                </div>
+
+                <h3>Screen Validation Rules</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Screen</th>
+                            <th>Field</th>
+                            <th>Rule</th>
+                            <th>Error Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Intent Selection</td>
+                            <td>intent</td>
+                            <td>Must select 1 of 7</td>
+                            <td>"Please select your reason for joining"</td>
+                        </tr>
+                        <tr>
+                            <td>Cycle Data</td>
+                            <td>LMP</td>
+                            <td>Valid date required if shown</td>
+                            <td>"Select a valid date"</td>
+                        </tr>
+                        <tr>
+                            <td>Cycle Data</td>
+                            <td>Cycle length</td>
+                            <td>15-45 days range</td>
+                            <td>"Typical cycle is 21-35 days"</td>
+                        </tr>
+                        <tr>
+                            <td>Personalization</td>
+                            <td>—</td>
+                            <td>At least 1 checkbox</td>
+                            <td>"Enable at least one personalization"</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="behavior">
+                <h2>6. Post-Selection Behavior (By Intent)</h2>
+
+                <h3>On User Selects Intent, Execute:</h3>
+
+                <h4>Breakup Recovery</h4>
+                <div class="phase-box">
+                    1. Save intent = "breakup_recovery"<br>
+                    2. Skip cycle screen<br>
+                    3. Load home with: "Healing Moment" card<br>
+                    4. Auto-add "Breakup Healing" community circle<br>
+                    5. Fire analytics: "intent_selected:breakup_recovery"
+                </div>
+
+                <h4>Anxiety & Stress</h4>
+                <div class="phase-box">
+                    1. Save intent = "anxiety"<br>
+                    2. Skip cycle screen<br>
+                    3. Load home with: "Breathe with Lunar" card<br>
+                    4. Auto-add "Anxiety Warriors" circle<br>
+                    5. Fire analytics: "intent_selected:anxiety"
+                </div>
+
+                <h4>Pregnancy</h4>
+                <div class="phase-box">
+                    1. Save intent = "pregnancy"<br>
+                    2. SHOW cycle screen (required)<br>
+                    3. Calculate gestational week from LMP<br>
+                    4. Auto-add "Expecting Moms" + "Pregnancy Support" circles<br>
+                    5. Activate Pregnancy Mode
+                </div>
+
+                <h4>Cycle Wellness</h4>
+                <div class="phase-box">
+                    1. Save intent = "cycle_wellness"<br>
+                    2. SHOW cycle screen (required)<br>
+                    3. Calculate current phase from LMP<br>
+                    4. Auto-add "Cycle Warriors" circle<br>
+                    5. Load home with: "Cycle Phase Insight" card
+                </div>
+
+                <p style="margin-top: 20px;"><em>(Similar patterns for Self Love, Relationship, Emotional Growth)</em></p>
+            </section>
+
+            <section id="prioritization">
+                <h2>7. Build Now / Build Later / Ignore Matrix</h2>
+
+                <h3>TIER 1: BUILD NOW (MVP Launch Blocker)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Why</th>
+                            <th>Timeline</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Intent Selection Screen</td>
+                            <td>Core to entire strategy</td>
+                            <td>2 days</td>
+                        </tr>
+                        <tr>
+                            <td>Firestore Schema (userJourney)</td>
+                            <td>Foundation for personalization</td>
+                            <td>1 day</td>
+                        </tr>
+                        <tr>
+                            <td>LunarAuthProvider Extensions</td>
+                            <td>State management backbone</td>
+                            <td>1 day</td>
+                        </tr>
+                        <tr>
+                            <td>Cycle Data Screen</td>
+                            <td>Required for 2 of 7 intents</td>
+                            <td>1 day</td>
+                        </tr>
+                        <tr>
+                            <td>Personalization Consent Screen</td>
+                            <td>Legal + UX requirement</td>
+                            <td>1 day</td>
+                        </tr>
+                        <tr>
+                            <td>Post-Intent Navigation</td>
+                            <td>Route users to correct home</td>
+                            <td>1 day</td>
+                        </tr>
+                        <tr>
+                            <td>AI Intent Greetings</td>
+                            <td>Emotional resonance</td>
+                            <td>2 days</td>
+                        </tr>
+                        <tr>
+                            <td>Home Dashboard Intent Adaptation</td>
+                            <td>Show correct primary card</td>
+                            <td>3 days</td>
+                        </tr>
+                        <tr>
+                            <td>Community Intent Filtering</td>
+                            <td>Auto-join relevant circles</td>
+                            <td>2 days</td>
+                        </tr>
+                        <tr>
+                            <td>Analytics Events</td>
+                            <td>Track intent selection cohorts</td>
+                            <td>1 day</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <p style="text-align: center; margin-top: 20px;"><strong>Total: 15 days (2.5 weeks) with team of 3</strong></p>
+
+                <h3>TIER 2: BUILD NEXT (Weeks 2-3 Post-Launch)</h3>
+                <ul>
+                    <li>Journal Prompts by Intent (3 days)</li>
+                    <li>Mood Insights Personalization (3 days)</li>
+                    <li>Healing Milestones & Badges (3 days)</li>
+                    <li>Push Notification Strategy (2 days)</li>
+                    <li>Intent Change Flow / Settings (1 day)</li>
+                </ul>
+
+                <h3>IGNORE (For This MVP)</h3>
+                <ul>
+                    <li><strong>Social leaderboards:</strong> Breaks emotional safety</li>
+                    <li><strong>Intent prediction:</strong> Too early, need data</li>
+                    <li><strong>Couple's mode UI:</strong> Separate feature</li>
+                    <li><strong>Advanced ML personalization:</strong> Overkill for <1,000 users</li>
+                </ul>
+            </section>
+
+            <section id="complexity">
+                <h2>8. Implementation Complexity Assessment</h2>
+
+                <h3>Overall: MEDIUM-HIGH</h3>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Component</th>
+                            <th>Complexity</th>
+                            <th>Reasoning</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Intent Selection UI</td>
+                            <td>🟢 LOW</td>
+                            <td>Standard radio button form</td>
+                        </tr>
+                        <tr>
+                            <td>Cycle Data Screen</td>
+                            <td>🟢 LOW</td>
+                            <td>Date picker + text input</td>
+                        </tr>
+                        <tr>
+                            <td>Personalization Consent</td>
+                            <td>🟢 LOW</td>
+                            <td>Checkbox form</td>
+                        </tr>
+                        <tr>
+                            <td>Firestore Schema</td>
+                            <td>🟡 MEDIUM</td>
+                            <td>Data migration strategy needed</td>
+                        </tr>
+                        <tr>
+                            <td>Provider State Management</td>
+                            <td>🟡 MEDIUM</td>
+                            <td>6+ new fields, watchers, getters</td>
+                        </tr>
+                        <tr>
+                            <td>Post-Intent Navigation</td>
+                            <td>🟡 MEDIUM</td>
+                            <td>Conditional routing + data loading</td>
+                        </tr>
+                        <tr>
+                            <td>Dashboard Personalization</td>
+                            <td>🟡 MEDIUM</td>
+                            <td>7 intent variants, theme switching</td>
+                        </tr>
+                        <tr>
+                            <td>Community Auto-Join</td>
+                            <td>🟡 MEDIUM</td>
+                            <td>Circle lookup + subscription logic</td>
+                        </tr>
+                        <tr>
+                            <td>AI Greeting Adaptation</td>
+                            <td>🟡 MEDIUM</td>
+                            <td>Prompt injection at runtime</td>
+                        </tr>
+                        <tr>
+                            <td>Analytics Cohort Tracking</td>
+                            <td>🟡 MEDIUM</td>
+                            <td>Event tagging + dashboard</td>
+                        </tr>
+                        <tr>
+                            <td>Content Management</td>
+                            <td>🟠 HIGH</td>
+                            <td>7 intent libraries needed</td>
+                        </tr>
+                        <tr>
+                            <td>Data Migration</td>
+                            <td>🟠 HIGH</td>
+                            <td>Handling existing 0 users</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Bottleneck</h3>
+                <p>Content creation (breakup rituals, anxiety techniques) will take 2+ weeks across team</p>
+            </section>
+
+            <section id="files">
+                <h2>9. Estimated Files Affected</h2>
+
+                <h3>New Files to Create (10 files)</h3>
+                <ul>
+                    <li><strong>lib/screen/onboarding/</strong>
+                        <ul>
+                            <li>intent_selection_screen.dart (250 LOC)</li>
+                            <li>cycle_data_screen.dart (200 LOC)</li>
+                            <li>personalization_consent_screen.dart (180 LOC)</li>
+                            <li>intent_confirmation_card.dart (150 LOC)</li>
+                        </ul>
+                    </li>
+                    <li><strong>lib/services/</strong>
+                        <ul>
+                            <li>intent_service.dart (100 LOC)</li>
+                        </ul>
+                    </li>
+                    <li><strong>lib/theme/</strong>
+                        <ul>
+                            <li>intent_colors.dart (50 LOC)</li>
+                        </ul>
+                    </li>
+                    <li><strong>lib/widgets/onboarding/</strong>
+                        <ul>
+                            <li>intent_radio_tile.dart (80 LOC)</li>
+                            <li>progress_indicator.dart (60 LOC)</li>
+                        </ul>
+                    </li>
+                    <li><strong>lib/models/</strong>
+                        <ul>
+                            <li>user_journey_model.dart (80 LOC)</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h3>Modified Files (12 files)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Changes</th>
+                            <th>Lines Added</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>lib/core/providers/user_provider.dart</td>
+                            <td>Add 6 journey fields, 8 methods, 5 getters</td>
+                            <td>+120</td>
+                        </tr>
+                        <tr>
+                            <td>lib/main.dart</td>
+                            <td>Add onboarding check on startup</td>
+                            <td>+30</td>
+                        </tr>
+                        <tr>
+                            <td>lib/screen/main_home_screen.dart</td>
+                            <td>Add banner if intent not set</td>
+                            <td>+40</td>
+                        </tr>
+                        <tr>
+                            <td>lib/screen/community_screen.dart</td>
+                            <td>Filter circles by intent</td>
+                            <td>+25</td>
+                        </tr>
+                        <tr>
+                            <td>lib/screen/ai_chat_screen.dart</td>
+                            <td>Prepend intent-specific prompt</td>
+                            <td>+15</td>
+                        </tr>
+                        <tr>
+                            <td>lib/screen/journal_screen.dart</td>
+                            <td>Filter prompts by intent</td>
+                            <td>+20</td>
+                        </tr>
+                        <tr>
+                            <td>lib/screen/mood_tracking_screen.dart</td>
+                            <td>Add intent context to insights</td>
+                            <td>+30</td>
+                        </tr>
+                        <tr>
+                            <td>lib/services/firebase_service.dart</td>
+                            <td>Add intent document write methods</td>
+                            <td>+50</td>
+                        </tr>
+                        <tr>
+                            <td>lib/theme/app_theme.dart</td>
+                            <td>Add intent-specific color schemes</td>
+                            <td>+35</td>
+                        </tr>
+                        <tr>
+                            <td>lib/models/user_model.dart</td>
+                            <td>Add userJourney to UserModel</td>
+                            <td>+20</td>
+                        </tr>
+                        <tr>
+                            <td>.firebase/firestore.rules</td>
+                            <td>Add rules for userJourney fields</td>
+                            <td>+10</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <p style="text-align: center; margin-top: 20px;"><strong>Total: ~440 new lines of code across system</strong></p>
+            </section>
+
+            <section id="roadmap">
+                <h2>10. Production-Ready Implementation Roadmap</h2>
+
+                <h3>PHASE 1: FOUNDATION (Week 1, Days 1-5)</h3>
+
+                <h4>Sprint 1.1: Data Layer (Days 1-2)</h4>
+                <div class="success-box">
+                    ✅ Firestore schema documented<br>
+                    ✅ user_journey_model.dart created<br>
+                    ✅ intent_service.dart with helpers<br>
+                    ✅ Migration strategy documented<br><br>
+                    <strong>Acceptance Criteria:</strong> Models compile clean, no breaking changes
+                </div>
+
+                <h4>Sprint 1.2: State Management (Days 2-3)</h4>
+                <div class="success-box">
+                    ✅ LunarAuthProvider extended<br>
+                    ✅ All methods + getters implemented<br>
+                    ✅ Unit tests for state transitions<br><br>
+                    <strong>Acceptance Criteria:</strong> >80% test coverage, no errors
+                </div>
+
+                <h4>Sprint 1.3: Navigation Setup (Days 3-4)</h4>
+                <div class="success-box">
+                    ✅ Routes defined for 4 screens<br>
+                    ✅ Conditional logic on app launch<br>
+                    ✅ Navigation tests<br><br>
+                    <strong>Acceptance Criteria:</strong> No route conflicts, navigation works correctly
+                </div>
+
+                <h3>PHASE 2: UI SCREENS (Week 1-2, Days 5-10)</h3>
+
+                <div class="phase-box">
+                    <strong>Sprint 2.1:</strong> Intent Selection Screen (Days 5-6)<br>
+                    <strong>Sprint 2.2:</strong> Cycle Data Screen (Days 6-7)<br>
+                    <strong>Sprint 2.3:</strong> Personalization Consent Screen (Days 7-8)<br>
+                    <strong>Sprint 2.4:</strong> Confirmation Card (Days 8-9)
+                </div>
+
+                <h3>PHASE 3: WIRING & INTEGRATION (Week 2, Days 11-15)</h3>
+
+                <div class="phase-box">
+                    <strong>Sprint 3.1:</strong> Provider Integration (Days 11-12)<br>
+                    <strong>Sprint 3.2:</strong> Onboarding Flow Testing (Days 12-13)<br>
+                    <strong>Sprint 3.3:</strong> Migration Strategy (Days 13-14)
+                </div>
+
+                <h3>PHASE 4: PERSONALIZATION ENGINE (Week 2-3, Days 12-17)</h3>
+
+                <div class="phase-box">
+                    <strong>Sprint 4.1:</strong> Dashboard Personalization (Days 12-14)<br>
+                    <strong>Sprint 4.2:</strong> AI Greeting Adaptation (Days 14-16)<br>
+                    <strong>Sprint 4.3:</strong> Community Intent Filtering (Days 16-17)
+                </div>
+
+                <h3>PHASE 5: QA & LAUNCH (Week 3, Days 17-20)</h3>
+
+                <div class="phase-box">
+                    <strong>Sprint 5.1:</strong> Analytics Events (Days 17-18)<br>
+                    <strong>Sprint 5.2:</strong> Comprehensive QA (Days 18-19)<br>
+                    <strong>Sprint 5.3:</strong> Documentation + Handoff (Days 19-20)
+                </div>
+            </section>
+
+            <section id="summary">
+                <h2>Summary: Intent Detection Onboarding</h2>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Aspect</th>
+                            <th>Assessment</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Reusable Components</td>
+                            <td>60% (auth, state management, UI patterns)</td>
+                        </tr>
+                        <tr>
+                            <td>New Screens</td>
+                            <td>4 screens required</td>
+                        </tr>
+                        <tr>
+                            <td>New Firestore Fields</td>
+                            <td>9 fields in users document</td>
+                        </tr>
+                        <tr>
+                            <td>New Provider Methods</td>
+                            <td>8 methods + 5 getters</td>
+                        </tr>
+                        <tr>
+                            <td>Timeline (MVP)</td>
+                            <td>20 days (3 weeks) with team of 3</td>
+                        </tr>
+                        <tr>
+                            <td>Complexity</td>
+                            <td>Medium-High (content bottleneck)</td>
+                        </tr>
+                        <tr>
+                            <td>Files to Create</td>
+                            <td>10 new files</td>
+                        </tr>
+                        <tr>
+                            <td>Files to Modify</td>
+                            <td>12 existing files</td>
+                        </tr>
+                        <tr>
+                            <td>Expected 30-Day Retention Lift</td>
+                            <td>+10-15% (35% → 45-50%)</td>
+                        </tr>
+                        <tr>
+                            <td>Launch Readiness</td>
+                            <td>Ready for week 2 sprint</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3 style="margin-top: 30px; text-align: center;">✅ Ready to Build</h3>
+                <p style="text-align: center; color: #666;">Approve roadmap → Assign team → Begin Week 1 sprints</p>
+            </section>
+        </main>
+
+        <footer>
+            <p><strong>Lunar: Intent Detection Onboarding Blueprint</strong></p>
+            <p>Senior Flutter Product Architect Analysis</p>
+            <p style="margin-top: 15px; font-size: 0.9em;">No Code. Pure Architecture.</p>
+        </footer>
+    </div>
+</body>
+</html>
