@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "795015095091",
-    "project_id": "lunar-ai-8e8dc",
-    "storage_bucket": "lunar-ai-8e8dc.firebasestorage.app"
+    "project_number": "575809496118",
+    "project_id": "lunar-ai-app",
+    "storage_bucket": "lunar-ai-app.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:795015095091:android:df0518fa92d2ea0aebd446",
+        "mobilesdk_app_id": "1:575809496118:android:99005333c5c6eda784e497",
         "android_client_info": {
           "package_name": "com.example.lunar"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCDOKtvoJhy_mMqafXA2mNs0Vhdc5q_EkQ"
+          "current_key": "AIzaSyCANTL8l93PylS1q5Nbj5WE59oVsefAMA8"
         }
       ],
       "services": {

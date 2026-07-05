@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../data/local_cache.dart';
+import '../services/firestore_service.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  APP PROVIDER
@@ -78,11 +79,26 @@ class AppProvider extends ChangeNotifier {
   // ═══════════════════════════════════════════════════════════
 
   /// Called when user finishes the onboarding flow.
-  Future<void> completeOnboarding() async {
+  /// Saves to both local cache and Firestore (if authenticated).
+  /// [uid] is optional — if provided, saves to Firestore for cross-device persistence.
+  Future<void> completeOnboarding({String? uid}) async {
     _onboardingComplete = true;
     _isFirstLaunch = false;
     await LocalCache.setBool(_kOnboarding, true);
     await LocalCache.setBool(_kFirstLaunch, false);
+    
+    // Save to Firestore for authenticated users (source of truth for launch flow)
+    if (uid != null && uid.isNotEmpty) {
+      try {
+        await FirestoreService.updateUser(uid, {
+          'onboardingCompleted': true,
+        });
+      } catch (e) {
+        debugPrint('[AppProvider] Failed to save onboarding to Firestore: $e');
+        // Non-fatal: local cache is still valid
+      }
+    }
+    
     notifyListeners();
   }
 

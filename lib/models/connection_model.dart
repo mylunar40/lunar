@@ -12,17 +12,23 @@ enum ConnectionRequestStatus { pending, accepted, rejected }
 extension ConnectionRequestStatusX on ConnectionRequestStatus {
   String get name {
     switch (this) {
-      case ConnectionRequestStatus.pending:  return 'pending';
-      case ConnectionRequestStatus.accepted: return 'accepted';
-      case ConnectionRequestStatus.rejected: return 'rejected';
+      case ConnectionRequestStatus.pending:
+        return 'pending';
+      case ConnectionRequestStatus.accepted:
+        return 'accepted';
+      case ConnectionRequestStatus.rejected:
+        return 'rejected';
     }
   }
 
   static ConnectionRequestStatus fromString(String? s) {
     switch (s) {
-      case 'accepted': return ConnectionRequestStatus.accepted;
-      case 'rejected': return ConnectionRequestStatus.rejected;
-      default:         return ConnectionRequestStatus.pending;
+      case 'accepted':
+        return ConnectionRequestStatus.accepted;
+      case 'rejected':
+        return ConnectionRequestStatus.rejected;
+      default:
+        return ConnectionRequestStatus.pending;
     }
   }
 }
@@ -83,29 +89,31 @@ class ConnectionRequest {
   }
 
   Map<String, dynamic> toMap() => {
-    'fromUid':           fromUid,
-    'toUid':             toUid,
-    'fromPseudonym':     fromPseudonym,
-    'fromAvatarEmoji':   fromAvatarEmoji,
-    'fromAvatarColorHex': fromAvatarColorHex,
-    'toPseudonym':       toPseudonym,
-    'status':            status.name,
-    'createdAt':         Timestamp.fromDate(createdAt),
-    'respondedAt':       respondedAt != null ? Timestamp.fromDate(respondedAt!) : null,
-  };
+        'fromUid': fromUid,
+        'toUid': toUid,
+        'fromPseudonym': fromPseudonym,
+        'fromAvatarEmoji': fromAvatarEmoji,
+        'fromAvatarColorHex': fromAvatarColorHex,
+        'toPseudonym': toPseudonym,
+        'status': status.name,
+        'createdAt': Timestamp.fromDate(createdAt),
+        'respondedAt':
+            respondedAt != null ? Timestamp.fromDate(respondedAt!) : null,
+      };
 
-  ConnectionRequest copyWith({ConnectionRequestStatus? status, DateTime? respondedAt}) {
+  ConnectionRequest copyWith(
+      {ConnectionRequestStatus? status, DateTime? respondedAt}) {
     return ConnectionRequest(
-      id:                 id,
-      fromUid:            fromUid,
-      toUid:              toUid,
-      fromPseudonym:      fromPseudonym,
-      fromAvatarEmoji:    fromAvatarEmoji,
+      id: id,
+      fromUid: fromUid,
+      toUid: toUid,
+      fromPseudonym: fromPseudonym,
+      fromAvatarEmoji: fromAvatarEmoji,
       fromAvatarColorHex: fromAvatarColorHex,
-      toPseudonym:        toPseudonym,
-      status:             status ?? this.status,
-      createdAt:          createdAt,
-      respondedAt:        respondedAt ?? this.respondedAt,
+      toPseudonym: toPseudonym,
+      status: status ?? this.status,
+      createdAt: createdAt,
+      respondedAt: respondedAt ?? this.respondedAt,
     );
   }
 }
@@ -138,15 +146,16 @@ class LunarConnection {
       id: id,
       uid1: map['uid1'] as String? ?? '',
       uid2: map['uid2'] as String? ?? '',
-      connectedAt: (map['connectedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      connectedAt:
+          (map['connectedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
   Map<String, dynamic> toMap() => {
-    'uid1':         uid1,
-    'uid2':         uid2,
-    'connectedAt':  Timestamp.fromDate(connectedAt),
-  };
+        'uid1': uid1,
+        'uid2': uid2,
+        'connectedAt': Timestamp.fromDate(connectedAt),
+      };
 
   /// Canonical doc id: sorted uid pair with underscore separator.
   static String makeId(String uidA, String uidB) {
@@ -174,18 +183,18 @@ class BlockedUser {
 
   factory BlockedUser.fromMap(String id, Map<String, dynamic> map) {
     return BlockedUser(
-      id:         id,
+      id: id,
       blockerUid: map['blockerUid'] as String? ?? '',
       blockedUid: map['blockedUid'] as String? ?? '',
-      blockedAt:  (map['blockedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      blockedAt: (map['blockedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
   Map<String, dynamic> toMap() => {
-    'blockerUid': blockerUid,
-    'blockedUid': blockedUid,
-    'blockedAt':  Timestamp.fromDate(blockedAt),
-  };
+        'blockerUid': blockerUid,
+        'blockedUid': blockedUid,
+        'blockedAt': Timestamp.fromDate(blockedAt),
+      };
 
   static String makeId(String blockerUid, String blockedUid) =>
       '${blockerUid}_$blockedUid';

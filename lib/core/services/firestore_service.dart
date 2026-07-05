@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 
 /// Firestore data layer — all collections managed here.
@@ -24,11 +25,32 @@ class FirestoreService {
     return LunarUserModel.fromMap(doc.data()!, doc.id);
   }
 
-  static Future<void> updateUser(String uid, Map<String, dynamic> data) =>
-      _db.collection('users').doc(uid).update({
+  static Future<void> updateUser(String uid, Map<String, dynamic> data) async {
+    try {
+      final projectId = _db.app.options.projectId ?? 'unknown';
+      final collectionPath = 'users';
+      debugPrint('[FirestoreService.updateUser] Starting write:');
+      debugPrint('  Firebase Project ID: $projectId');
+      debugPrint('  Current UID: $uid');
+      debugPrint('  Collection: $collectionPath');
+      debugPrint('  Document ID: $uid');
+      debugPrint('  Data keys: ${data.keys.toList()}');
+
+      await _db.collection('users').doc(uid).set({
         ...data,
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
+
+      debugPrint('[FirestoreService.updateUser] Write succeeded.');
+    } catch (e) {
+      debugPrint('[FirestoreService.updateUser] Write FAILED');
+      debugPrint('  Exception type: ${e.runtimeType}');
+      debugPrint('  Exception message: $e');
+      debugPrint('  Full exception: $e');
+      debugPrint('  Stack trace: ${StackTrace.current}');
+      rethrow;
+    }
+  }
 
   static Stream<LunarUserModel?> userStream(String uid) =>
       _db.collection('users').doc(uid).snapshots().map((doc) {
@@ -43,7 +65,8 @@ class FirestoreService {
   // path: users/{uid}/cycles — do NOT call these methods.
   // They are kept here only to avoid breaking any potential future callers
   // and will be removed in the next cleanup pass.
-  @Deprecated('Use CycleRepository.pushToFirestore() — writes users/{uid}/cycles subcollection')
+  @Deprecated(
+      'Use CycleRepository.pushToFirestore() — writes users/{uid}/cycles subcollection')
   static Future<DocumentReference> saveCycleLog({
     required String uid,
     required DateTime periodDate,
@@ -58,7 +81,8 @@ class FirestoreService {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-  @Deprecated('Use CycleRepository.fetchFromFirestore() — reads users/{uid}/cycles subcollection')
+  @Deprecated(
+      'Use CycleRepository.fetchFromFirestore() — reads users/{uid}/cycles subcollection')
   static Stream<QuerySnapshot<Map<String, dynamic>>> cycleStream(String uid) =>
       _db
           .collection('cycles')
@@ -303,6 +327,26 @@ class FirestoreService {
     return ref;
   }
 
+  static Future<DocumentReference> createCommunityActivity({
+    required String uid,
+    required String actorUid,
+    required String type,
+    required String text,
+    String? postId,
+    String? storyId,
+  }) {
+    return _db.collection('community_activity').add({
+      'uid': uid,
+      'actorUid': actorUid,
+      'type': type,
+      'text': text,
+      if (postId != null) 'postId': postId,
+      if (storyId != null) 'storyId': storyId,
+      'read': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   static Stream<QuerySnapshot<Map<String, dynamic>>> commentsStream(
           String postId) =>
       _db
@@ -430,4 +474,3 @@ class FirestoreService {
     }
   }
 }
-

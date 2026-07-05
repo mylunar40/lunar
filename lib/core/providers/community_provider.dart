@@ -310,6 +310,33 @@ class CommunityProvider extends ChangeNotifier {
         reaction: reaction,
         add: adding,
       );
+      if (adding) {
+        final post = _posts.firstWhere(
+          (p) => p.id == postId,
+          orElse: () => CommunityPost(
+            id: '',
+            uid: '',
+            pseudonym: '',
+            avatarEmoji: '',
+            avatarColorHex: '',
+            isAnonymous: true,
+            category: '',
+            content: '',
+            tags: const [],
+            reactions: const {},
+            commentsCount: 0,
+          ),
+        );
+        if (post.uid.isNotEmpty && post.uid != _uid) {
+          await FirestoreService.createCommunityActivity(
+            uid: post.uid,
+            actorUid: _uid!,
+            type: 'like',
+            text: 'Someone reacted to your post',
+            postId: postId,
+          );
+        }
+      }
     } catch (_) {
       // Revert on failure
       setState(() {

@@ -45,13 +45,14 @@ class LunarAuthProvider extends ChangeNotifier {
   /// True when the user has an active, non-expired premium subscription.
   bool get isActivePremium => _userModel?.isActivePremium ?? false;
 
+  String get communityTheme => _userModel?.communityTheme ?? 'lunar';
+
   String get displayName =>
       _userModel?.name ??
       _firebaseUser?.displayName ??
       (_firebaseUser?.isAnonymous == true ? 'Guest' : 'Lunar User');
 
-  String? get photoUrl =>
-      _userModel?.photoUrl ?? _firebaseUser?.photoURL;
+  String? get photoUrl => _userModel?.photoUrl ?? _firebaseUser?.photoURL;
 
   /// The user's parsed journey intent. Null if not yet selected.
   UserIntent? get userIntent => UserIntent.fromString(_userModel?.userIntent);
@@ -59,6 +60,10 @@ class LunarAuthProvider extends ChangeNotifier {
   /// True when the user has completed the intent onboarding flow.
   bool get hasCompletedIntentOnboarding =>
       _userModel?.onboardingIntentCompleted ?? false;
+
+  /// True when the user has completed the main onboarding (cycle setup, goals, etc.).
+  /// Source of truth: Firestore user document.
+  bool get hasCompletedOnboarding => _userModel?.onboardingCompleted ?? false;
 
   // ── Init ────────────────────────────────────────────────
   LunarAuthProvider() {
@@ -91,7 +96,7 @@ class LunarAuthProvider extends ChangeNotifier {
     if (user != null && !user.isAnonymous) {
       await _fetchUserModel(user.uid);
       // Register FCM token for push notifications (best-effort)
-      FCMService.registerToken(user.uid)
+      await FCMService.registerToken(user.uid)
           .catchError((e) => debugPrint('[LunarAuth] FCM token error: $e'));
       // Identify user in RevenueCat so purchases are linked to their account
       await SubscriptionService.logIn(user.uid);
@@ -155,14 +160,16 @@ class LunarAuthProvider extends ChangeNotifier {
           await FirestoreService.createUser(model);
           debugPrint('[LunarAuth] Firestore user document created.');
         } catch (firestoreErr) {
-          debugPrint('[LunarAuth] Firestore createUser failed (non-blocking): $firestoreErr');
+          debugPrint(
+              '[LunarAuth] Firestore createUser failed (non-blocking): $firestoreErr');
         }
         // Send email verification (best-effort — does not block sign-in)
         try {
           await cred.user!.sendEmailVerification();
           debugPrint('[LunarAuth] Verification email sent to $email');
         } catch (verifyErr) {
-          debugPrint('[LunarAuth] sendEmailVerification failed (non-blocking): $verifyErr');
+          debugPrint(
+              '[LunarAuth] sendEmailVerification failed (non-blocking): $verifyErr');
         }
       }
       _setLoading(false);
@@ -317,7 +324,8 @@ class LunarAuthProvider extends ChangeNotifier {
         await FirestoreService.deleteUserData(uid);
         debugPrint('[LunarAuth] Firestore user data deleted for $uid');
       } catch (firestoreErr) {
-        debugPrint('[LunarAuth] Firestore cleanup incomplete (non-fatal): $firestoreErr');
+        debugPrint(
+            '[LunarAuth] Firestore cleanup incomplete (non-fatal): $firestoreErr');
       }
 
       _setLoading(false);
@@ -334,7 +342,12 @@ class LunarAuthProvider extends ChangeNotifier {
   /// Saves the selected journey intent and marks onboarding complete.
   Future<void> setUserIntent(UserIntent intent) async {
     final uid = _firebaseUser?.uid;
-    if (uid == null || isGuest) return;
+    if (uid == null) {
+      throw Exception('Cannot set intent: user not authenticated');
+    }
+    if (isGuest) {
+      throw Exception('Guest users cannot select intent');
+    }
     try {
       await FirestoreService.updateUser(uid, {
         'userIntent': intent.firestoreValue,
@@ -343,6 +356,7 @@ class LunarAuthProvider extends ChangeNotifier {
       });
     } catch (e) {
       debugPrint('[LunarAuth] setUserIntent error: $e');
+      rethrow; // Propagate error so caller can handle it
     }
   }
 

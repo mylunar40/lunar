@@ -12,17 +12,18 @@ import 'package:provider/provider.dart';
 import '../core/providers/auth_provider.dart';
 import '../core/providers/connection_provider.dart';
 import '../models/connection_model.dart';
+import 'community_chat_screen.dart';
 import 'community_profile_screen.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const Color _kBg     = Color(0xFF0A0118);
-const Color _kSurf   = Color(0xFF160330);
+const Color _kBg = Color(0xFF0A0118);
+const Color _kSurf = Color(0xFF160330);
 const Color _kPurple = Color(0xFFAB5CF2);
-const Color _kPink   = Color(0xFFFF69B4);
-const Color _kGold   = Color(0xFFFFD700);
-const Color _kGreen  = Color(0xFF66BB6A);
-const Color _kRed    = Color(0xFFEF5350);
-const Color _kTeal   = Color(0xFF4FC3F7);
+const Color _kPink = Color(0xFFFF69B4);
+const Color _kGold = Color(0xFFFFD700);
+const Color _kGreen = Color(0xFF66BB6A);
+const Color _kRed = Color(0xFFEF5350);
+const Color _kTeal = Color(0xFF4FC3F7);
 
 // ── Suggested member model (derived from Firestore community_posts) ────────────
 class _SuggestedMember {
@@ -32,12 +33,12 @@ class _SuggestedMember {
   final String avatarColorHex;
   final bool isPremium;
   final bool isVerified;
-  final List<String> allTopics;      // every category they've posted in
-  final List<String> sharedTopics;   // intersection with my own posted topics
+  final List<String> allTopics; // every category they've posted in
+  final List<String> sharedTopics; // intersection with my own posted topics
   final int postCount;
-  final String lastPostPreview;      // truncated first line of most recent post
+  final String lastPostPreview; // truncated first line of most recent post
   final DateTime? lastPostDate;
-  final DateTime? memberSince;       // earliest post date — proxy for join date
+  final DateTime? memberSince; // earliest post date — proxy for join date
 
   bool get isActiveThisWeek =>
       lastPostDate != null &&
@@ -72,24 +73,31 @@ class _SuggestedMember {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ConnectionsHubScreen extends StatefulWidget {
-  const ConnectionsHubScreen({super.key});
+  final bool showMessagesOnly;
+  final bool showOnlineOnly;
+  final String? communityThemeOverride;
+
+  const ConnectionsHubScreen({
+    super.key,
+    this.showMessagesOnly = false,
+    this.showOnlineOnly = false,
+    this.communityThemeOverride,
+  });
 
   @override
   State<ConnectionsHubScreen> createState() => _ConnectionsHubScreenState();
 }
 
-class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabCtrl;
+class _ConnectionsHubScreenState extends State<ConnectionsHubScreen> {
   List<_SuggestedMember> _suggestions = [];
   bool _suggestionsLoading = true;
   Set<String> _myTopics = {};
 
   // Discover filters
-  bool _filterVerified   = false;
-  bool _filterPremium    = false;
+  bool _filterVerified = false;
+  bool _filterPremium = false;
   bool _filterActiveWeek = false;
-  bool _filterMyTopics   = false;
+  bool _filterMyTopics = false;
 
   // Per-card loading state for send button
   final Set<String> _sendingTo = {};
@@ -101,17 +109,10 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 4, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadSuggestions();
       _loadSentRequests();
     });
-  }
-
-  @override
-  void dispose() {
-    _tabCtrl.dispose();
-    super.dispose();
   }
 
   // ── Data Loading ────────────────────────────────────────────────────────────
@@ -178,9 +179,8 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
         // Last post preview — strip newlines, cap at 90 chars
         final rawContent = latest['content'] as String? ?? '';
         final preview = rawContent.replaceAll('\n', ' ').trim();
-        final lastPostPreview = preview.length > 90
-            ? '${preview.substring(0, 87)}…'
-            : preview;
+        final lastPostPreview =
+            preview.length > 90 ? '${preview.substring(0, 87)}…' : preview;
 
         // Latest post date
         final ts = latest['createdAt'] as Timestamp?;
@@ -192,18 +192,18 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
         final memberSince = oldestTs?.toDate();
 
         suggestions.add(_SuggestedMember(
-          uid:             uid,
-          pseudonym:       latest['pseudonym'] as String? ?? 'Lunar Member',
-          avatarEmoji:     latest['avatarEmoji'] as String? ?? '🌙',
-          avatarColorHex:  latest['avatarColorHex'] as String? ?? 'AB5CF2',
-          isPremium:       latest['isPremium'] as bool? ?? false,
-          isVerified:      latest['isVerified'] as bool? ?? false,
-          allTopics:       allTopics,
-          sharedTopics:    sharedTopics,
-          postCount:       posts.length,
+          uid: uid,
+          pseudonym: latest['pseudonym'] as String? ?? 'Lunar Member',
+          avatarEmoji: latest['avatarEmoji'] as String? ?? '🌙',
+          avatarColorHex: latest['avatarColorHex'] as String? ?? 'AB5CF2',
+          isPremium: latest['isPremium'] as bool? ?? false,
+          isVerified: latest['isVerified'] as bool? ?? false,
+          allTopics: allTopics,
+          sharedTopics: sharedTopics,
+          postCount: posts.length,
           lastPostPreview: lastPostPreview,
-          lastPostDate:    lastPostDate,
-          memberSince:     memberSince,
+          lastPostDate: lastPostDate,
+          memberSince: memberSince,
         ));
 
         if (suggestions.length >= 20) break;
@@ -250,10 +250,11 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
           .where((r) => !r.isExpired)
           .toList();
 
-      if (mounted) setState(() {
-        _sentRequests = list;
-        _sentLoading = false;
-      });
+      if (mounted)
+        setState(() {
+          _sentRequests = list;
+          _sentLoading = false;
+        });
     } catch (e) {
       debugPrint('[ConnectionsHub] sent requests error: $e');
       if (mounted) setState(() => _sentLoading = false);
@@ -266,7 +267,8 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
     HapticFeedback.lightImpact();
     final err = await context.read<ConnectionProvider>().acceptRequest(req.id);
     if (!mounted) return;
-    _snack(err == null ? 'Connected 💜 Healing together.' : err, isError: err != null);
+    _snack(err == null ? 'Connected 💜 Healing together.' : err,
+        isError: err != null);
   }
 
   Future<void> _reject(ConnectionRequest req) async {
@@ -304,7 +306,9 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
       'Disconnect',
     );
     if (confirm != true || !mounted) return;
-    final err = await context.read<ConnectionProvider>().disconnect(conn.otherUid(myUid));
+    final err = await context
+        .read<ConnectionProvider>()
+        .disconnect(conn.otherUid(myUid));
     if (mounted && err != null) _snack(err, isError: true);
   }
 
@@ -326,13 +330,21 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
       builder: (ctx) => AlertDialog(
         backgroundColor: _kSurf,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-        content: Text(msg, style: TextStyle(color: Colors.white.withOpacity(0.65))),
+        title: Text(title,
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w700)),
+        content:
+            Text(msg, style: TextStyle(color: Colors.white.withOpacity(0.65))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancel', style: TextStyle(color: Colors.white.withOpacity(0.45)))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true),
-              child: Text(confirm, style: const TextStyle(color: _kRed, fontWeight: FontWeight.w700))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Cancel',
+                  style: TextStyle(color: Colors.white.withOpacity(0.45)))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(confirm,
+                  style: const TextStyle(
+                      color: _kRed, fontWeight: FontWeight.w700))),
         ],
       ),
     );
@@ -343,32 +355,43 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
   @override
   Widget build(BuildContext context) {
     final cp = context.watch<ConnectionProvider>();
+    final auth = context.watch<LunarAuthProvider>();
+    final themeColor =
+        _communityThemeColor(auth, widget.communityThemeOverride);
 
     return Scaffold(
-      backgroundColor: _kBg,
-      body: Column(children: [
-        _buildHeader(cp.incomingCount),
-        _buildTabBar(cp.incomingCount),
-        Expanded(
-          child: TabBarView(
-            controller: _tabCtrl,
-            children: [
-              _buildIncomingTab(cp),
-              _buildSentTab(),
-              _buildConnectionsTab(cp),
-              _buildDiscoverTab(cp),
-            ],
-          ),
-        ),
-      ]),
+      backgroundColor: Color.alphaBlend(themeColor.withOpacity(0.07), _kBg),
+      body: widget.showMessagesOnly
+          ? _buildMessagesTab(cp)
+          : widget.showOnlineOnly
+              ? _buildOnlineNowScreen(cp)
+              : Column(children: [
+                  _buildHeader(cp.incomingCount),
+                  Expanded(child: _buildDashboard(cp)),
+                ]),
     );
+  }
+
+  Color _communityThemeColor(LunarAuthProvider auth, [String? themeOverride]) {
+    if (!auth.isActivePremium) return _kPurple;
+    switch (themeOverride ?? auth.communityTheme) {
+      case 'rose':
+        return _kPink;
+      case 'aurora':
+        return _kGreen;
+      case 'midnight':
+        return _kGold;
+      default:
+        return _kPurple;
+    }
   }
 
   // ── Header ───────────────────────────────────────────────────────────────────
 
   Widget _buildHeader(int incomingCount) {
     return Container(
-      padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 16, 20, 16),
+      padding: EdgeInsets.fromLTRB(
+          20, MediaQuery.of(context).padding.top + 8, 20, 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -378,89 +401,353 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
             _kBg,
           ],
         ),
-        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.07))),
+        border:
+            Border(bottom: BorderSide(color: Colors.white.withOpacity(0.07))),
       ),
       child: Row(children: [
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              const Text('Healing Connections',
-                  style: TextStyle(color: Colors.white, fontSize: 22,
-                      fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+              const Flexible(
+                child: Text('Healing Connections',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.4)),
+              ),
               if (incomingCount > 0) ...[
                 const SizedBox(width: 10),
                 _countBadge(incomingCount, _kPurple),
               ],
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    _suggestionsLoading = true;
+                    _sentLoading = true;
+                  });
+                  _loadSuggestions();
+                  _loadSentRequests();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(Icons.refresh_rounded,
+                      color: Colors.white.withOpacity(0.42), size: 17),
+                ),
+              ),
             ]),
             const SizedBox(height: 3),
             Text('Connect with premium members on your journey',
-                style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 13)),
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.45), fontSize: 13)),
           ]),
-        ),
-        // Refresh button
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            setState(() {
-              _suggestionsLoading = true;
-              _sentLoading = true;
-            });
-            _loadSuggestions();
-            _loadSentRequests();
-          },
-          child: Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.06),
-              border: Border.all(color: Colors.white.withOpacity(0.12)),
-            ),
-            child: Icon(Icons.refresh_rounded,
-                color: Colors.white.withOpacity(0.5), size: 18),
-          ),
         ),
       ]),
     );
   }
 
-  // ── Tab Bar ──────────────────────────────────────────────────────────────────
+  // ── Connections Home ────────────────────────────────────────────────────────
 
-  Widget _buildTabBar(int incomingCount) {
-    return Container(
-      color: _kBg,
-      child: TabBar(
-        controller: _tabCtrl,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        indicatorColor: _kPurple,
-        indicatorWeight: 2,
-        indicatorSize: TabBarIndicatorSize.label,
-        dividerColor: Colors.white.withOpacity(0.07),
-        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
-        labelColor: _kPurple,
-        unselectedLabelColor: Colors.white.withOpacity(0.4),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        tabs: [
-          _tab('Requests', incomingCount),
-          _tab('Sent', 0),
-          _tab('Connected', 0),
-          _tab('Discover', 0),
+  Widget _buildDashboard(ConnectionProvider cp) {
+    final auth = context.read<LunarAuthProvider>();
+    final myUid = auth.firebaseUser?.uid ?? '';
+    final friendsPreview = cp.connections.take(3).toList();
+
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
+      children: [
+        GestureDetector(
+          onTap: () => _openSection('Discover People', _buildDiscoverTab(cp)),
+          child: Container(
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: Colors.white.withOpacity(0.045),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: Row(children: [
+              Icon(Icons.search_rounded,
+                  color: Colors.white.withOpacity(0.42), size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('Search supportive friends',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(0.48), fontSize: 13)),
+              ),
+            ]),
+          ),
+        ),
+        if (cp.incomingCount > 0) ...[
+          const SizedBox(height: 14),
+          _compactActionTile(
+            icon: Icons.favorite_rounded,
+            color: _kPink,
+            title:
+                '${cp.incomingCount} friend request${cp.incomingCount == 1 ? '' : 's'}',
+            subtitle: 'Someone wants to support your journey.',
+            onTap: () => _openSection('Friend Requests', _buildIncomingTab(cp)),
+          ),
         ],
+        const SizedBox(height: 18),
+        _sectionTitle('Friends'),
+        const SizedBox(height: 10),
+        if (friendsPreview.isEmpty)
+          _emptyState(
+            icon: Icons.people_outline_rounded,
+            title: 'No Friends Yet',
+            subtitle: 'Find people who make this space feel safer.',
+            actionLabel: 'Find Friends',
+            onAction: () =>
+                _openSection('Discover People', _buildDiscoverTab(cp)),
+          )
+        else ...[
+          ...friendsPreview.map((conn) => _connectionCard(conn, myUid)),
+          _textAction('View all friends',
+              () => _openSection('My Friends', _buildConnectionsTab(cp))),
+        ],
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+            child: _miniAction(
+              icon: Icons.person_add_alt_1_rounded,
+              label: 'Discover People',
+              onTap: () =>
+                  _openSection('Discover People', _buildDiscoverTab(cp)),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _miniAction(
+              icon: Icons.wifi_tethering_rounded,
+              label: 'Online Friends',
+              onTap: () => _openSection('Online', _buildOnlineNowScreen(cp)),
+            ),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Text(title,
+        style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2));
+  }
+
+  Widget _compactActionTile({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: color.withOpacity(0.1),
+          border: Border.all(color: color.withOpacity(0.22)),
+        ),
+        child: Row(children: [
+          Icon(icon, color: color, size: 19),
+          const SizedBox(width: 12),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700)),
+              const SizedBox(height: 3),
+              Text(subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.48), fontSize: 12)),
+            ]),
+          ),
+          Icon(Icons.chevron_right_rounded,
+              color: Colors.white.withOpacity(0.32), size: 20),
+        ]),
       ),
     );
   }
 
-  Tab _tab(String label, int badge) {
-    return Tab(
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text(label),
-        if (badge > 0) ...[
+  Widget _miniAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        height: 42,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(15),
+          color: Colors.white.withOpacity(0.045),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: Colors.white.withOpacity(0.68), size: 16),
           const SizedBox(width: 6),
-          _countBadge(badge, _kPink),
-        ],
-      ]),
+          Flexible(
+            child: Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600)),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _textAction(String label, VoidCallback onTap) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text(label,
+              style: const TextStyle(
+                  color: _kPurple, fontSize: 13, fontWeight: FontWeight.w700)),
+        ),
+      ),
+    );
+  }
+
+  Widget _dashboardCard({
+    required String emoji,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    int badge = 0,
+    Widget? trailing,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              onTap();
+            },
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.white.withOpacity(0.045),
+                border: Border.all(color: _kPurple.withOpacity(0.16)),
+              ),
+              child: Row(children: [
+                _avatarCircle(emoji, _kPurple, 48),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Flexible(
+                          child: Text(title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                        if (badge > 0) ...[
+                          const SizedBox(width: 8),
+                          _countBadge(badge, _kPink),
+                        ],
+                      ]),
+                      const SizedBox(height: 5),
+                      Text(subtitle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.43),
+                              fontSize: 12.5,
+                              height: 1.3)),
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...[
+                  const SizedBox(width: 10),
+                  trailing,
+                ] else
+                  Icon(Icons.chevron_right_rounded,
+                      color: Colors.white.withOpacity(0.28), size: 22),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _onlineAvatarRow(ConnectionProvider cp) {
+    final count = cp.connections.length.clamp(0, 3);
+    if (count == 0) {
+      return Icon(Icons.chevron_right_rounded,
+          color: Colors.white.withOpacity(0.28), size: 22);
+    }
+    return SizedBox(
+      width: 58,
+      height: 28,
+      child: Stack(
+        children: List.generate(count, (index) {
+          return Positioned(
+            left: index * 18,
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  _kPurple.withOpacity(0.85),
+                  _kPurple.withOpacity(0.25),
+                ]),
+                border: Border.all(color: _kBg, width: 2),
+              ),
+              child: const Center(
+                  child: Text('🌙', style: TextStyle(fontSize: 12))),
+            ),
+          );
+        }),
+      ),
     );
   }
 
@@ -470,19 +757,21 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
     final incoming = cp.incomingRequests;
 
     if (cp.loading && incoming.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: _kPurple, strokeWidth: 2));
+      return const Center(
+          child: CircularProgressIndicator(color: _kPurple, strokeWidth: 2));
     }
 
     if (incoming.isEmpty) {
       return _emptyState(
         icon: Icons.favorite_border_rounded,
         title: 'No Pending Requests',
-        subtitle: 'When someone sends you a healing connection\nrequest, it will appear here.',
+        subtitle:
+            'When someone sends you a healing connection\nrequest, it will appear here.',
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
       itemCount: incoming.length,
       itemBuilder: (_, i) => _incomingCard(incoming[i]),
     );
@@ -503,7 +792,8 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
               color: Colors.white.withOpacity(0.05),
               border: Border.all(color: _kPurple.withOpacity(0.2)),
             ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // Member row
               Row(children: [
                 GestureDetector(
@@ -517,29 +807,37 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    GestureDetector(
-                      onTap: () => _openProfile(
-                        uid: req.fromUid,
-                        pseudonym: req.fromPseudonym,
-                        avatarEmoji: req.fromAvatarEmoji,
-                        avatarColorHex: req.fromAvatarColorHex,
-                      ),
-                      child: Text(req.fromPseudonym,
-                          style: const TextStyle(color: Colors.white,
-                              fontSize: 15, fontWeight: FontWeight.w600)),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(children: [
-                      Icon(Icons.favorite_rounded, color: _kPurple.withOpacity(0.7), size: 12),
-                      const SizedBox(width: 4),
-                      Text('Sent you a Healing Request',
-                          style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
-                    ]),
-                  ]),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        GestureDetector(
+                          onTap: () => _openProfile(
+                            uid: req.fromUid,
+                            pseudonym: req.fromPseudonym,
+                            avatarEmoji: req.fromAvatarEmoji,
+                            avatarColorHex: req.fromAvatarColorHex,
+                          ),
+                          child: Text(req.fromPseudonym,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(children: [
+                          Icon(Icons.favorite_rounded,
+                              color: _kPurple.withOpacity(0.7), size: 12),
+                          const SizedBox(width: 4),
+                          Text('Sent you a Healing Request',
+                              style: TextStyle(
+                                  color: Colors.white.withOpacity(0.45),
+                                  fontSize: 12)),
+                        ]),
+                      ]),
                 ),
                 Text(_timeAgo(req.createdAt),
-                    style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11)),
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(0.3), fontSize: 11)),
               ]),
               const SizedBox(height: 14),
               // Actions
@@ -551,17 +849,20 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
                       height: 40,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        gradient: const LinearGradient(
-                            colors: [_kPurple, _kPink]),
+                        gradient:
+                            const LinearGradient(colors: [_kPurple, _kPink]),
                       ),
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.favorite_rounded, color: Colors.white, size: 16),
+                          Icon(Icons.favorite_rounded,
+                              color: Colors.white, size: 16),
                           SizedBox(width: 6),
                           Text('Accept',
-                              style: TextStyle(color: Colors.white,
-                                  fontWeight: FontWeight.w600, fontSize: 13)),
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13)),
                         ],
                       ),
                     ),
@@ -576,12 +877,15 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         color: Colors.white.withOpacity(0.07),
-                        border: Border.all(color: Colors.white.withOpacity(0.12)),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.12)),
                       ),
                       child: Center(
                         child: Text('Decline',
-                            style: TextStyle(color: Colors.white.withOpacity(0.6),
-                                fontWeight: FontWeight.w500, fontSize: 13)),
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
+                                fontWeight: FontWeight.w500,
+                                fontSize: 13)),
                       ),
                     ),
                   ),
@@ -598,19 +902,21 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
 
   Widget _buildSentTab() {
     if (_sentLoading) {
-      return const Center(child: CircularProgressIndicator(color: _kPurple, strokeWidth: 2));
+      return const Center(
+          child: CircularProgressIndicator(color: _kPurple, strokeWidth: 2));
     }
 
     if (_sentRequests.isEmpty) {
       return _emptyState(
         icon: Icons.send_rounded,
         title: 'No Sent Requests',
-        subtitle: 'Healing requests you\'ve sent will appear here\nuntil they\'re accepted or declined.',
+        subtitle:
+            'Healing requests you\'ve sent will appear here\nuntil they\'re accepted or declined.',
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
       itemCount: _sentRequests.length,
       itemBuilder: (_, i) => _sentCard(_sentRequests[i]),
     );
@@ -630,16 +936,21 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
       child: Row(children: [
         _avatarCircle(req.fromAvatarEmoji, avatarColor, 44),
         const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(req.toPseudonym,
-              style: const TextStyle(color: Colors.white,
-                  fontSize: 14, fontWeight: FontWeight.w600)),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600)),
           const SizedBox(height: 3),
           Row(children: [
             const Icon(Icons.schedule_rounded, color: _kGold, size: 12),
             const SizedBox(width: 4),
             Text('Awaiting response · expires in ${expiresIn}d',
-                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.4), fontSize: 11)),
           ]),
         ])),
         GestureDetector(
@@ -654,7 +965,8 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
             child: Text('Cancel',
                 style: TextStyle(
                     color: Colors.white.withOpacity(0.5),
-                    fontSize: 12, fontWeight: FontWeight.w500)),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500)),
           ),
         ),
       ]),
@@ -668,17 +980,28 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
     final auth = context.read<LunarAuthProvider>();
     final myUid = auth.firebaseUser?.uid ?? '';
 
+    if (!auth.isActivePremium) {
+      return _emptyState(
+        icon: Icons.workspace_premium_rounded,
+        title: 'Chats are Premium',
+        subtitle:
+            'Unlock private healing chats with realtime typing, voice, and media.',
+      );
+    }
+
     if (cp.loading && conns.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: _kPurple, strokeWidth: 2));
+      return const Center(
+          child: CircularProgressIndicator(color: _kPurple, strokeWidth: 2));
     }
 
     if (conns.isEmpty) {
       return _emptyState(
         icon: Icons.people_outline_rounded,
         title: 'No Healing Connections Yet',
-        subtitle: 'Accept a request or discover members\nwho share your healing journey.',
+        subtitle:
+            'Accept a request or discover members\nwho share your healing journey.',
         actionLabel: 'Discover Members',
-        onAction: () => _tabCtrl.animateTo(3),
+        onAction: () => _openSection('Discover People', _buildDiscoverTab(cp)),
       );
     }
 
@@ -705,9 +1028,8 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
           .where('isAnonymous', isEqualTo: false)
           .limit(1)
           .get()
-          .then((s) => s.docs.isNotEmpty
-              ? s.docs.first
-              : throw Exception('no post')),
+          .then((s) =>
+              s.docs.isNotEmpty ? s.docs.first : throw Exception('no post')),
       builder: (ctx, snap) {
         // Fallback values if no post found
         String pseudonym = 'Lunar Member';
@@ -719,13 +1041,17 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
         if (snap.hasData) {
           final d = snap.data!.data()!;
           pseudonym = d['pseudonym'] as String? ?? pseudonym;
-          emoji     = d['avatarEmoji'] as String? ?? emoji;
-          colorHex  = d['avatarColorHex'] as String? ?? colorHex;
+          emoji = d['avatarEmoji'] as String? ?? emoji;
+          colorHex = d['avatarColorHex'] as String? ?? colorHex;
           isPremium = d['isPremium'] as bool? ?? false;
           isVerified = d['isVerified'] as bool? ?? false;
         }
 
         final avatarColor = _hexToColor(colorHex);
+        final themeColor = _communityThemeColor(
+          context.watch<LunarAuthProvider>(),
+          widget.communityThemeOverride,
+        );
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -742,16 +1068,19 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                color: Colors.white.withOpacity(0.04),
-                border: Border.all(color: _kPurple.withOpacity(0.15)),
+                color: themeColor.withOpacity(0.055),
+                border: Border.all(color: themeColor.withOpacity(0.18)),
               ),
               child: Row(children: [
                 Stack(children: [
                   _avatarCircle(emoji, avatarColor, 52),
                   // Connected indicator dot
-                  Positioned(bottom: 2, right: 2,
+                  Positioned(
+                    bottom: 2,
+                    right: 2,
                     child: Container(
-                      width: 12, height: 12,
+                      width: 12,
+                      height: 12,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: _kGreen,
@@ -761,28 +1090,38 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
                   ),
                 ]),
                 const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Text(pseudonym,
-                        style: const TextStyle(color: Colors.white,
-                            fontSize: 14, fontWeight: FontWeight.w600)),
-                    if (isVerified) ...[
-                      const SizedBox(width: 4),
-                      const Icon(Icons.verified_rounded, color: _kTeal, size: 14),
-                    ],
-                    if (isPremium) ...[
-                      const SizedBox(width: 4),
-                      const Icon(Icons.diamond_rounded, color: _kPurple, size: 13),
-                    ],
-                  ]),
-                  const SizedBox(height: 3),
-                  Row(children: [
-                    Icon(Icons.favorite_rounded, color: _kPurple.withOpacity(0.6), size: 11),
-                    const SizedBox(width: 4),
-                    Text(daysLabel,
-                        style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
-                  ]),
-                ])),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Row(children: [
+                        Text(pseudonym,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600)),
+                        if (isVerified) ...[
+                          const SizedBox(width: 4),
+                          const Icon(Icons.verified_rounded,
+                              color: _kTeal, size: 14),
+                        ],
+                        if (isPremium) ...[
+                          const SizedBox(width: 4),
+                          const Icon(Icons.diamond_rounded,
+                              color: _kPurple, size: 13),
+                        ],
+                      ]),
+                      const SizedBox(height: 3),
+                      Row(children: [
+                        Icon(Icons.favorite_rounded,
+                            color: _kPurple.withOpacity(0.6), size: 11),
+                        const SizedBox(width: 4),
+                        Text(daysLabel,
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.4),
+                                fontSize: 11)),
+                      ]),
+                    ])),
                 GestureDetector(
                   onTap: () => _disconnect(conn),
                   child: Padding(
@@ -799,13 +1138,114 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
     );
   }
 
+  Widget _buildMessagesTab(ConnectionProvider cp) {
+    final conns = cp.connections;
+    final auth = context.read<LunarAuthProvider>();
+    final myUid = auth.firebaseUser?.uid ?? '';
+
+    if (cp.loading && conns.isEmpty) {
+      return const Center(
+          child: CircularProgressIndicator(color: _kPurple, strokeWidth: 2));
+    }
+
+    if (conns.isEmpty) {
+      return _emptyState(
+        icon: Icons.mail_outline_rounded,
+        title: 'No Messages Yet',
+        subtitle: 'Connect with members first\nto start a conversation.',
+        actionLabel: 'Find Friends',
+        onAction: () => _openSection('Discover People', _buildDiscoverTab(cp)),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      itemCount: conns.length,
+      itemBuilder: (_, i) => _messageCard(conns[i], myUid),
+    );
+  }
+
+  Widget _messageCard(LunarConnection conn, String myUid) {
+    final otherUid = conn.otherUid(myUid);
+
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance
+          .collection('community_posts')
+          .where('uid', isEqualTo: otherUid)
+          .where('isAnonymous', isEqualTo: false)
+          .limit(1)
+          .get()
+          .then((s) =>
+              s.docs.isNotEmpty ? s.docs.first : throw Exception('no post')),
+      builder: (ctx, snap) {
+        String pseudonym = 'Lunar Member';
+        String emoji = '🌙';
+        String colorHex = 'AB5CF2';
+
+        if (snap.hasData) {
+          final d = snap.data!.data()!;
+          pseudonym = d['pseudonym'] as String? ?? pseudonym;
+          emoji = d['avatarEmoji'] as String? ?? emoji;
+          colorHex = d['avatarColorHex'] as String? ?? colorHex;
+        }
+
+        final avatarColor = _hexToColor(colorHex);
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              Navigator.push<void>(
+                context,
+                CommunityChatScreen.route(
+                  userId: otherUid,
+                  userName: pseudonym,
+                  userEmoji: emoji,
+                  userColorHex: colorHex,
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.white.withOpacity(0.04),
+                border: Border.all(color: _kPurple.withOpacity(0.15)),
+              ),
+              child: Row(children: [
+                _avatarCircle(emoji, avatarColor, 48),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    pseudonym,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded,
+                    color: Colors.white.withOpacity(0.35), size: 22),
+              ]),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // ── Discover filter getter ──────────────────────────────────────────────────
 
   List<_SuggestedMember> get _filteredSuggestions {
     var list = _suggestions;
-    if (_filterVerified)   list = list.where((m) => m.isVerified).toList();
-    if (_filterPremium)    list = list.where((m) => m.isPremium).toList();
-    if (_filterActiveWeek) list = list.where((m) => m.isActiveThisWeek).toList();
+    if (_filterVerified) list = list.where((m) => m.isVerified).toList();
+    if (_filterPremium) list = list.where((m) => m.isPremium).toList();
+    if (_filterActiveWeek)
+      list = list.where((m) => m.isActiveThisWeek).toList();
     if (_filterMyTopics && _myTopics.isNotEmpty) {
       list = list.where((m) => m.sharedTopics.isNotEmpty).toList();
     }
@@ -818,8 +1258,10 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
     final auth = context.read<LunarAuthProvider>();
     final isEligible = _checkEligible(auth);
     final filtered = _filteredSuggestions;
-    final anyFilterActive =
-        _filterVerified || _filterPremium || _filterActiveWeek || _filterMyTopics;
+    final anyFilterActive = _filterVerified ||
+        _filterPremium ||
+        _filterActiveWeek ||
+        _filterMyTopics;
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -846,7 +1288,8 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: Row(children: [
               Container(
-                width: 26, height: 26,
+                width: 26,
+                height: 26,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: _kPurple.withOpacity(0.18),
@@ -859,7 +1302,9 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
                 anyFilterActive
                     ? '${filtered.length} member${filtered.length == 1 ? '' : 's'} match your filters'
                     : 'Suggested for You — ${filtered.length} members',
-                style: const TextStyle(color: Colors.white, fontSize: 14,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
                     fontWeight: FontWeight.w600),
               ),
             ]),
@@ -871,8 +1316,10 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(32),
-              child: Center(child: Column(children: [
-                const CircularProgressIndicator(color: _kPurple, strokeWidth: 2),
+              child: Center(
+                  child: Column(children: [
+                const CircularProgressIndicator(
+                    color: _kPurple, strokeWidth: 2),
                 const SizedBox(height: 12),
                 Text('Finding members on similar journeys…',
                     style: TextStyle(
@@ -897,10 +1344,10 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
               actionLabel: anyFilterActive ? 'Clear Filters' : null,
               onAction: anyFilterActive
                   ? () => setState(() {
-                        _filterVerified   = false;
-                        _filterPremium    = false;
+                        _filterVerified = false;
+                        _filterPremium = false;
                         _filterActiveWeek = false;
-                        _filterMyTopics   = false;
+                        _filterMyTopics = false;
                       })
                   : null,
             ),
@@ -950,7 +1397,7 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
             color: _kPink,
             onTap: () => setState(() => _filterActiveWeek = !_filterActiveWeek),
           ),
-          if (_myTopics.isNotEmpty) ...[  
+          if (_myTopics.isNotEmpty) ...[
             const SizedBox(width: 8),
             _filterChip(
               label: '🌸 My Topics',
@@ -980,9 +1427,12 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          color: active ? color.withOpacity(0.22) : Colors.white.withOpacity(0.05),
+          color:
+              active ? color.withOpacity(0.22) : Colors.white.withOpacity(0.05),
           border: Border.all(
-            color: active ? color.withOpacity(0.6) : Colors.white.withOpacity(0.12),
+            color: active
+                ? color.withOpacity(0.6)
+                : Colors.white.withOpacity(0.12),
             width: active ? 1.5 : 1,
           ),
         ),
@@ -1000,7 +1450,8 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
     );
   }
 
-  Widget _suggestionCard(_SuggestedMember member, ConnectionProvider cp, bool isEligible) {
+  Widget _suggestionCard(
+      _SuggestedMember member, ConnectionProvider cp, bool isEligible) {
     final avatarColor = _hexToColor(member.avatarColorHex);
     final alreadyConnected = cp.isConnected(member.uid);
     final incomingFromThis = cp.incomingFrom(member.uid) != null;
@@ -1008,12 +1459,12 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
 
     return GestureDetector(
       onTap: () => _openProfile(
-        uid:            member.uid,
-        pseudonym:      member.pseudonym,
-        avatarEmoji:    member.avatarEmoji,
+        uid: member.uid,
+        pseudonym: member.pseudonym,
+        avatarEmoji: member.avatarEmoji,
         avatarColorHex: member.avatarColorHex,
-        isPremium:      member.isPremium,
-        isVerified:     member.isVerified,
+        isPremium: member.isPremium,
+        isVerified: member.isVerified,
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -1088,13 +1539,12 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
               if (member.sharedTopics.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     color: _kPurple.withOpacity(0.07),
-                    border: Border.all(
-                        color: _kPurple.withOpacity(0.18)),
+                    border: Border.all(color: _kPurple.withOpacity(0.18)),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1114,8 +1564,7 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
                                   fontSize: 11),
                             ),
                             ...member.sharedTopics.take(3).map((t) =>
-                                _topicChip(
-                                    _topicLabel(t), _topicColor(t))),
+                                _topicChip(_topicLabel(t), _topicColor(t))),
                           ],
                         ),
                       ),
@@ -1135,9 +1584,11 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
                     Expanded(
                       child: Wrap(
                         spacing: 4,
-                        children: member.allTopics.take(3).map((t) =>
-                            _topicChip(
-                                _topicLabel(t), _topicColor(t))).toList(),
+                        children: member.allTopics
+                            .take(3)
+                            .map((t) =>
+                                _topicChip(_topicLabel(t), _topicColor(t)))
+                            .toList(),
                       ),
                     ),
                   ],
@@ -1191,8 +1642,8 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
 
   Widget _trustSignal(String label, Color color) {
     return Text(label,
-        style: TextStyle(
-            color: color, fontSize: 11, fontWeight: FontWeight.w500));
+        style:
+            TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w500));
   }
 
   Widget _sendButton(_SuggestedMember member, bool isSending) {
@@ -1204,18 +1655,16 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
               setState(() => _sendingTo.add(member.uid));
               final auth = context.read<LunarAuthProvider>();
               final myPseudonym = auth.userModel?.name ?? 'Lunar Member';
-              final err =
-                  await context.read<ConnectionProvider>().sendRequest(
-                        toUid:              member.uid,
-                        fromPseudonym:      myPseudonym,
-                        fromAvatarEmoji:    '🌙',
-                        fromAvatarColorHex: 'AB5CF2',
-                        toPseudonym:        member.pseudonym,
-                      );
+              final err = await context.read<ConnectionProvider>().sendRequest(
+                    toUid: member.uid,
+                    fromPseudonym: myPseudonym,
+                    fromAvatarEmoji: '🌙',
+                    fromAvatarColorHex: 'AB5CF2',
+                    toPseudonym: member.pseudonym,
+                  );
               if (mounted) {
                 setState(() => _sendingTo.remove(member.uid));
-                _snack(
-                    err == null ? 'Healing request sent 💜' : err,
+                _snack(err == null ? 'Healing request sent 💜' : err,
                     isError: err != null);
                 if (err == null) {
                   _loadSentRequests();
@@ -1291,9 +1740,11 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
       message = '✉️ Verify your email to send healing connections';
     } else {
       final created = auth.userModel?.createdAt;
-      final days = created != null ? DateTime.now().difference(created).inDays : 0;
+      final days =
+          created != null ? DateTime.now().difference(created).inDays : 0;
       final remaining = 7 - days;
-      message = '🌙 Account needs $remaining more day${remaining == 1 ? '' : 's'} to unlock connections';
+      message =
+          '🌙 Account needs $remaining more day${remaining == 1 ? '' : 's'} to unlock connections';
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -1307,8 +1758,10 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
         child: Row(children: [
           const Icon(Icons.info_outline_rounded, color: _kGold, size: 18),
           const SizedBox(width: 10),
-          Expanded(child: Text(message,
-              style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12.5))),
+          Expanded(
+              child: Text(message,
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.8), fontSize: 12.5))),
         ]),
       ),
     );
@@ -1329,8 +1782,8 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
         border: Border.all(color: color.withOpacity(0.45), width: 1.5),
         boxShadow: [BoxShadow(color: color.withOpacity(0.25), blurRadius: 10)],
       ),
-      child: Center(child: Text(emoji,
-          style: TextStyle(fontSize: size * 0.44))),
+      child:
+          Center(child: Text(emoji, style: TextStyle(fontSize: size * 0.44))),
     );
   }
 
@@ -1342,8 +1795,8 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
         color: color,
       ),
       child: Text('$count',
-          style: const TextStyle(color: Colors.white, fontSize: 11,
-              fontWeight: FontWeight.w700)),
+          style: const TextStyle(
+              color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
     );
   }
 
@@ -1356,7 +1809,8 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
         border: Border.all(color: color.withOpacity(0.35)),
       ),
       child: Text(label,
-          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.w600)),
     );
   }
 
@@ -1368,7 +1822,100 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
         color: color.withOpacity(0.14),
       ),
       child: Text(label,
-          style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w500)),
+          style: TextStyle(
+              color: color, fontSize: 10, fontWeight: FontWeight.w500)),
+    );
+  }
+
+  Widget _buildOnlineNowScreen(ConnectionProvider cp) {
+    final conns = cp.connections;
+    final auth = context.read<LunarAuthProvider>();
+    final myUid = auth.firebaseUser?.uid ?? '';
+
+    if (conns.isEmpty) {
+      return _emptyState(
+        icon: Icons.circle_outlined,
+        title: 'No Friends Online',
+        subtitle: 'Online friends will appear here\nwhen they are available.',
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      itemCount: conns.length,
+      itemBuilder: (_, i) => _onlineFriendCard(conns[i], myUid),
+    );
+  }
+
+  Widget _onlineFriendCard(LunarConnection conn, String myUid) {
+    final otherUid = conn.otherUid(myUid);
+
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance
+          .collection('community_posts')
+          .where('uid', isEqualTo: otherUid)
+          .where('isAnonymous', isEqualTo: false)
+          .limit(1)
+          .get()
+          .then((s) =>
+              s.docs.isNotEmpty ? s.docs.first : throw Exception('no post')),
+      builder: (ctx, snap) {
+        String pseudonym = 'Lunar Member';
+        String emoji = '🌙';
+        String colorHex = 'AB5CF2';
+
+        if (snap.hasData) {
+          final d = snap.data!.data()!;
+          pseudonym = d['pseudonym'] as String? ?? pseudonym;
+          emoji = d['avatarEmoji'] as String? ?? emoji;
+          colorHex = d['avatarColorHex'] as String? ?? colorHex;
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: Colors.white.withOpacity(0.04),
+            border: Border.all(color: _kPurple.withOpacity(0.15)),
+          ),
+          child: Row(children: [
+            Stack(children: [
+              _avatarCircle(emoji, _hexToColor(colorHex), 48),
+              Positioned(
+                bottom: 2,
+                right: 2,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _kGreen,
+                    border: Border.all(color: _kBg, width: 2),
+                  ),
+                ),
+              ),
+            ]),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                pseudonym,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
+            Text('Online',
+                style: TextStyle(
+                    color: _kGreen.withOpacity(0.9),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600)),
+          ]),
+        );
+      },
     );
   }
 
@@ -1385,24 +1932,32 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, color: _kPurple.withOpacity(0.4), size: 52),
           const SizedBox(height: 16),
-          Text(title, style: const TextStyle(color: Colors.white,
-              fontSize: 17, fontWeight: FontWeight.w600)),
+          Text(title,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          Text(subtitle, textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13)),
+          Text(subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.4), fontSize: 13)),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 20),
             GestureDetector(
               onTap: onAction,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   gradient: const LinearGradient(colors: [_kPurple, _kPink]),
                 ),
                 child: Text(actionLabel,
-                    style: const TextStyle(color: Colors.white,
-                        fontWeight: FontWeight.w600, fontSize: 13)),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13)),
               ),
             ),
           ],
@@ -1412,6 +1967,30 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
   }
 
   // ── Navigation ───────────────────────────────────────────────────────────────
+
+  void _openSection(String title, Widget child) {
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: _kBg,
+          appBar: AppBar(
+            backgroundColor: _kBg,
+            elevation: 0,
+            foregroundColor: Colors.white,
+            title: Text(title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700)),
+          ),
+          body: child,
+        ),
+      ),
+    );
+  }
 
   void _openProfile({
     required String uid,
@@ -1425,12 +2004,12 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
     Navigator.push<void>(
       context,
       CommunityProfileScreen.route(
-        targetUid:      uid,
-        pseudonym:      pseudonym,
-        avatarEmoji:    avatarEmoji,
+        targetUid: uid,
+        pseudonym: pseudonym,
+        avatarEmoji: avatarEmoji,
         avatarColorHex: avatarColorHex,
-        isPremium:      isPremium,
-        isVerified:     isVerified,
+        isPremium: isPremium,
+        isVerified: isVerified,
       ),
     );
   }
@@ -1477,13 +2056,13 @@ class _ConnectionsHubScreenState extends State<ConnectionsHubScreen>
 
   static Color _topicColor(String id) {
     const map = {
-      'periodTalk':       Color(0xFFE53935),
-      'pregnancy':        Color(0xFFFFD700),
+      'periodTalk': Color(0xFFE53935),
+      'pregnancy': Color(0xFFFFD700),
       'emotionalHealing': Color(0xFFAB5CF2),
-      'relationships':    Color(0xFFEC407A),
-      'anxietySupport':   Color(0xFF4FC3F7),
-      'selfCare':         Color(0xFF66BB6A),
-      'sleepWellness':    Color(0xFF7986CB),
+      'relationships': Color(0xFFEC407A),
+      'anxietySupport': Color(0xFF4FC3F7),
+      'selfCare': Color(0xFF66BB6A),
+      'sleepWellness': Color(0xFF7986CB),
     };
     return map[id] ?? _kPurple;
   }

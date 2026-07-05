@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../data/local_cache.dart';
 import '../models/user_model.dart';
 import 'auth_provider.dart';
 
@@ -50,6 +51,9 @@ import 'auth_provider.dart';
 // ══════════════════════════════════════════════════════════════
 
 class PremiumProvider extends ChangeNotifier {
+  // ── LocalCache key — fast-restore before RC/Firestore loads ──
+  static const _kTierKey = 'lunar_premium_tier_v1';
+
   // ── Plan limits ───────────────────────────────────────────
   static const int freeAiDailyLimit     = 20;
   static const int plusAiDailyLimit     = 100;
@@ -71,6 +75,23 @@ class PremiumProvider extends ChangeNotifier {
   PlanTier _rcTier        = PlanTier.free;
   // Firestore admin grants (server-side override)
   PlanTier _firestoreTier = PlanTier.free;
+
+  // ── Constructor — pre-warm from LocalCache ────────────────
+  // Reads the last-known tier from SharedPreferences so there's
+  // no "free flash" while RC or Firestore loads on startup.
+  PremiumProvider() {
+    final cached = LocalCache.getString(_kTierKey);
+    if (cached != null) {
+      final t = PlanTier.values.firstWhere(
+        (e) => e.name == cached,
+        orElse: () => PlanTier.free,
+      );
+      if (t != PlanTier.free) {
+        _rcTier = t; // temporary pre-warm — RC will confirm/override
+        debugPrint('[PremiumProvider] Pre-warmed from cache → $t');
+      }
+    }
+  }
 
   // Computed effective tier: always take the highest granted tier
   PlanTier get _effectiveTier {
@@ -129,6 +150,20 @@ class PremiumProvider extends ChangeNotifier {
   bool get hasPremiumBadge     => isPremium; // Premium only
   bool get hasFullAnalytics    => !isFree;   // Plus + Premium
 
+  // ── Module-specific gates — ONE check per feature ─────────
+  // All modules MUST use these. Never check isPaid/isPremium directly.
+  bool get canAccessAiThemes            => isPaid;     // Plus + Premium
+  bool get canAccessCommunityThemes     => isPaid;     // Plus + Premium
+  bool get canAccessPremiumThemes       => isPaid;     // AI + Community themes
+  bool get canAccessProfilePremium      => isPaid;     // Avatar frame, accents
+  bool get canAccessCommunityBadge      => isPremium;  // Premium only
+  bool get canAccessCommunityPremiumChat => isPremium; // Premium only
+  bool get canAccessPregnancyPremium    => !isFree;    // Plus + Premium
+  bool get canAccessJournalPremium      => !isFree;    // Plus + Premium
+  bool get canAccessMoodPremium         => !isFree;    // Plus + Premium
+  bool get canAccessSleepPremium        => !isFree;    // Plus + Premium
+  bool get canAccessLongMemory          => isPremium;  // Premium only
+
   int get communityPostsPerDay => isFree
       ? freeCommunityPostsPerDay
       : plusCommunityPostsPerDay;
@@ -139,6 +174,7 @@ class PremiumProvider extends ChangeNotifier {
   void updateFromRevenueCat(PlanTier tier) {
     if (_rcTier == tier) return; // no change — skip rebuild
     _rcTier = tier;
+    LocalCache.setString(_kTierKey, _effectiveTier.name); // persist
     debugPrint('[PremiumProvider] RC tier → $_rcTier | effective: $_effectiveTier');
     notifyListeners();
   }
@@ -153,6 +189,7 @@ class PremiumProvider extends ChangeNotifier {
         : PlanTier.free;
     if (_firestoreTier == newFirestoreTier) return; // no change
     _firestoreTier = newFirestoreTier;
+    LocalCache.setString(_kTierKey, _effectiveTier.name); // persist
     debugPrint(
         '[PremiumProvider] Firestore tier → $_firestoreTier | effective: $_effectiveTier');
     notifyListeners();
@@ -163,6 +200,7 @@ class PremiumProvider extends ChangeNotifier {
   void reset() {
     _rcTier = PlanTier.free;
     _firestoreTier = PlanTier.free;
+    LocalCache.setString(_kTierKey, PlanTier.free.name); // clear cache on sign-out
     notifyListeners();
   }
 

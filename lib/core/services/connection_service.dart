@@ -13,9 +13,9 @@ class ConnectionService {
 
   static final _db = FirebaseFirestore.instance;
 
-  static const _requests  = 'connection_requests';
-  static const _conns     = 'connections';
-  static const _blocked   = 'blocked_users';
+  static const _requests = 'connection_requests';
+  static const _conns = 'connections';
+  static const _blocked = 'blocked_users';
 
   // ── Eligibility ──────────────────────────────────────────────────────────
 
@@ -68,18 +68,24 @@ class ConnectionService {
     }
 
     final request = ConnectionRequest(
-      id:                 '',
-      fromUid:            fromUid,
-      toUid:              toUid,
-      fromPseudonym:      fromPseudonym,
-      fromAvatarEmoji:    fromAvatarEmoji,
+      id: '',
+      fromUid: fromUid,
+      toUid: toUid,
+      fromPseudonym: fromPseudonym,
+      fromAvatarEmoji: fromAvatarEmoji,
       fromAvatarColorHex: fromAvatarColorHex,
-      toPseudonym:        toPseudonym,
-      status:             ConnectionRequestStatus.pending,
-      createdAt:          DateTime.now(),
+      toPseudonym: toPseudonym,
+      status: ConnectionRequestStatus.pending,
+      createdAt: DateTime.now(),
     );
 
     await _db.collection(_requests).add(request.toMap());
+    await _createActivity(
+      uid: toUid,
+      actorUid: fromUid,
+      type: 'friendRequest',
+      text: '$fromPseudonym sent you a friend request',
+    );
     debugPrint('[ConnectionService] Request sent $fromUid → $toUid');
   }
 
@@ -99,7 +105,7 @@ class ConnectionService {
 
     // Update request status
     batch.update(_db.collection(_requests).doc(requestId), {
-      'status':      'accepted',
+      'status': 'accepted',
       'respondedAt': Timestamp.fromDate(DateTime.now()),
     });
 
@@ -107,12 +113,22 @@ class ConnectionService {
     final connId = LunarConnection.makeId(req.fromUid, req.toUid);
     final sorted = [req.fromUid, req.toUid]..sort();
     final connection = LunarConnection(
-      id:           connId,
-      uid1:         sorted[0],
-      uid2:         sorted[1],
-      connectedAt:  DateTime.now(),
+      id: connId,
+      uid1: sorted[0],
+      uid2: sorted[1],
+      connectedAt: DateTime.now(),
     );
     batch.set(_db.collection(_conns).doc(connId), connection.toMap());
+
+    final now = FieldValue.serverTimestamp();
+    batch.set(_db.collection('community_activity').doc(), {
+      'uid': req.fromUid,
+      'actorUid': req.toUid,
+      'type': 'requestAccepted',
+      'text': '${req.toPseudonym} accepted your friend request',
+      'read': false,
+      'createdAt': now,
+    });
 
     await batch.commit();
     debugPrint('[ConnectionService] Accepted: $requestId → connection $connId');
@@ -122,7 +138,7 @@ class ConnectionService {
 
   static Future<void> rejectRequest(String requestId) async {
     await _db.collection(_requests).doc(requestId).update({
-      'status':      'rejected',
+      'status': 'rejected',
       'respondedAt': Timestamp.fromDate(DateTime.now()),
     });
     debugPrint('[ConnectionService] Rejected: $requestId');
@@ -149,10 +165,10 @@ class ConnectionService {
     // Create block record
     final blockId = BlockedUser.makeId(blockerUid, blockedUid);
     final block = BlockedUser(
-      id:         blockId,
+      id: blockId,
       blockerUid: blockerUid,
       blockedUid: blockedUid,
-      blockedAt:  DateTime.now(),
+      blockedAt: DateTime.now(),
     );
     batch.set(_db.collection(_blocked).doc(blockId), block.toMap());
 
@@ -207,12 +223,10 @@ class ConnectionService {
 
   /// Live stream of connections where [uid] is uid1 (use with uid2 stream in provider).
   static Stream<List<LunarConnection>> connectionsStream(String uid) {
-    return _db
-        .collection(_conns)
-        .where('uid1', isEqualTo: uid)
-        .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => LunarConnection.fromMap(d.id, d.data())).toList());
+    return _db.collection(_conns).where('uid1', isEqualTo: uid).snapshots().map(
+        (snap) => snap.docs
+            .map((d) => LunarConnection.fromMap(d.id, d.data()))
+            .toList());
   }
 
   /// Fetch a single snapshot of all connections where uid is uid1 or uid2.
@@ -288,5 +302,21 @@ class ConnectionService {
         .limit(1)
         .get();
     return snap.docs.isNotEmpty ? snap.docs.first.id : null;
+  }
+
+  static Future<void> _createActivity({
+    required String uid,
+    required String actorUid,
+    required String type,
+    required String text,
+  }) {
+    return _db.collection('community_activity').add({
+      'uid': uid,
+      'actorUid': actorUid,
+      'type': type,
+      'text': text,
+      'read': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 }

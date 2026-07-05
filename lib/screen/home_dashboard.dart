@@ -18,7 +18,7 @@ import 'cycle_tracker_screen.dart';
 import 'period_screen.dart';
 import 'ai_voice_screen.dart';
 import 'ai_insights_screen.dart';
-import 'community_screen.dart';
+import 'community_tabs_screen.dart';
 import 'sleep_screen.dart';
 import 'pregnancy_screen.dart';
 import '../core/providers/weather_provider.dart';
@@ -2863,7 +2863,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                 label: 'Community\nSupport',
                 color: _hIndigo,
                 isPrimary: false,
-                onTap: () => _nav(ctx, const CommunityScreen()),
+                onTap: () => _nav(ctx, const CommunityTabsScreen()),
               ),
             ),
           ],
@@ -3438,7 +3438,7 @@ class _HomeDashboardState extends State<HomeDashboard>
       _QuickAction('🤖', 'Lunar AI', () => _nav(context, const AIVoiceScreen()),
           isHighlight: true),
       _QuickAction(
-          '🌸', 'Community', () => _nav(context, const CommunityScreen())),
+          '🌸', 'Community', () => _nav(context, const CommunityTabsScreen())),
       _QuickAction('🌙', 'Sleep', () => _nav(context, const SleepScreen())),
       _QuickAction(
           '🤰', 'Pregnancy', () => _nav(context, const PregnancyScreen())),

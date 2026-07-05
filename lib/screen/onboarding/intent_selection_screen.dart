@@ -49,10 +49,27 @@ class _IntentSelectionScreenState extends State<IntentSelectionScreen>
     if (_selected == null || _saving) return;
     setState(() => _saving = true);
     final auth = context.read<LunarAuthProvider>();
-    await auth.setUserIntent(_selected!);
-    // setUserIntent writes onboardingIntentCompleted=true → Firestore stream
-    // updates _userModel → notifyListeners() → main.dart gate re-evaluates
-    // automatically. No manual navigation needed here.
+    try {
+      await auth.setUserIntent(_selected!);
+      // On success, Firestore stream updates _userModel → notifyListeners() →
+      // main.dart gate evaluates hasCompletedIntentOnboarding → advances to MainNavigation
+      // No manual navigation needed - gate handles it automatically.
+    } catch (e) {
+      debugPrint('[IntentSelection] setUserIntent error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save intent: ${e.toString()}'),
+            backgroundColor: const Color(0xFFCC0000),
+          ),
+        );
+      }
+    } finally {
+      // Always reset loading, regardless of success or failure
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
   }
 
   @override

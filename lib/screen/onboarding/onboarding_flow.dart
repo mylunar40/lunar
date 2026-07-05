@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/app_provider.dart';
 import '../../core/providers/lunar_data_provider.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/models/pregnancy_model.dart';
 import '../../user_provider.dart';
 
@@ -157,6 +158,7 @@ class _OnboardingFlowState extends State<OnboardingFlow>
     final lunarData = context.read<LunarDataProvider>();
     final appProvider = context.read<AppProvider>();
     final userProvider = context.read<UserProvider>();
+    final auth = context.read<LunarAuthProvider>();
 
     // Save name
     if (_name.trim().isNotEmpty) {
@@ -193,8 +195,8 @@ class _OnboardingFlowState extends State<OnboardingFlow>
     await appProvider.setReminderTime(
         _reminderTime.hour, _reminderTime.minute);
 
-    // Mark onboarding done — Consumer in main.dart rebuilds
-    await appProvider.completeOnboarding();
+    // Mark onboarding done (saves to Firestore + local cache)
+    await appProvider.completeOnboarding(uid: auth.firebaseUser?.uid);
   }
 
   // ══════════════════════════════════════════════════════════

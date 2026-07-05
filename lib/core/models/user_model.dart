@@ -15,8 +15,10 @@ class LunarUserModel {
   final DateTime? lastPeriodDate;
   final bool pregnancyMode;
   final bool isPremium;
+
   /// Which paid tier the user is on. Defaults to [PlanTier.free].
   final PlanTier planTier;
+
   /// When the premium subscription expires. `null` = no expiry (lifetime grant).
   /// Use [isActivePremium] to check combined isPremium + non-expired state.
   final DateTime? premiumExpiresAt;
@@ -24,10 +26,16 @@ class LunarUserModel {
   final String? authProvider; // 'email' | 'google' | 'apple' | 'anonymous'
   final DateTime createdAt;
   final DateTime? updatedAt;
+
   /// User's selected journey focus, stored as [UserIntent.name] string.
   final String? userIntent;
   final DateTime? intentSelectedAt;
+  final String communityTheme;
   final bool onboardingIntentCompleted;
+
+  /// True when the user has completed the main onboarding flow (cycle setup, goals, etc.).
+  /// Stored in Firestore for cross-device persistence.
+  final bool onboardingCompleted;
 
   const LunarUserModel({
     required this.uid,
@@ -46,14 +54,15 @@ class LunarUserModel {
     this.updatedAt,
     this.userIntent,
     this.intentSelectedAt,
+    this.communityTheme = 'lunar',
     this.onboardingIntentCompleted = false,
+    this.onboardingCompleted = false,
   });
 
   /// True when isPremium is set AND the subscription has not yet expired.
   bool get isActivePremium =>
       isPremium &&
-      (premiumExpiresAt == null ||
-          premiumExpiresAt!.isAfter(DateTime.now()));
+      (premiumExpiresAt == null || premiumExpiresAt!.isAfter(DateTime.now()));
 
   // ── Serialisation ───────────────────────────────────────
   Map<String, dynamic> toMap() => {
@@ -62,9 +71,8 @@ class LunarUserModel {
         'email': email,
         'photoUrl': photoUrl,
         'cycleLength': cycleLength,
-        'lastPeriodDate': lastPeriodDate != null
-            ? Timestamp.fromDate(lastPeriodDate!)
-            : null,
+        'lastPeriodDate':
+            lastPeriodDate != null ? Timestamp.fromDate(lastPeriodDate!) : null,
         'pregnancyMode': pregnancyMode,
         'isPremium': isPremium,
         'planTier': planTier.name,
@@ -79,7 +87,9 @@ class LunarUserModel {
         'intentSelectedAt': intentSelectedAt != null
             ? Timestamp.fromDate(intentSelectedAt!)
             : null,
+        'communityTheme': communityTheme,
         'onboardingIntentCompleted': onboardingIntentCompleted,
+        'onboardingCompleted': onboardingCompleted,
       };
 
   factory LunarUserModel.fromMap(Map<String, dynamic> map, String docId) {
@@ -115,8 +125,10 @@ class LunarUserModel {
       intentSelectedAt: map['intentSelectedAt'] != null
           ? (map['intentSelectedAt'] as Timestamp).toDate()
           : null,
+      communityTheme: map['communityTheme'] as String? ?? 'lunar',
       onboardingIntentCompleted:
           (map['onboardingIntentCompleted'] as bool?) ?? false,
+      onboardingCompleted: (map['onboardingCompleted'] as bool?) ?? false,
     );
   }
 
@@ -131,7 +143,9 @@ class LunarUserModel {
     DateTime? premiumExpiresAt,
     String? userIntent,
     DateTime? intentSelectedAt,
+    String? communityTheme,
     bool? onboardingIntentCompleted,
+    bool? onboardingCompleted,
   }) =>
       LunarUserModel(
         uid: uid,
@@ -150,8 +164,9 @@ class LunarUserModel {
         updatedAt: DateTime.now(),
         userIntent: userIntent ?? this.userIntent,
         intentSelectedAt: intentSelectedAt ?? this.intentSelectedAt,
+        communityTheme: communityTheme ?? this.communityTheme,
         onboardingIntentCompleted:
             onboardingIntentCompleted ?? this.onboardingIntentCompleted,
+        onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
       );
 }
-

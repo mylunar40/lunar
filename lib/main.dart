@@ -13,6 +13,7 @@ import 'core/providers/chat_provider.dart';
 import 'core/providers/memory_provider.dart';
 import 'core/providers/weather_provider.dart';
 import 'core/providers/community_provider.dart';
+import 'core/providers/community_activity_provider.dart';
 import 'core/providers/avatar_provider.dart';
 import 'core/providers/connection_provider.dart';
 import 'models/avatar_model.dart';
@@ -23,7 +24,7 @@ import 'core/services/subscription_service.dart';
 import 'core/providers/premium_provider.dart';
 import 'screen/home_dashboard.dart';
 import 'screen/calendar_screen.dart';
-import 'screen/community_screen.dart';
+import 'screen/community_tabs_screen.dart';
 import 'screen/pregnancy_screen.dart';
 import 'screen/ai_voice_screen.dart';
 import 'screen/profile_screen.dart';
@@ -38,6 +39,10 @@ import 'user_provider.dart';
 // ── TEMPORARY DEV BYPASS — set false before release ────────
 // ignore: constant_identifier_names
 const bool isDevelopmentMode = false;
+
+// ── TEMPORARY DEV BYPASS — Email Verification (set true before Beta launch) ────────
+// ignore: constant_identifier_names
+const bool kRequireEmailVerification = false;
 
 // ── Lunar global design tokens ────────────────────────────
 const Color kLunarBg = Color(0xFF0A0118);
@@ -160,6 +165,16 @@ void main() async {
           },
         ),
         ChangeNotifierProvider(create: (_) => CommunityProvider()),
+        ChangeNotifierProxyProvider<LunarAuthProvider,
+            CommunityActivityProvider>(
+          create: (_) => CommunityActivityProvider(),
+          update: (_, auth, activity) {
+            activity!.load(auth.isAuthenticated && !auth.isGuest
+                ? auth.firebaseUser?.uid
+                : null);
+            return activity;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => AvatarProvider()),
         // ConnectionProvider — loads/resets when auth state changes
         ChangeNotifierProxyProvider<LunarAuthProvider, ConnectionProvider>(
@@ -232,24 +247,30 @@ class LunarApp extends StatelessWidget {
           if (isDevelopmentMode) {
             child = const MainNavigation(key: ValueKey('main'));
           } else if (auth.isLoading) {
+            // Firebase auth state is loading — show splash
             child = const LunarSplashScreen(key: ValueKey('splash'));
           } else if (auth.isDemoMode) {
             // Firebase unavailable — run in local demo mode (read-only, no auth)
             child = const MainNavigation(key: ValueKey('main'));
           } else if (!auth.isAuthenticated) {
+            // Not logged in — show login
             child = const WelcomeScreen(key: ValueKey('welcome'));
-          } else if (!auth.isEmailVerified && !auth.isGuest) {
+          } else if (kRequireEmailVerification &&
+              !auth.isEmailVerified &&
+              !auth.isGuest) {
             // Email accounts must verify before accessing the app.
+            // [kRequireEmailVerification] = false bypasses this screen for development.
             // Google / anonymous accounts are pre-verified (emailVerified == true).
             child = const EmailVerificationScreen(key: ValueKey('verify'));
-          } else if (!app.onboardingComplete && !auth.isGuest) {
+          } else if (!auth.hasCompletedOnboarding && !auth.isGuest) {
+            // Logged in but onboarding not complete — resume onboarding
+            // Source of truth: Firestore user model (cross-device persistent)
             child = const OnboardingFlow(key: ValueKey('onboarding'));
-          } else if (auth.isAuthenticated &&
-              !auth.isGuest &&
-              !auth.hasCompletedIntentOnboarding) {
-            child =
-                const IntentSelectionScreen(key: ValueKey('intent'));
+          } else if (!auth.hasCompletedIntentOnboarding && !auth.isGuest) {
+            // Logged in + onboarding complete, but intent not selected yet
+            child = const IntentSelectionScreen(key: ValueKey('intent'));
           } else {
+            // Logged in + onboarding complete + intent selected → home
             child = const MainNavigation(key: ValueKey('main'));
           }
           return AnimatedSwitcher(
@@ -278,7 +299,7 @@ class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 4;
 
   static const List<Widget> _screens = [
-    CommunityScreen(), // 0 — Community
+    CommunityTabsScreen(), // 0 — Community
     CalendarScreen(), // 1 — Calendar
     AIVoiceScreen(), // 2 — Lunar AI  ★ center identity
     PregnancyScreen(), // 3 — Pregnancy
@@ -286,6 +307,15 @@ class _MainNavigationState extends State<MainNavigation> {
   ];
 
   void _onTap(int i) {
+    if (i == 0) {
+      HapticFeedback.selectionClick();
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const CommunityTabsScreen(),
+        ),
+      );
+      return;
+    }
     if (i == _currentIndex) return;
     HapticFeedback.selectionClick();
     setState(() => _currentIndex = i);
@@ -299,24 +329,10 @@ class _MainNavigationState extends State<MainNavigation> {
       backgroundColor: kLunarBg,
       body: Stack(
         children: [
-          // ── Page with smooth fade + float transition ──────
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 340),
-            transitionBuilder: (child, anim) => FadeTransition(
-              opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.035),
-                  end: Offset.zero,
-                ).animate(
-                    CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-                child: child,
-              ),
-            ),
-            child: KeyedSubtree(
-              key: ValueKey(_currentIndex),
-              child: _screens[_currentIndex],
-            ),
+          // ── IndexedStack keeps all screens alive — no state reset on tab switch ──
+          IndexedStack(
+            index: _currentIndex,
+            children: _screens,
           ),
           // ── DEV badge ─────────────────────────────────────
           if (isDevelopmentMode)
@@ -355,14 +371,16 @@ class _MainNavigationState extends State<MainNavigation> {
           ),
         ],
       ),
-      extendBody: true,
-      bottomNavigationBar: Consumer<ConnectionProvider>(
-        builder: (_, cp, __) => _LunarPremiumNavBar(
-          currentIndex: _currentIndex,
-          onTap: _onTap,
-          connectionBadge: cp.incomingCount,
-        ),
-      ),
+      extendBody: _currentIndex != 2,
+      bottomNavigationBar: _currentIndex == 2
+          ? null
+          : Consumer<ConnectionProvider>(
+              builder: (_, cp, __) => _LunarPremiumNavBar(
+                currentIndex: _currentIndex,
+                onTap: _onTap,
+                connectionBadge: cp.incomingCount,
+              ),
+            ),
     );
   }
 }
