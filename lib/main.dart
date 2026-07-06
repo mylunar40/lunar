@@ -23,7 +23,7 @@ import 'core/services/fcm_service.dart';
 import 'core/services/subscription_service.dart';
 import 'core/providers/premium_provider.dart';
 import 'screen/home_dashboard.dart';
-import 'screen/calendar_screen.dart';
+import 'screen/glow_screen.dart';
 import 'screen/community_tabs_screen.dart';
 import 'screen/pregnancy_screen.dart';
 import 'screen/ai_voice_screen.dart';
@@ -295,12 +295,12 @@ class MainNavigation extends StatefulWidget {
 }
 
 class _MainNavigationState extends State<MainNavigation> {
-  // 0=Community  1=Calendar  2=LunarAI  3=Pregnancy  4=Home
+  // 0=Community  1=Glow  2=LunarAI  3=Pregnancy  4=Home
   int _currentIndex = 4;
 
   static const List<Widget> _screens = [
     CommunityTabsScreen(), // 0 — Community
-    CalendarScreen(), // 1 — Calendar
+    GlowScreen(), // 1 — Glow
     AIVoiceScreen(), // 2 — Lunar AI  ★ center identity
     PregnancyScreen(), // 3 — Pregnancy
     HomeDashboard(), // 4 — Home (default)
@@ -325,62 +325,76 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: kLunarBg,
-      body: Stack(
-        children: [
-          // ── IndexedStack keeps all screens alive — no state reset on tab switch ──
-          IndexedStack(
-            index: _currentIndex,
-            children: _screens,
-          ),
-          // ── DEV badge ─────────────────────────────────────
-          if (isDevelopmentMode)
-            const Positioned(
+    return PopScope(
+      // Prevent back from closing the app when on any non-Home tab
+      canPop: _currentIndex == 4,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          // Back pressed on any non-Home tab → go to Home, no state reset
+          HapticFeedback.selectionClick();
+          setState(() => _currentIndex = 4);
+          _avatarObserver.onTabChanged(4);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: kLunarBg,
+        body: Stack(
+          children: [
+            // ── IndexedStack keeps all screens alive — no state reset on tab switch ──
+            IndexedStack(
+              index: _currentIndex,
+              children: _screens,
+            ),
+            // ── DEV badge ─────────────────────────────────────
+            if (isDevelopmentMode)
+              const Positioned(
+                top: 0,
+                right: 0,
+                child: SafeArea(
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 6, right: 10),
+                    child: _DevModeBadge(),
+                  ),
+                ),
+              ),
+            // ── Floating profile avatar — main tabs only ────
+            Positioned(
               top: 0,
               right: 0,
               child: SafeArea(
                 child: Padding(
-                  padding: EdgeInsets.only(top: 6, right: 10),
-                  child: _DevModeBadge(),
+                  padding: const EdgeInsets.only(top: 10, right: 16),
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: _avatarObserver.showAvatar,
+                    builder: (_, visible, child) => AnimatedOpacity(
+                      opacity: visible ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      child: IgnorePointer(
+                        ignoring: !visible,
+                        child: child,
+                      ),
+                    ),
+                    child: const _FloatingProfileAvatar(),
+                  ),
                 ),
               ),
             ),
-          // ── Floating profile avatar — main tabs only ────
-          Positioned(
-            top: 0,
-            right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 10, right: 16),
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: _avatarObserver.showAvatar,
-                  builder: (_, visible, child) => AnimatedOpacity(
-                    opacity: visible ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                    child: IgnorePointer(
-                      ignoring: !visible,
-                      child: child,
+          ],
+        ),
+        extendBody:
+            _currentIndex == 1 || _currentIndex == 2 || _currentIndex == 3,
+        bottomNavigationBar:
+            (_currentIndex == 2 || _currentIndex == 1 || _currentIndex == 3)
+                ? null
+                : Consumer<ConnectionProvider>(
+                    builder: (_, cp, __) => _LunarPremiumNavBar(
+                      currentIndex: _currentIndex,
+                      onTap: _onTap,
+                      connectionBadge: cp.incomingCount,
                     ),
                   ),
-                  child: const _FloatingProfileAvatar(),
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
-      extendBody: _currentIndex != 2,
-      bottomNavigationBar: _currentIndex == 2
-          ? null
-          : Consumer<ConnectionProvider>(
-              builder: (_, cp, __) => _LunarPremiumNavBar(
-                currentIndex: _currentIndex,
-                onTap: _onTap,
-                connectionBadge: cp.incomingCount,
-              ),
-            ),
     );
   }
 }
@@ -736,12 +750,12 @@ class _LunarPremiumNavBarState extends State<_LunarPremiumNavBar>
                       badge: widget.connectionBadge,
                       onTap: () => widget.onTap(0),
                     ),
-                    // ── Calendar (1) ──────────────────────
+                    // ── Glow (1) ──────────────────────────
                     _NavTile(
-                      icon: Icons.calendar_month_rounded,
-                      inactiveIcon: Icons.calendar_month_outlined,
-                      label: 'Calendar',
-                      color: kLunarIndigo,
+                      icon: Icons.auto_awesome_rounded,
+                      inactiveIcon: Icons.auto_awesome_outlined,
+                      label: 'Glow',
+                      color: kLunarPurple,
                       isActive: widget.currentIndex == 1,
                       onTap: () => widget.onTap(1),
                     ),
@@ -751,11 +765,11 @@ class _LunarPremiumNavBarState extends State<_LunarPremiumNavBar>
                       breatheAnim: _breatheAnim,
                       onTap: () => widget.onTap(2),
                     ),
-                    // ── Pregnancy (3) ─────────────────────
+                    // ── Bloom (3) ────────────────────────
                     _NavTile(
                       icon: Icons.favorite_rounded,
                       inactiveIcon: Icons.favorite_border_rounded,
-                      label: 'Pregnancy',
+                      label: 'Bloom',
                       color: kLunarPink,
                       isActive: widget.currentIndex == 3,
                       onTap: () => widget.onTap(3),

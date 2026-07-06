@@ -22,12 +22,12 @@ import '../screen/paywall/paywall_screen.dart';
 import '../widgets/premium_gate.dart';
 
 // ── Design tokens ─────────────────────────────────────────
-const Color _kBg        = Color(0xFF0A0118);
-const Color _kSurf      = Color(0xFF14022E);
-const Color _kPurple    = Color(0xFFAB5CF2);
-const Color _kPink      = Color(0xFFFF69B4);
-const Color _kGold      = Color(0xFFFFD700);
-const Color _kDeep      = Color(0xFF5C2DB8);
+const Color _kBg = Color(0xFF0A0118);
+const Color _kSurf = Color(0xFF14022E);
+const Color _kPurple = Color(0xFFAB5CF2);
+const Color _kPink = Color(0xFFFF69B4);
+const Color _kGold = Color(0xFFFFD700);
+const Color _kDeep = Color(0xFF5C2DB8);
 
 // ─────────────────────────────────────────────────────────
 //  LUNAR THINKING ANIMATION
@@ -71,11 +71,13 @@ class _TypingDotsState extends State<_TypingDots>
           final offset = i * 0.28;
           final t = ((_ctrl.value - offset) % 1.0);
           // Sine-like bounce: up for first half, down for second
-          final scale = 0.6 + 0.7 * (t < 0.4
-              ? (t / 0.4)
-              : t < 0.7
-                  ? ((0.7 - t) / 0.3)
-                  : 0.0);
+          final scale = 0.6 +
+              0.7 *
+                  (t < 0.4
+                      ? (t / 0.4)
+                      : t < 0.7
+                          ? ((0.7 - t) / 0.3)
+                          : 0.0);
           final glowOpacity = scale > 0.9 ? (scale - 0.9) * 3.0 : 0.0;
           return Container(
             margin: const EdgeInsets.symmetric(horizontal: 3),
@@ -119,7 +121,6 @@ class AIVoiceScreen extends StatefulWidget {
 
 class _AIVoiceState extends State<AIVoiceScreen>
     with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
-
   @override
   bool get wantKeepAlive => true;
 
@@ -136,14 +137,14 @@ class _AIVoiceState extends State<AIVoiceScreen>
   // ── State ─────────────────────────────────────────────────
   bool _isFocused = false;
   bool _isRecording = false;
-  bool _hasText = false;        // drives send button active state
+  bool _hasText = false; // drives send button active state
   String _voiceText = '';
   XFile? _pendingMedia;
   MediaType? _pendingMediaType;
   _ChatTheme _activeTheme = _ChatTheme.moonlight;
 
-  static const _kThemeKey       = 'lunar_ai_chat_theme_v1';
-  static const _kSavedKey       = 'lunar_ai_saved_msgs_v1';
+  static const _kThemeKey = 'lunar_ai_chat_theme_v1';
+  static const _kSavedKey = 'lunar_ai_saved_msgs_v1';
   static const _kCommunityThemeKey = 'lunar_community_theme_v1';
 
   // ── Saved messages (❤️) ───────────────────────────────────
@@ -236,12 +237,12 @@ class _AIVoiceState extends State<AIVoiceScreen>
       final lunarData = context.read<LunarDataProvider>();
       final app = context.read<AppProvider>();
       context.read<ChatProvider>().seedWelcomeContext(
-        isPregnant: lunarData.isPregnant || app.pregnancyMode,
-        pregnancyWeek: (lunarData.isPregnant || app.pregnancyMode)
-            ? lunarData.currentPregnancyWeek
-            : null,
-        emotionalIntent: app.emotionalIntent,
-      );
+            isPregnant: lunarData.isPregnant || app.pregnancyMode,
+            pregnancyWeek: (lunarData.isPregnant || app.pregnancyMode)
+                ? lunarData.currentPregnancyWeek
+                : null,
+            emotionalIntent: app.emotionalIntent,
+          );
       _computeSuggestions();
     });
   }
@@ -321,7 +322,9 @@ class _AIVoiceState extends State<AIVoiceScreen>
     final idx = msgs.indexWhere((m) => m.id == aiMsg.id);
     // Find the user message just before this AI message
     final userMsg = idx > 0
-        ? msgs.sublist(0, idx).lastWhere((m) => m.isUser, orElse: () => msgs.first)
+        ? msgs
+            .sublist(0, idx)
+            .lastWhere((m) => m.isUser, orElse: () => msgs.first)
         : msgs.firstWhere((m) => m.isUser, orElse: () => msgs.first);
     if (userMsg.isUser) _send(userMsg.text);
   }
@@ -373,7 +376,10 @@ class _AIVoiceState extends State<AIVoiceScreen>
       PaywallGate.show(context, featureHint: 'Unlimited AI support');
       return;
     }
-    setState(() { _pendingMedia = null; _pendingMediaType = null; });
+    setState(() {
+      _pendingMedia = null;
+      _pendingMediaType = null;
+    });
     chat.sendWithMedia(file, type, context, isPremiumUser: premium.isPaid);
     _scrollToBottom();
   }
@@ -381,7 +387,9 @@ class _AIVoiceState extends State<AIVoiceScreen>
   // ── STT ───────────────────────────────────────────────────
   Future<void> _initStt() async {
     _sttAvailable = await _sttService.initialize(
-      onError: (_) { if (mounted) setState(() => _isRecording = false); },
+      onError: (_) {
+        if (mounted) setState(() => _isRecording = false);
+      },
       onStatus: (s) {
         if ((s == 'done' || s == 'notListening') && mounted) _finishVoice();
       },
@@ -390,7 +398,10 @@ class _AIVoiceState extends State<AIVoiceScreen>
 
   void _startVoice() async {
     HapticFeedback.mediumImpact();
-    setState(() { _isRecording = true; _voiceText = ''; });
+    setState(() {
+      _isRecording = true;
+      _voiceText = '';
+    });
     if (!_sttAvailable) return;
     await _sttService.listen(
       onResult: (r) {
@@ -415,7 +426,10 @@ class _AIVoiceState extends State<AIVoiceScreen>
   void _finishVoice() {
     if (!mounted) return;
     final text = _voiceText.trim();
-    setState(() { _isRecording = false; _voiceText = ''; });
+    setState(() {
+      _isRecording = false;
+      _voiceText = '';
+    });
     if (text.isNotEmpty) _send(text);
   }
 
@@ -426,7 +440,10 @@ class _AIVoiceState extends State<AIVoiceScreen>
       final f = await _imagePicker.pickImage(
           source: source, imageQuality: 85, maxWidth: 1280);
       if (f != null && mounted) {
-        setState(() { _pendingMedia = f; _pendingMediaType = MediaType.image; });
+        setState(() {
+          _pendingMedia = f;
+          _pendingMediaType = MediaType.image;
+        });
       }
     } catch (_) {}
   }
@@ -435,10 +452,12 @@ class _AIVoiceState extends State<AIVoiceScreen>
     Navigator.pop(context);
     try {
       final f = await _imagePicker.pickVideo(
-          source: ImageSource.gallery,
-          maxDuration: const Duration(minutes: 5));
+          source: ImageSource.gallery, maxDuration: const Duration(minutes: 5));
       if (f != null && mounted) {
-        setState(() { _pendingMedia = f; _pendingMediaType = MediaType.video; });
+        setState(() {
+          _pendingMedia = f;
+          _pendingMediaType = MediaType.video;
+        });
       }
     } catch (_) {}
   }
@@ -453,7 +472,8 @@ class _AIVoiceState extends State<AIVoiceScreen>
         title: const Text('Clear Chat? 🌙',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
         content: Text('This will clear your current conversation.',
-            style: TextStyle(color: Colors.white.withOpacity(0.6), height: 1.5)),
+            style:
+                TextStyle(color: Colors.white.withOpacity(0.6), height: 1.5)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -480,13 +500,34 @@ class _AIVoiceState extends State<AIVoiceScreen>
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => _MoonMenuSheet(
-        onNewChat: () { Navigator.pop(context); _confirmClear(); },
-        onHistory: () { Navigator.pop(context); _openHistory(); },
-        onLanguages: () { Navigator.pop(context); _openLanguages(); },
-        onSettings: () { Navigator.pop(context); _openSettings(); },
-        onThemes: () { Navigator.pop(context); _openThemes(); },
-        onExport: () { Navigator.pop(context); _exportChat(); },
-        onClear: () { Navigator.pop(context); _confirmClear(); },
+        onNewChat: () {
+          Navigator.pop(context);
+          _confirmClear();
+        },
+        onHistory: () {
+          Navigator.pop(context);
+          _openHistory();
+        },
+        onLanguages: () {
+          Navigator.pop(context);
+          _openLanguages();
+        },
+        onSettings: () {
+          Navigator.pop(context);
+          _openSettings();
+        },
+        onThemes: () {
+          Navigator.pop(context);
+          _openThemes();
+        },
+        onExport: () {
+          Navigator.pop(context);
+          _exportChat();
+        },
+        onClear: () {
+          Navigator.pop(context);
+          _confirmClear();
+        },
       ),
     );
   }
@@ -525,21 +566,24 @@ class _AIVoiceState extends State<AIVoiceScreen>
           Clipboard.setData(ClipboardData(text: msg.text));
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Copied to clipboard 🌙', style: TextStyle(color: Colors.white)),
+            content: Text('Copied to clipboard 🌙',
+                style: TextStyle(color: Colors.white)),
             backgroundColor: _kDeep,
             duration: Duration(seconds: 1),
           ));
         },
         onDelete: () => Navigator.pop(context),
-        onRegenerate: msg.isUser ? null : () {
-          Navigator.pop(context);
-          final msgs = context.read<ChatProvider>().messages;
-          if (msgs.length >= 2) {
-            final userMsg = msgs.reversed.firstWhere(
-                (m) => m.isUser, orElse: () => msgs.last);
-            _send(userMsg.text);
-          }
-        },
+        onRegenerate: msg.isUser
+            ? null
+            : () {
+                Navigator.pop(context);
+                final msgs = context.read<ChatProvider>().messages;
+                if (msgs.length >= 2) {
+                  final userMsg = msgs.reversed
+                      .firstWhere((m) => m.isUser, orElse: () => msgs.last);
+                  _send(userMsg.text);
+                }
+              },
       ),
     );
   }
@@ -549,8 +593,8 @@ class _AIVoiceState extends State<AIVoiceScreen>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => _HistorySheet(
-          messages: context.read<ChatProvider>().messages),
+      builder: (_) =>
+          _HistorySheet(messages: context.read<ChatProvider>().messages),
     );
   }
 
@@ -561,8 +605,12 @@ class _AIVoiceState extends State<AIVoiceScreen>
       builder: (_) => _SimpleListSheet(
         title: '🌍 Language',
         items: const [
-          ('🇺🇸', 'English'), ('🇮🇳', 'Hindi'), ('🇫🇷', 'French'),
-          ('🇪🇸', 'Spanish'), ('🇸🇦', 'Arabic'), ('🇩🇪', 'German'),
+          ('🇺🇸', 'English'),
+          ('🇮🇳', 'Hindi'),
+          ('🇫🇷', 'French'),
+          ('🇪🇸', 'Spanish'),
+          ('🇸🇦', 'Arabic'),
+          ('🇩🇪', 'German'),
         ],
         onSelect: (v) {
           Navigator.pop(context);
@@ -641,7 +689,8 @@ class _AIVoiceState extends State<AIVoiceScreen>
     }
     Clipboard.setData(ClipboardData(text: buf.toString()));
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Chat copied to clipboard 🌙', style: TextStyle(color: Colors.white)),
+      content: Text('Chat copied to clipboard 🌙',
+          style: TextStyle(color: Colors.white)),
       backgroundColor: _kDeep,
       duration: Duration(seconds: 2),
     ));
@@ -795,8 +844,8 @@ class _AIVoiceState extends State<AIVoiceScreen>
             child: Align(
               alignment: Alignment.centerLeft,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.07),
                   borderRadius: const BorderRadius.only(
@@ -805,8 +854,7 @@ class _AIVoiceState extends State<AIVoiceScreen>
                     bottomLeft: Radius.circular(4),
                     bottomRight: Radius.circular(18),
                   ),
-                  border: Border.all(
-                      color: Colors.white.withOpacity(0.08)),
+                  border: Border.all(color: Colors.white.withOpacity(0.08)),
                 ),
                 child: const _TypingDots(),
               ),
@@ -824,9 +872,8 @@ class _AIVoiceState extends State<AIVoiceScreen>
             right: isUser ? 0 : 52,
           ),
           child: Column(
-            crossAxisAlignment: isUser
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
+            crossAxisAlignment:
+                isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
               Align(
                 alignment:
@@ -866,8 +913,8 @@ class _AIVoiceState extends State<AIVoiceScreen>
                         : Text(
                             msg.text,
                             style: TextStyle(
-                              color: Colors.white
-                                  .withOpacity(isUser ? 1.0 : 0.9),
+                              color:
+                                  Colors.white.withOpacity(isUser ? 1.0 : 0.9),
                               fontSize: 15,
                               height: 1.52,
                               fontWeight: FontWeight.w400,
@@ -984,8 +1031,8 @@ class _AIVoiceState extends State<AIVoiceScreen>
                 borderRadius: BorderRadius.circular(8),
                 color: _kPurple.withOpacity(0.2),
               ),
-              child: const Icon(Icons.videocam_rounded,
-                  color: _kPurple, size: 24),
+              child:
+                  const Icon(Icons.videocam_rounded, color: _kPurple, size: 24),
             ),
           const SizedBox(width: 12),
           Expanded(
@@ -997,8 +1044,10 @@ class _AIVoiceState extends State<AIVoiceScreen>
             ),
           ),
           GestureDetector(
-            onTap: () => setState(
-                () { _pendingMedia = null; _pendingMediaType = null; }),
+            onTap: () => setState(() {
+              _pendingMedia = null;
+              _pendingMediaType = null;
+            }),
             child: Icon(Icons.close_rounded,
                 color: Colors.white.withOpacity(0.4), size: 18),
           ),
@@ -1006,8 +1055,7 @@ class _AIVoiceState extends State<AIVoiceScreen>
           GestureDetector(
             onTap: _sendMedia,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 color: _kPurple,
@@ -1033,7 +1081,11 @@ class _AIVoiceState extends State<AIVoiceScreen>
         // Sweep angle: full rotation over the controller's 0→1 value
         final angle = _sweepCtrl.value * 2 * math.pi;
         // Intensity: stronger when focused or recording
-        final intensity = _isFocused ? 0.75 : _isRecording ? 0.9 : 0.35;
+        final intensity = _isFocused
+            ? 0.75
+            : _isRecording
+                ? 0.9
+                : 0.35;
 
         return Container(
           margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
@@ -1072,7 +1124,11 @@ class _AIVoiceState extends State<AIVoiceScreen>
           // 🎤 Mic button with pulse ring when recording
           GestureDetector(
             onTap: () {
-              if (_isRecording) { _stopVoice(); } else { _startVoice(); }
+              if (_isRecording) {
+                _stopVoice();
+              } else {
+                _startVoice();
+              }
             },
             onLongPressStart: (_) => _startVoice(),
             onLongPressEnd: (_) => _stopVoice(),
@@ -1099,7 +1155,9 @@ class _AIVoiceState extends State<AIVoiceScreen>
                           ),
                         ),
                       ),
-                      onEnd: () { if (mounted && _isRecording) setState(() {}); },
+                      onEnd: () {
+                        if (mounted && _isRecording) setState(() {});
+                      },
                     ),
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
@@ -1112,9 +1170,7 @@ class _AIVoiceState extends State<AIVoiceScreen>
                           : Colors.transparent,
                     ),
                     child: Icon(
-                      _isRecording
-                          ? Icons.mic_rounded
-                          : Icons.mic_none_rounded,
+                      _isRecording ? Icons.mic_rounded : Icons.mic_none_rounded,
                       color: _isRecording
                           ? _kPink
                           : Colors.white.withOpacity(0.45),
@@ -1141,14 +1197,12 @@ class _AIVoiceState extends State<AIVoiceScreen>
               cursorWidth: 2,
               cursorRadius: const Radius.circular(2),
               decoration: InputDecoration(
-                hintText:
-                    _isRecording ? 'Listening...' : 'Message...',
+                hintText: _isRecording ? 'Listening...' : 'Message...',
                 hintStyle: TextStyle(
-                    color: Colors.white.withOpacity(0.28),
-                    fontSize: 15),
+                    color: Colors.white.withOpacity(0.28), fontSize: 15),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                    vertical: 8, horizontal: 4),
+                contentPadding:
+                    const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 isDense: true,
               ),
               onSubmitted: (_) => _send(_textCtrl.text),
@@ -1170,8 +1224,7 @@ class _AIVoiceState extends State<AIVoiceScreen>
                   color: Colors.white.withOpacity(0.06),
                 ),
                 child: const Center(
-                  child: Text('🌙',
-                      style: TextStyle(fontSize: 17)),
+                  child: Text('🌙', style: TextStyle(fontSize: 17)),
                 ),
               ),
             ),
@@ -1353,8 +1406,13 @@ class _SuggestionChipState extends State<_SuggestionChip>
 // ═══════════════════════════════════════════════════════════
 
 class _MoonMenuSheet extends StatelessWidget {
-  final VoidCallback onNewChat, onHistory, onLanguages,
-      onSettings, onThemes, onExport, onClear;
+  final VoidCallback onNewChat,
+      onHistory,
+      onLanguages,
+      onSettings,
+      onThemes,
+      onExport,
+      onClear;
 
   const _MoonMenuSheet({
     required this.onNewChat,
@@ -1372,8 +1430,8 @@ class _MoonMenuSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kSurf,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(
-            top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
+        border:
+            Border(top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
       ),
       child: SafeArea(
         child: Column(
@@ -1382,7 +1440,8 @@ class _MoonMenuSheet extends StatelessWidget {
             _handle(),
             const Padding(
               padding: EdgeInsets.only(bottom: 16),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              child:
+                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Text('🌙', style: TextStyle(fontSize: 20)),
                 SizedBox(width: 8),
                 Text('Lunar AI',
@@ -1401,8 +1460,7 @@ class _MoonMenuSheet extends StatelessWidget {
             _item(Icons.ios_share_rounded, 'Export Chat', onExport),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: Divider(
-                  color: Colors.white.withOpacity(0.08), height: 1),
+              child: Divider(color: Colors.white.withOpacity(0.08), height: 1),
             ),
             _item(Icons.delete_sweep_outlined, 'Clear Current Chat', onClear,
                 accent: _kPink),
@@ -1426,7 +1484,10 @@ class _MoonMenuSheet extends StatelessWidget {
   Widget _item(IconData icon, String label, VoidCallback onTap,
       {Color? accent}) {
     return GestureDetector(
-      onTap: () { HapticFeedback.selectionClick(); onTap(); },
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -1475,15 +1536,16 @@ class _AttachSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kSurf,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(
-            top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
+        border:
+            Border(top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
       ),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(2),
@@ -1507,7 +1569,10 @@ class _AttachSheet extends StatelessWidget {
 
   Widget _btn(String emoji, String label, VoidCallback onTap) {
     return GestureDetector(
-      onTap: () { HapticFeedback.selectionClick(); onTap(); },
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
       child: Column(
         children: [
           Container(
@@ -1557,15 +1622,16 @@ class _MsgMenuSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kSurf,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(
-            top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
+        border:
+            Border(top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
       ),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(2),
@@ -1613,7 +1679,10 @@ class _MsgMenuSheet extends StatelessWidget {
   Widget _action(IconData icon, String label, VoidCallback onTap,
       {Color? color}) {
     return GestureDetector(
-      onTap: () { HapticFeedback.selectionClick(); onTap(); },
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
       child: Column(
         children: [
           Container(
@@ -1622,8 +1691,8 @@ class _MsgMenuSheet extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: (color ?? Colors.white).withOpacity(0.09),
-              border: Border.all(
-                  color: (color ?? Colors.white).withOpacity(0.16)),
+              border:
+                  Border.all(color: (color ?? Colors.white).withOpacity(0.16)),
             ),
             child: Icon(icon,
                 color: color ?? Colors.white.withOpacity(0.65), size: 22),
@@ -1693,15 +1762,15 @@ class _HistorySheetState extends State<_HistorySheet> {
       builder: (_, ctrl) => Container(
         decoration: BoxDecoration(
           color: _kSurf,
-          borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           border: Border(
               top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
         ),
         child: Column(
           children: [
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(2),
@@ -1718,13 +1787,11 @@ class _HistorySheetState extends State<_HistorySheet> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TextField(
                 onChanged: (v) => setState(() => _query = v),
-                style:
-                    const TextStyle(color: Colors.white, fontSize: 14),
+                style: const TextStyle(color: Colors.white, fontSize: 14),
                 cursorColor: _kPurple,
                 decoration: InputDecoration(
                   hintText: 'Search chats...',
-                  hintStyle: TextStyle(
-                      color: Colors.white.withOpacity(0.28)),
+                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.28)),
                   prefixIcon: Icon(Icons.search_rounded,
                       color: Colors.white.withOpacity(0.35), size: 20),
                   filled: true,
@@ -1818,9 +1885,7 @@ class _HistorySheetState extends State<_HistorySheet> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  m.text.length > 60
-                      ? '${m.text.substring(0, 60)}...'
-                      : m.text,
+                  m.text.length > 60 ? '${m.text.substring(0, 60)}...' : m.text,
                   style: TextStyle(
                       color: Colors.white.withOpacity(0.45),
                       fontSize: 11.5,
@@ -1840,32 +1905,48 @@ class _HistorySheetState extends State<_HistorySheet> {
   /// Auto-generate a conversation title from message text.
   String _autoTitle(String text) {
     final t = text.toLowerCase();
-    if (t.contains('pregnan') || t.contains('baby') || t.contains('trimest') ||
-        t.contains('bump') || t.contains('contraction'))
-      return 'Pregnancy 🤰';
-    if (t.contains('period') || t.contains('menstrual') || t.contains('cycle') ||
-        t.contains('cramp') || t.contains('bleed'))
-      return 'Period Talk 🩸';
-    if (t.contains('sleep') || t.contains('insomnia') || t.contains('tired') ||
-        t.contains('rest') || t.contains('awake'))
-      return 'Sleep Wellness 🌙';
-    if (t.contains('anxiet') || t.contains('stress') || t.contains('panic') ||
-        t.contains('worry') || t.contains('overwhelm'))
-      return 'Stress & Anxiety 🌬️';
-    if (t.contains('sad') || t.contains('depress') || t.contains('cry') ||
-        t.contains('feeling') || t.contains('emotion'))
-      return 'Emotional Check-in 💜';
-    if (t.contains('food') || t.contains('eat') || t.contains('nutrition') ||
-        t.contains('diet') || t.contains('water') || t.contains('hydrat'))
-      return 'Nutrition & Hydration 🥗';
+    if (t.contains('pregnan') ||
+        t.contains('baby') ||
+        t.contains('trimest') ||
+        t.contains('bump') ||
+        t.contains('contraction')) return 'Pregnancy 🤰';
+    if (t.contains('period') ||
+        t.contains('menstrual') ||
+        t.contains('cycle') ||
+        t.contains('cramp') ||
+        t.contains('bleed')) return 'Period Talk 🩸';
+    if (t.contains('sleep') ||
+        t.contains('insomnia') ||
+        t.contains('tired') ||
+        t.contains('rest') ||
+        t.contains('awake')) return 'Sleep Wellness 🌙';
+    if (t.contains('anxiet') ||
+        t.contains('stress') ||
+        t.contains('panic') ||
+        t.contains('worry') ||
+        t.contains('overwhelm')) return 'Stress & Anxiety 🌬️';
+    if (t.contains('sad') ||
+        t.contains('depress') ||
+        t.contains('cry') ||
+        t.contains('feeling') ||
+        t.contains('emotion')) return 'Emotional Check-in 💜';
+    if (t.contains('food') ||
+        t.contains('eat') ||
+        t.contains('nutrition') ||
+        t.contains('diet') ||
+        t.contains('water') ||
+        t.contains('hydrat')) return 'Nutrition & Hydration 🥗';
     if (t.contains('mood') || t.contains('happy') || t.contains('joy'))
       return 'Mood 😊';
-    if (t.contains('relation') || t.contains('partner') || t.contains('love') ||
-        t.contains('heartbreak') || t.contains('breakup'))
-      return 'Relationships 💞';
-    if (t.contains('meditation') || t.contains('breath') || t.contains('calm') ||
-        t.contains('mindful'))
-      return 'Mindfulness 🌿';
+    if (t.contains('relation') ||
+        t.contains('partner') ||
+        t.contains('love') ||
+        t.contains('heartbreak') ||
+        t.contains('breakup')) return 'Relationships 💞';
+    if (t.contains('meditation') ||
+        t.contains('breath') ||
+        t.contains('calm') ||
+        t.contains('mindful')) return 'Mindfulness 🌿';
     if (t.contains('pain') || t.contains('ache') || t.contains('hurt'))
       return 'Pain Support 💊';
     // Fallback: first meaningful words
@@ -1896,15 +1977,16 @@ class _SimpleListSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kSurf,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(
-            top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
+        border:
+            Border(top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
       ),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(2),
@@ -1922,16 +2004,15 @@ class _SimpleListSheet extends StatelessWidget {
                 onTap: () => onSelect(item.$2),
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     color: Colors.white.withOpacity(0.04),
                   ),
                   child: Row(
                     children: [
-                      Text(item.$1,
-                          style: const TextStyle(fontSize: 20)),
+                      Text(item.$1, style: const TextStyle(fontSize: 20)),
                       const SizedBox(width: 12),
                       Text(item.$2,
                           style: TextStyle(
@@ -1980,8 +2061,8 @@ class _SettingsSheetState extends State<_SettingsSheet> {
       decoration: BoxDecoration(
         color: _kSurf,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(
-            top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
+        border:
+            Border(top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
       ),
       child: SafeArea(
         child: Column(
@@ -1990,7 +2071,8 @@ class _SettingsSheetState extends State<_SettingsSheet> {
           children: [
             Center(
               child: Container(
-                width: 36, height: 4,
+                width: 36,
+                height: 4,
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(2),
@@ -2018,19 +2100,16 @@ class _SettingsSheetState extends State<_SettingsSheet> {
               cursorColor: _kPurple,
               decoration: InputDecoration(
                 hintText: widget.hasKey ? '●●●● (tap to update)' : 'sk-...',
-                hintStyle:
-                    TextStyle(color: Colors.white.withOpacity(0.28)),
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.28)),
                 filled: true,
                 fillColor: Colors.white.withOpacity(0.055),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide:
-                      BorderSide(color: Colors.white.withOpacity(0.1)),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide:
-                      BorderSide(color: Colors.white.withOpacity(0.1)),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -2103,15 +2182,16 @@ class _ThemeSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kSurf,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(
-            top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
+        border:
+            Border(top: BorderSide(color: _kPurple.withOpacity(0.2), width: 1)),
       ),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(2),
@@ -2127,9 +2207,8 @@ class _ThemeSheet extends StatelessWidget {
             Wrap(
               spacing: 12,
               runSpacing: 12,
-              children: _ChatTheme.values
-                  .map((t) => _card(t, t == active))
-                  .toList(),
+              children:
+                  _ChatTheme.values.map((t) => _card(t, t == active)).toList(),
             ),
           ],
         ),
@@ -2170,12 +2249,9 @@ class _ThemeSheet extends StatelessWidget {
               t.label,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: isActive
-                    ? Colors.white
-                    : Colors.white.withOpacity(0.55),
+                color: isActive ? Colors.white : Colors.white.withOpacity(0.55),
                 fontSize: 11,
-                fontWeight:
-                    isActive ? FontWeight.w700 : FontWeight.w400,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
               ),
             ),
           ],

@@ -391,13 +391,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _pageHeader(auth, lunarData),
-                        const SizedBox(height: 24),
-                        _profileCard(auth, appProvider, lunarData),
+                        _profileHero(auth, appProvider, lunarData),
                         const SizedBox(height: 14),
-                        _syncStatusBar(auth),
-                        const SizedBox(height: 16),
-                        _lunarAvatarCard(context, auth),
+                        _profileBadgesRow(lunarData),
                         const SizedBox(height: 28),
                         _sectionLabel('Wellness Stats', '✨'),
                         const SizedBox(height: 14),
@@ -462,6 +458,650 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   // ──────────────────────────────────────────────────────────
   //  PAGE HEADER
+  // ──────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+  //  PREMIUM PROFILE HERO  ← NEW
+  // ══════════════════════════════════════════════════════════
+  Widget _profileHero(LunarAuthProvider auth, AppProvider appProvider,
+      LunarDataProvider lunarData) {
+    final displayName = appProvider.userName.isNotEmpty
+        ? appProvider.userName
+        : auth.displayName;
+    final email = auth.firebaseUser?.email ?? '';
+    final networkPhotoUrl = auth.photoUrl;
+    final isPremium = auth.userModel?.isPremium ?? false;
+    final avatarProvider = context.watch<AvatarProvider>();
+    final av = avatarProvider.avatar;
+    final streak = StreakService.checkIn().current;
+    final cycleDay = lunarData.currentCycleDay;
+    final wellness = _wellnessScore(lunarData);
+
+    // Member-since string
+    final created = auth.firebaseUser?.metadata.creationTime;
+    final memberSince = created != null
+        ? '${_monthName(created.month)} ${created.year}'
+        : 'Lunar Member';
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([_glowAnim, _pulseAnim]),
+      builder: (_, __) => ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  _prPurple.withOpacity(0.28),
+                  _prPink.withOpacity(0.12),
+                  Colors.white.withOpacity(0.04),
+                ],
+              ),
+              border: Border.all(
+                  color: _prPurple.withOpacity(_glowAnim.value * 0.65 + 0.1),
+                  width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                    color: _prPurple.withOpacity(_glowAnim.value * 0.22),
+                    blurRadius: 36,
+                    spreadRadius: 4),
+              ],
+            ),
+            child: Column(
+              children: [
+                // ── Page title ────────────────────────────
+                Row(
+                  children: [
+                    const Text('My Profile',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.2)),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => _editName(auth, appProvider),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          color: _prPurple.withOpacity(0.15),
+                          border:
+                              Border.all(color: _prPurple.withOpacity(0.35)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.edit_outlined,
+                                color: _prPurple, size: 13),
+                            SizedBox(width: 5),
+                            Text('Edit',
+                                style: TextStyle(
+                                    color: _prPurple,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // ── Large avatar ──────────────────────────
+                GestureDetector(
+                  onTap: () => _showAvatarOptionsSheet(auth),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Outer glow ring
+                      Transform.scale(
+                        scale: 0.92 + _pulseAnim.value * 0.08,
+                        child: Container(
+                          width: 138,
+                          height: 138,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: _prPurple
+                                    .withOpacity(_glowAnim.value * 0.45),
+                                width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: _prPurple
+                                      .withOpacity(_glowAnim.value * 0.35),
+                                  blurRadius: 28,
+                                  spreadRadius: 6),
+                              BoxShadow(
+                                  color: _prPink
+                                      .withOpacity(_glowAnim.value * 0.15),
+                                  blurRadius: 40,
+                                  spreadRadius: 8),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Avatar circle
+                      Container(
+                        width: 118,
+                        height: 118,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFF160330),
+                          border: Border.all(
+                              color: _prPurple
+                                  .withOpacity(_glowAnim.value * 0.55 + 0.15),
+                              width: 2.5),
+                          image: _pickedImage != null
+                              ? DecorationImage(
+                                  image: FileImage(_pickedImage!),
+                                  fit: BoxFit.cover)
+                              : networkPhotoUrl != null
+                                  ? DecorationImage(
+                                      image: NetworkImage(networkPhotoUrl),
+                                      fit: BoxFit.cover)
+                                  : null,
+                        ),
+                        child: (_pickedImage == null && networkPhotoUrl == null)
+                            ? ClipOval(
+                                child: av != null
+                                    ? LunarAvatarWidget(
+                                        avatar: av,
+                                        size: 118,
+                                        animate: true,
+                                        showAura: false,
+                                      )
+                                    : const Center(
+                                        child: Text('🌸',
+                                            style: TextStyle(fontSize: 48))),
+                              )
+                            : null,
+                      ),
+                      // Upload spinner
+                      if (_uploading)
+                        Container(
+                          width: 118,
+                          height: 118,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black.withOpacity(0.45),
+                          ),
+                          child: const Center(
+                            child: SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2.5, color: _prPurple),
+                            ),
+                          ),
+                        ),
+                      // Camera edit badge
+                      if (!_uploading)
+                        Positioned(
+                          bottom: 6,
+                          right: 6,
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(colors: [
+                                _prPurple,
+                                Color(0xFF8B3FD9),
+                              ]),
+                              border: Border.all(
+                                  color: const Color(0xFF0A0118), width: 2.5),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: _prPurple.withOpacity(0.5),
+                                    blurRadius: 8,
+                                    spreadRadius: 1)
+                              ],
+                            ),
+                            child: const Icon(Icons.photo_camera_rounded,
+                                color: Colors.white, size: 15),
+                          ),
+                        ),
+                      // Online indicator
+                      Positioned(
+                        top: 12,
+                        right: 8,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _prGreen,
+                            border: Border.all(
+                                color: const Color(0xFF0A0118), width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: _prGreen.withOpacity(0.55),
+                                  blurRadius: 6,
+                                  spreadRadius: 1)
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Name ─────────────────────────────────
+                Text(displayName,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.2)),
+                const SizedBox(height: 4),
+
+                // ── Email / bio ───────────────────────────
+                if (email.isNotEmpty)
+                  Text(email,
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.45), fontSize: 13)),
+                const SizedBox(height: 10),
+
+                // ── Badges row ────────────────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Premium badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: auth.isGuest
+                            ? _prTeal.withOpacity(0.15)
+                            : isPremium
+                                ? _prGold.withOpacity(0.18)
+                                : Colors.white.withOpacity(0.07),
+                        border: Border.all(
+                            color: auth.isGuest
+                                ? _prTeal.withOpacity(0.4)
+                                : isPremium
+                                    ? _prGold.withOpacity(0.5)
+                                    : Colors.white.withOpacity(0.15)),
+                      ),
+                      child: Text(
+                        auth.isGuest
+                            ? '🌙 Guest'
+                            : isPremium
+                                ? '👑 Premium'
+                                : '🌙 Member',
+                        style: TextStyle(
+                            color: auth.isGuest
+                                ? _prTeal
+                                : isPremium
+                                    ? _prGold
+                                    : Colors.white.withOpacity(0.65),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Member since
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.white.withOpacity(0.05),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.1)),
+                      ),
+                      child: Text(
+                        '📅 Since $memberSince',
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.5),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // ── Stats row ─────────────────────────────
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    color: Colors.white.withOpacity(0.04),
+                    border: Border.all(color: Colors.white.withOpacity(0.07)),
+                  ),
+                  child: Row(
+                    children: [
+                      _heroStat('🔥', '$streak', 'Streak'),
+                      _statDivider(),
+                      _heroStat('🌸', 'Day $cycleDay', 'Bloom'),
+                      _statDivider(),
+                      _heroStat('✨', '$wellness%', 'Glow'),
+                      _statDivider(),
+                      _heroStat('👑', isPremium ? 'Pro' : 'Free', 'Plan'),
+                    ],
+                  ),
+                ),
+
+                // ── Avatar studio shortcut ────────────────
+                const SizedBox(height: 14),
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    PageRouteBuilder(
+                      pageBuilder: (_, __, ___) => const AvatarBuilderScreen(),
+                      transitionDuration: const Duration(milliseconds: 320),
+                      transitionsBuilder: (_, anim, __, child) =>
+                          FadeTransition(
+                        opacity: CurvedAnimation(
+                            parent: anim, curve: Curves.easeOut),
+                        child: child,
+                      ),
+                    ),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 11, horizontal: 18),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: LinearGradient(colors: [
+                        _prPurple.withOpacity(0.35),
+                        _prPink.withOpacity(0.2),
+                      ]),
+                      border: Border.all(color: _prPurple.withOpacity(0.45)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('🎭', style: TextStyle(fontSize: 16)),
+                        SizedBox(width: 8),
+                        Text('Open Lunar Avatar Studio',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700)),
+                        SizedBox(width: 6),
+                        Icon(Icons.arrow_forward_ios_rounded,
+                            color: Colors.white, size: 12),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _heroStat(String emoji, String value, String label) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 18)),
+          const SizedBox(height: 3),
+          Text(value,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800)),
+          Text(label,
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.4),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _statDivider() => Container(
+        width: 1,
+        height: 36,
+        color: Colors.white.withOpacity(0.08),
+      );
+
+  String _monthName(int m) {
+    const n = [
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return n[m];
+  }
+
+  // ── Avatar options sheet ───────────────────────────────────
+  void _showAvatarOptionsSheet(LunarAuthProvider auth) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+        decoration: BoxDecoration(
+          color: const Color(0xFF14022E),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(
+              top: BorderSide(color: _prPurple.withOpacity(0.25), width: 1)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(2),
+                  color: Colors.white.withOpacity(0.18),
+                ),
+              ),
+              const Text('Profile Photo',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700)),
+              const SizedBox(height: 20),
+              _avatarOption('📷', 'Camera', 'Take a new photo', () async {
+                Navigator.pop(context);
+                await _pickFromSource(auth, ImageSource.camera);
+              }),
+              _avatarOption('🖼️', 'Gallery', 'Choose from gallery', () async {
+                Navigator.pop(context);
+                await _pickFromSource(auth, ImageSource.gallery);
+              }),
+              _avatarOption(
+                  '🎭', 'Lunar Avatar Studio', 'Design your unique avatar', () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (_, __, ___) => const AvatarBuilderScreen(),
+                    transitionDuration: const Duration(milliseconds: 320),
+                    transitionsBuilder: (_, anim, __, child) => FadeTransition(
+                      opacity:
+                          CurvedAnimation(parent: anim, curve: Curves.easeOut),
+                      child: child,
+                    ),
+                  ),
+                );
+              }),
+              if (_pickedImage != null || auth.photoUrl != null)
+                _avatarOption('❌', 'Remove Photo', 'Use Lunar Avatar instead',
+                    () {
+                  Navigator.pop(context);
+                  setState(() => _pickedImage = null);
+                }, isDestructive: true),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _avatarOption(
+      String emoji, String title, String subtitle, VoidCallback onTap,
+      {bool isDestructive = false}) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: isDestructive
+              ? _prPink.withOpacity(0.07)
+              : Colors.white.withOpacity(0.04),
+          border: Border.all(
+              color: isDestructive
+                  ? _prPink.withOpacity(0.2)
+                  : Colors.white.withOpacity(0.07)),
+        ),
+        child: Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 22)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(
+                          color: isDestructive ? _prPink : Colors.white,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700)),
+                  Text(subtitle,
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.4), fontSize: 12)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                color: Colors.white.withOpacity(0.2), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickFromSource(
+      LunarAuthProvider auth, ImageSource source) async {
+    if (auth.isGuest) {
+      GuestGate.show(context, feature: 'set a profile photo');
+      return;
+    }
+    final picker = ImagePicker();
+    final xFile =
+        await picker.pickImage(source: source, imageQuality: 75, maxWidth: 800);
+    if (xFile == null) return;
+    final file = File(xFile.path);
+    setState(() {
+      _pickedImage = file;
+      _uploading = true;
+    });
+    try {
+      final uid = auth.firebaseUser?.uid;
+      if (uid != null) {
+        final ref =
+            FirebaseStorage.instance.ref().child('profile_images/$uid.jpg');
+        await ref.putFile(file);
+        final url = await ref.getDownloadURL();
+        await FirestoreService.updateUser(uid, {'photoUrl': url});
+      }
+    } catch (e) {
+      debugPrint('[Profile] Photo upload error: $e');
+    }
+    if (mounted) setState(() => _uploading = false);
+  }
+
+  // ── Achievement badges row ─────────────────────────────────
+  Widget _profileBadgesRow(LunarDataProvider lunarData) {
+    final streak = StreakService.checkIn().current;
+    final badges = <(String, String, Color)>[
+      ('🌙', 'Lunar Member', _prPurple),
+      if (streak >= 7) ('🔥', '7-Day Streak', _prWarm),
+      if (streak >= 30) ('🏆', '30-Day Streak', _prGold),
+      if (lunarData.moodEntries.length >= 10) ('💜', 'Mood Tracker', _prPink),
+      if (lunarData.journalEntries.isNotEmpty) ('📔', 'Journaler', _prTeal),
+      if (_wellnessScore(lunarData) >= 70) ('✨', 'Glow Master', _prGold),
+      ('🌸', 'Bloom Explorer', _prPink),
+    ];
+
+    if (badges.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Your Badges',
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.65),
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4)),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 74,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: badges.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) {
+              final b = badges[i];
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: b.$3.withOpacity(0.1),
+                  border: Border.all(color: b.$3.withOpacity(0.28)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(b.$1, style: const TextStyle(fontSize: 20)),
+                    const SizedBox(height: 3),
+                    Text(b.$2,
+                        style: TextStyle(
+                            color: b.$3.withOpacity(0.9),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────
+  //  (LEGACY) PAGE HEADER — kept for safety, not called
   // ──────────────────────────────────────────────────────────
   Widget _pageHeader(LunarAuthProvider auth, LunarDataProvider lunarData) {
     final status = _emotionalStatus(lunarData);
@@ -2412,7 +3052,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ──────────────────────────────────────────────────────────
   Widget _subscriptionCard() {
     final premium = context.watch<PremiumProvider>();
-    final isPaid  = premium.isPaid;
+    final isPaid = premium.isPaid;
     final Color planColor = premium.tier == PlanTier.premium
         ? const Color(0xFFFFD700)
         : premium.tier == PlanTier.plus
@@ -2443,8 +3083,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ],
                 ),
                 border: Border.all(
-                    color: planColor
-                        .withOpacity(_glowAnim.value * 0.55),
+                    color: planColor.withOpacity(_glowAnim.value * 0.55),
                     width: 1.2),
               ),
               child: Row(children: [
@@ -2454,9 +3093,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: planColor.withOpacity(0.15),
-                    border: Border.all(
-                        color: planColor.withOpacity(0.4),
-                        width: 1),
+                    border:
+                        Border.all(color: planColor.withOpacity(0.4), width: 1),
                   ),
                   child: Center(
                     child: Text(premium.planEmoji,
@@ -2468,26 +3106,26 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(premium.planName,
-                        style: TextStyle(
-                            color: planColor,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 3),
-                    Text(
-                      isPaid
-                          ? 'Your ${premium.planName} is active ✨'
-                          : 'Unlock your full emotional companion 💜',
-                      style: TextStyle(
-                          color: Colors.white.withOpacity(0.52),
-                          fontSize: 12),
-                    ),
-                  ]),
+                        Text(premium.planName,
+                            style: TextStyle(
+                                color: planColor,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 3),
+                        Text(
+                          isPaid
+                              ? 'Your ${premium.planName} is active ✨'
+                              : 'Unlock your full emotional companion 💜',
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.52),
+                              fontSize: 12),
+                        ),
+                      ]),
                 ),
                 if (!isPaid)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       gradient: LinearGradient(

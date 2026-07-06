@@ -567,7 +567,9 @@ class PregnancyScreen extends StatefulWidget {
 // ═══════════════════════════════════════════════════════════
 
 class _PregnancyState extends State<PregnancyScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   late AnimationController _glowCtrl,
       _floatCtrl,
       _pulseCtrl,
@@ -700,14 +702,15 @@ class _PregnancyState extends State<PregnancyScreen>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // required by AutomaticKeepAliveClientMixin
     final size = MediaQuery.of(context).size;
     final lunarData = context.watch<LunarDataProvider>();
     final auth = context.read<LunarAuthProvider>();
     // Keep local _week in sync when provider changes externally
     final providerWeek = lunarData.currentPregnancyWeek;
     if (_weekInitialized && providerWeek != _week && _week == 16) {
-      WidgetsBinding.instance.addPostFrameCallback(
-          (_) => setState(() => _week = providerWeek));
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => setState(() => _week = providerWeek));
     }
     final data = _PGrowthEngine.forWeek(_week);
     final tc = _PGrowthEngine.trimesterColor(_week);
@@ -849,20 +852,18 @@ class _PregnancyState extends State<PregnancyScreen>
               child: AnimatedBuilder(
                 animation: _glowAnim,
                 builder: (_, __) => Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 11, vertical: 7),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(30),
                     color: tc.withOpacity(0.10),
                     border: Border.all(
-                      color: tc.withOpacity(
-                          0.28 + _glowAnim.value * 0.22),
+                      color: tc.withOpacity(0.28 + _glowAnim.value * 0.22),
                       width: 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color:
-                            tc.withOpacity(_glowAnim.value * 0.18),
+                        color: tc.withOpacity(_glowAnim.value * 0.18),
                         blurRadius: 14,
                         spreadRadius: 1,
                       ),
@@ -888,16 +889,15 @@ class _PregnancyState extends State<PregnancyScreen>
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: tc.withOpacity(
-                                  0.40 + _glowAnim.value * 0.30),
+                              color:
+                                  tc.withOpacity(0.40 + _glowAnim.value * 0.30),
                               blurRadius: 10,
                               spreadRadius: 1,
                             ),
                           ],
                         ),
                         child: const Center(
-                            child: Text('🌙',
-                                style: TextStyle(fontSize: 11))),
+                            child: Text('🌙', style: TextStyle(fontSize: 11))),
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -1020,7 +1020,9 @@ class _PregnancyState extends State<PregnancyScreen>
       );
 
   // ── TRIMESTER TIMELINE ────────────────────────────────────
-  Widget _trimesterTimeline(LunarDataProvider lunarData, LunarAuthProvider auth) => _glassCard(
+  Widget _trimesterTimeline(
+          LunarDataProvider lunarData, LunarAuthProvider auth) =>
+      _glassCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             const Text('🗓️', style: TextStyle(fontSize: 18)),
@@ -1054,8 +1056,8 @@ class _PregnancyState extends State<PregnancyScreen>
                 setState(() => _week = v.round());
               },
               onChangeEnd: (v) {
-                lunarData.setPregnancyWeek(
-                    v.round(), uid: auth.firebaseUser?.uid);
+                lunarData.setPregnancyWeek(v.round(),
+                    uid: auth.firebaseUser?.uid);
               },
             ),
           ),
@@ -1237,8 +1239,7 @@ class _PregnancyState extends State<PregnancyScreen>
       );
 
   // ── KICK COUNTER CARD ─────────────────────────────────────
-  Widget _kickCounterCard(
-      LunarDataProvider lunarData, LunarAuthProvider auth) {
+  Widget _kickCounterCard(LunarDataProvider lunarData, LunarAuthProvider auth) {
     final kicks = lunarData.pregnancyKickCount;
     return AnimatedBuilder(
       animation: _glowAnim,
@@ -1283,8 +1284,7 @@ class _PregnancyState extends State<PregnancyScreen>
                 GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
-                    lunarData.resetPregnancyKicks(
-                        uid: auth.firebaseUser?.uid);
+                    lunarData.resetPregnancyKicks(uid: auth.firebaseUser?.uid);
                   },
                   child: Text('Reset',
                       style: TextStyle(
@@ -1374,7 +1374,8 @@ class _PregnancyState extends State<PregnancyScreen>
   }
 
   // ── WELLNESS GRID ─────────────────────────────────────────
-  Widget _wellnessGrid(LunarDataProvider lunarData, LunarAuthProvider auth) => Column(
+  Widget _wellnessGrid(LunarDataProvider lunarData, LunarAuthProvider auth) =>
+      Column(
         children: _wellness
             .map((w) => Padding(
                   padding: const EdgeInsets.only(bottom: 11),
@@ -1449,9 +1450,7 @@ class _PregnancyState extends State<PregnancyScreen>
             .toList(),
       );
 
-  void _showWellnessSheet(
-      _PWellnessItem item,
-      LunarDataProvider lunarData,
+  void _showWellnessSheet(_PWellnessItem item, LunarDataProvider lunarData,
       LunarAuthProvider auth) {
     HapticFeedback.lightImpact();
     showModalBottomSheet(
@@ -1487,8 +1486,7 @@ class _PregnancyState extends State<PregnancyScreen>
                 onTap: () {
                   HapticFeedback.lightImpact();
                   setState(() => item.selected = opt);
-                  lunarData.setPregWellness(
-                      item.label.toLowerCase(), opt,
+                  lunarData.setPregWellness(item.label.toLowerCase(), opt,
                       uid: auth.firebaseUser?.uid);
                   Navigator.pop(context);
                 },
@@ -1646,8 +1644,18 @@ class _PregnancyState extends State<PregnancyScreen>
                 try {
                   final d = DateTime.parse(dateStr);
                   const ms = [
-                    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+                    'Jan',
+                    'Feb',
+                    'Mar',
+                    'Apr',
+                    'May',
+                    'Jun',
+                    'Jul',
+                    'Aug',
+                    'Sep',
+                    'Oct',
+                    'Nov',
+                    'Dec'
                   ];
                   ds = '${ms[d.month - 1]} ${d.day}';
                 } catch (_) {}
